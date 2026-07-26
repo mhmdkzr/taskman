@@ -1,12 +1,12 @@
 ## Overview
 
-Backend is written in Go, following a vertical slice architecture, placed at `backend/`. For frontend we use sveltekit, following the "backend for frontend" pattern, placed at `frontend/`.
+Go backend (vertical slice architecture) and frontend are both at the project root. Go code lives under `cmd/`, `internal/`, `pkg/`, etc. Frontend is a plain Svelte (not SvelteKit) project at `frontend/`, built with Vite + Deno.
 
 ---
 
-## Auth
+## Embedding
 
-Frontend (sveltekit) handles auth via betterauth. betterauth skills are available at `frontend/`.
+The frontend static build output (`frontend/dist/`) is embedded in the Go binary at compile time via `dist.go` (`package app`; exports `app.FS embed.FS`). In development, run the Vite dev server separately with `make fe-dev`. In production, the Go binary serves the embedded assets.
 
 ## Vertical Slices
 
@@ -102,8 +102,8 @@ New slices must include a `README.md` file which explains what the slice is, wha
 
 ## Build and Validation
 
-- After making code changes, run the smallest sensible build/test/vet scope from the backend directory.
-- All Go code lives under `backend/`. Run Go commands with `-C backend` or from the `backend/` directory, e.g., `go vet -C backend ./...` or `cd backend && go vet ./...`.
+- After making code changes, run the smallest sensible build/test/vet scope.
+- All Go code lives under the project root. Run Go commands from the root, e.g., `go vet ./...`.
 - Use `go vet`, and try to build the code so we can catch any compile-time errors. Do not store build artifacts; send them to `/dev/null` when building binaries.
 - For doc-only changes, Go validation is not required.
 
@@ -156,7 +156,7 @@ All database access must be wrapped in private functions whose only job is to ta
   - `temporal`
   - `workflowcheck`
 - To see project structure, run `tree`.
-- All Go code lives under `backend/`. Run Go commands with `-C backend` or from the `backend/` directory.
+- All Go code lives under the project root. Run Go commands from the root, e.g., `go vet ./...`.
 - Do not modify `go.mod` file directly. Use `go` commands for it, e.g., use `go get` instead of adding dependencies manually.
 
 ---
@@ -188,4 +188,4 @@ All database access must be wrapped in private functions whose only job is to ta
 - Before asking to commit, ensure the changed code builds and relevant tests pass at the smallest sensible scope.
 - Do not commit generated files, temporary files, local-only config, or anything containing secrets.
 - When code changes require doc updates, include the relevant doc updates in the same commit when practical.
-- Run `gofmt -w ./backend`, `goimports -w ./backend` and check the code via `go vet -C backend ./...` before committing.
+- Run `gofmt -w .` and check the code via `go vet ./...` before committing.

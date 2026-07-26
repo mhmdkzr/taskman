@@ -1,12 +1,12 @@
 services:
   # backend:
   #   build:
-  #     context: ./backend
+  #     context: .
   #     dockerfile: Dockerfile
   #   ports:
   #     - 127.0.0.1:8080:8080
   #   env_file:
-  #     - backend/.env
+  #     - .env
   #   environment:
   #     SERVER_BIND_ADDR: ${SERVER_BIND_ADDR}
   #     POSTGRES_HOST: ${POSTGRES_HOST}
@@ -22,12 +22,12 @@ services:
 
   # frontend:
   #   build:
-  #     context: ./frontend
+  #     context: .
   #     dockerfile: Dockerfile
   #   ports:
-  #     - 127.0.0.1:5173:8000
+  #     - 127.0.0.1:5173:5173
   #   env_file:
-  #     - frontend/.env
+  #     - .env
   #   environment:
   #     DATABASE_URL: ${DATABASE_URL}
   #     BACKEND_URL: ${BACKEND_URL}

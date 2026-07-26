@@ -27,3 +27,6 @@ REVIEW_*.md
 TASKS.md
 DEVLOG.md
 TODO.md
+
+frontend/dist
+frontend/node_modules
