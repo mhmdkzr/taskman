@@ -1,0 +1,1 @@
+import{h as e,p as t}from"../chunks/C0a7Pvhc.js";import"../chunks/xihTtKlq.js";var n=e(`<h1>Playwright e2e test demo</h1>`);function r(e){t(e,n())}export{r as component};

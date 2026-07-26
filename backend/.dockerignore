@@ -1,0 +1,50 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+*_test.go
+**/*_test.go
+test/
+
+# Build artifacts
+dist/
+tmp/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Environment
+.env
+.env.*
+
+# Documentation
+*.md
+LICENSE
+
+# Docker
+Dockerfile*
+.dockerignore
+
+# CI/CD
+.github/
+
+# Misc
+*.log
+coverage.out
+
+# Agents
+.agents/
+.codex/
