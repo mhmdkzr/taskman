@@ -5,6 +5,9 @@ import adapter from '@deno/svelte-adapter';
 import { sveltekit } from '@sveltejs/kit/vite';
 
 export default defineConfig({
+	server: {
+		allowedHosts: ['dev.mhmd.xyz'],
+	},
 	plugins: [
 		tailwindcss(),
 		sveltekit({

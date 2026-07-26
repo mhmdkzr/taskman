@@ -4,6 +4,10 @@ Backend is written in Go, following a vertical slice architecture, placed at `ba
 
 ---
 
+## Auth
+
+Frontend (sveltekit) handles auth via betterauth. betterauth skills are available at `frontend/`.
+
 ## Vertical Slices
 
 Most product behavior is organized as vertical slices under `internal/<module>/<feature>/...`.
