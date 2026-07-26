@@ -8,11 +8,10 @@ RUN deno task build
 FROM golang:1.26.4-alpine@sha256:f1ddd9fe14fffc091dd98cb4bfa999f32c5fc77d2f2305ea9f0e2595c5437c14 AS builder
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
-COPY go.mod go.sum ./
-RUN go mod download
+COPY go.mod go.sum vendor ./
 COPY . .
 COPY --from=frontend-builder /app/dist frontend/dist
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/bin/app ./cmd/main/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -mod=vendor -o /app/bin/app ./cmd/main/main.go
 
 FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
 RUN apk add --no-cache ca-certificates wget

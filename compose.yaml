@@ -1,39 +1,25 @@
 services:
-  # backend:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
-  #   ports:
-  #     - 127.0.0.1:8080:8080
-  #   env_file:
-  #     - .env
-  #   environment:
-  #     SERVER_BIND_ADDR: ${SERVER_BIND_ADDR}
-  #     POSTGRES_HOST: ${POSTGRES_HOST}
-  #     NATS_URL: ${NATS_URL}
-  #     TEMPORAL_HOST: ${TEMPORAL_HOST}
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     nats:
-  #       condition: service_started
-  #     temporal:
-  #       condition: service_healthy
-
-  # frontend:
-  #   build:
-  #     context: .
-  #     dockerfile: Dockerfile
-  #   ports:
-  #     - 127.0.0.1:5173:5173
-  #   env_file:
-  #     - .env
-  #   environment:
-  #     DATABASE_URL: ${DATABASE_URL}
-  #     BACKEND_URL: ${BACKEND_URL}
-  #   depends_on:
-  #     backend:
-  #       condition: service_healthy
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - 127.0.0.1:8090:8080
+    env_file:
+      - .env
+    environment:
+      SERVER_BIND_ADDR: 0.0.0.0:8080
+      POSTGRES_HOST: postgres
+      NATS_URL: nats://nats:4222
+      TEMPORAL_HOST: temporal:7233
+      SKIP_ENV_AUTO_LOAD: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+      temporal:
+        condition: service_healthy
 
   postgres:
     image: postgres:18.4-trixie@sha256:29ee7bb30d804447dc9a91fd0d74322ae1dc3a4072cc6346f70a5ed6e783b565
@@ -96,46 +82,46 @@ services:
       retries: 60
       start_period: 10s
 
-  temporal-ui:
-    image: temporalio/ui:2.51.0@sha256:5c72329a014fb247ef66d051dd45b3a5c251d06f82709a852e364f0fd8b69a04
-    depends_on:
-      temporal:
-        condition: service_healthy
-    environment:
-      TEMPORAL_ADDRESS: temporal:7233
-    ports:
-      - 127.0.0.1:8000:8080
+  # temporal-ui:
+  #   image: temporalio/ui:2.51.0@sha256:5c72329a014fb247ef66d051dd45b3a5c251d06f82709a852e364f0fd8b69a04
+  #   depends_on:
+  #     temporal:
+  #       condition: service_healthy
+  #   environment:
+  #     TEMPORAL_ADDRESS: temporal:7233
+  #   ports:
+  #     - 127.0.0.1:8000:8080
 
-  node-exporter:
-    image: prom/node-exporter:v1.12.1@sha256:da83fae85603c4e47e6c68369a7d746e2dda683dc35ea2e234b4f171e0d92798
-    network_mode: host
-    command:
-      - --path.procfs=/host/proc
-      - --path.sysfs=/host/sys
-    volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
+  # node-exporter:
+  #   image: prom/node-exporter:v1.12.1@sha256:da83fae85603c4e47e6c68369a7d746e2dda683dc35ea2e234b4f171e0d92798
+  #   network_mode: host
+  #   command:
+  #     - --path.procfs=/host/proc
+  #     - --path.sysfs=/host/sys
+  #   volumes:
+  #     - /proc:/host/proc:ro
+  #     - /sys:/host/sys:ro
 
-  nats-exporter:
-    image: natsio/prometheus-nats-exporter:0.20.1@sha256:2a4c7a0656c29dacc11dc9f3584ca08a9bc08219eaa14b332abd6234e031e5f4
-    depends_on:
-      nats:
-        condition: service_started
-    command:
-      - -varz
-      - -connz
-      - -routez
-      - -subz
-      - http://nats:8222
-    ports:
-      - 127.0.0.1:7777:7777
+  # nats-exporter:
+  #   image: natsio/prometheus-nats-exporter:0.20.1@sha256:2a4c7a0656c29dacc11dc9f3584ca08a9bc08219eaa14b332abd6234e031e5f4
+  #   depends_on:
+  #     nats:
+  #       condition: service_started
+  #   command:
+  #     - -varz
+  #     - -connz
+  #     - -routez
+  #     - -subz
+  #     - http://nats:8222
+  #   ports:
+  #     - 127.0.0.1:7777:7777
 
-  postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:v0.20.1@sha256:4f3d82803c1f99ea5e767890de3557d2479ebbc711f63f2e04c663daa840057a
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      DATA_SOURCE_NAME: postgresql://postgres:postgres@postgres:5432/postgres?sslmode=disable
-    ports:
-      - 127.0.0.1:9187:9187
+  # postgres-exporter:
+  #   image: prometheuscommunity/postgres-exporter:v0.20.1@sha256:4f3d82803c1f99ea5e767890de3557d2479ebbc711f63f2e04c663daa840057a
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #   environment:
+  #     DATA_SOURCE_NAME: postgresql://postgres:postgres@postgres:5432/postgres?sslmode=disable
+  #   ports:
+  #     - 127.0.0.1:9187:9187
