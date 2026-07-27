@@ -7,12 +7,6 @@ services:
       - 127.0.0.1:8090:8080
     env_file:
       - .env
-    environment:
-      SERVER_BIND_ADDR: 0.0.0.0:8080
-      POSTGRES_HOST: postgres
-      NATS_URL: nats://nats:4222
-      TEMPORAL_HOST: temporal:7233
-      SKIP_ENV_AUTO_LOAD: "true"
     depends_on:
       postgres:
         condition: service_healthy
