@@ -2,6 +2,19 @@
 
 Go backend (vertical slice architecture) and frontend are both at the project root. Go code lives under `cmd/`, `internal/`, `pkg/`, etc. Frontend is a plain Svelte (not SvelteKit) project at `frontend/`, built with Vite + Deno.
 
+## Frontend UI Libraries
+
+- **Svelte 5** — component framework
+- **Tailwind CSS v4** — utility-first CSS
+- **shadcn-svelte** — component library / registry (Rhea style), configured in `frontend/components.json`
+- **Phosphor Icons** — icon library (via `phosphor-svelte`)
+- **Lucide Icons** — icon library (via `@lucide/svelte`)
+- **Geist** — font (via `@fontsource-variable/geist`)
+- **Source Sans 3** — font (via `@fontsource-variable/source-sans-3`)
+- **tailwind-merge** + **clsx** — class merging utilities
+- **tailwind-variants** — component variants
+- **tw-animate-css** — animation utilities
+
 ---
 
 ## Embedding
