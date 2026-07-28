@@ -1,3 +1,4 @@
+// Package register aggregates frontend route registration.
 package register
 
 import (

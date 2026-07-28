@@ -1,3 +1,4 @@
+// Package register aggregates health route registration.
 package register
 
 import (

@@ -1,3 +1,4 @@
+// Package app contains the embedded frontend dist and common app-level types.
 package app
 
 import "embed"

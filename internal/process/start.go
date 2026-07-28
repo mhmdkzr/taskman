@@ -12,7 +12,6 @@ import (
 	"go.temporal.io/sdk/worker"
 
 	"github.com/mhmdkzr/app/internal/app"
-	"github.com/mhmdkzr/app/internal/auth"
 	"github.com/mhmdkzr/app/internal/config"
 	"github.com/mhmdkzr/app/internal/register"
 	"github.com/mhmdkzr/app/migrations"
@@ -129,7 +128,6 @@ func Start(ctx context.Context) error {
 		Handler: middleware.Chain(a.Mux,
 			timeout.New(cfg.Server.Timeout),
 			clientip.New(),
-			auth.New(),
 			auditlog.NewWithRedactor(a.Deps.JS, auditlog.AuditEvent),
 			logging.New(),
 		),

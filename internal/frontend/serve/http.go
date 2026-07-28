@@ -1,3 +1,4 @@
+// Package serve provides the frontend static file handler.
 package serve
 
 import (

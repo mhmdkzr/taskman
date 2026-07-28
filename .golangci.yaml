@@ -13,7 +13,7 @@ formatters:
       sections:
         - standard
         - default
-        - prefix(gitlab.exonyx.org/custody)
+        - prefix(github.com/mhmdkzr/app)
     golines:
       max-len: 120
 
