@@ -14,7 +14,7 @@ FRONTEND := frontend
 .PHONY: fe-dev fe-build fe-preview fe-check fe-lint fe-format fe-test fe-test-unit fe-test-e2e
 .PHONY: fe-db-push fe-db-generate fe-db-migrate fe-db-studio fe-auth-schema
 
-lint: golangci-lint workflowcheck test fe-lint
+lint: vet golangci-lint workflowcheck staticcheck govulncheck test fe-lint
 
 # ── Backend ──────────────────────────────────────────────────────────────────
 
@@ -23,7 +23,7 @@ golangci-lint:
 
 workflowcheck:
 	@if command -v "$(WORKFLOWCHECK)" >/dev/null 2>&1; then \
-		$(GO) run "go.temporal.io/sdk/contrib/tools/workflowcheck" ./...; \
+		"$(WORKFLOWCHECK)" ./...; \
 	fi
 
 tools:
@@ -36,14 +36,15 @@ tools:
 		echo "missing required tool: $(GOVULNCHECK)"; \
 		exit 1; \
 	fi
-
-fmt:
-	@unformatted="$$(gofmt -l .)"; \
-	if [ -n "$$unformatted" ]; then \
-		echo "gofmt found unformatted files:"; \
-		echo "$$unformatted"; \
+	@if [ ! -x "$(WORKFLOWCHECK)" ]; then \
+		echo "missing required tool: $(WORKFLOWCHECK)"; \
+		echo "install with: go install go.temporal.io/sdk/contrib/tools/workflowcheck@latest"; \
 		exit 1; \
 	fi
+
+fmt:
+	@gofmt -w .
+	@goimports -w .
 
 vet:
 	@$(GO) vet ./...
