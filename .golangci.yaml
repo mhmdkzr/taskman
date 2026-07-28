@@ -13,16 +13,19 @@ formatters:
       sections:
         - standard
         - default
+        - prefix(gitlab.exonyx.org/custody)
     golines:
       max-len: 120
 
 linters:
   enable:
+    - arangolint
     - asasalint
     - asciicheck
     - bidichk
     - bodyclose
     - canonicalheader
+    - clickhouselint
     - containedctx
     - contextcheck
     - copyloopvar
@@ -33,6 +36,7 @@ linters:
     - dupl
     - dupword
     - durationcheck
+    - embeddedstructfieldcheck
     - errcheck
     - errchkjson
     - errname
@@ -44,6 +48,7 @@ linters:
     - forcetypeassert
     - funcorder
     - funlen
+    - ginkgolinter
     - gocheckcompilerdirectives
     - gochecknoinits
     - gochecksumtype
@@ -69,7 +74,6 @@ linters:
     - maintidx
     - makezero
     - mirror
-    - misspell
     - modernize
     - musttag
     - nakedret
@@ -82,6 +86,7 @@ linters:
     - nonamedreturns
     - nosprintfhostport
     - prealloc
+    - promlinter
     - protogetter
     - reassign
     - recvcheck
@@ -98,6 +103,7 @@ linters:
     - thelper
     - unconvert
     - unparam
+    - unqueryvet
     - unused
     - usestdlibvars
     - usetesting
@@ -158,8 +164,6 @@ linters:
       tab-width: 1
     maintidx:
       under: 19
-    misspell:
-      locale: US
     nakedret:
       max-func-lines: 30
     nestif:
@@ -234,7 +238,6 @@ linters:
         - suite-method-signature
         - suite-subtest-run
         - suite-thelper
-        - suite-usable-assert
         - useless-assert
     unconvert: {}
     unparam:
@@ -267,6 +270,9 @@ linters:
     generated: lax
     rules:
       - linters:
+          - canonicalheader
+        text: "TRON-PRO-API-KEY"
+      - linters:
           - wrapcheck
         text: "go.temporal.io/sdk/temporal.NewNonRetryableApplicationError"
       - linters:
@@ -275,6 +281,9 @@ linters:
       - linters:
           - wrapcheck
         text: "go.temporal.io/sdk/internal.Future"
+      - linters:
+          - wrapcheck
+        text: "gitlab.exonyx.org/custody/keyman/pkg/client.Service"
       - path: _test\.go
         linters:
           - bodyclose
@@ -304,5 +313,4 @@ linters:
     paths:
       - "migrations/"
       - "bin/"
-      - "third_party/"
       - "vendor/"
