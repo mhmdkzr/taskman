@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	approot "github.com/mhmdkzr/app"
+	"github.com/mhmdkzr/app/frontend"
 	"github.com/mhmdkzr/app/internal/app"
 )
 
@@ -16,7 +16,7 @@ type Handler struct {
 }
 
 func NewHandler() *Handler {
-	sub, err := fs.Sub(approot.FS, "frontend/dist")
+	sub, err := fs.Sub(frontend.FS, "dist")
 	if err != nil {
 		panic("embedded frontend not found: " + err.Error())
 	}
