@@ -2,7 +2,7 @@ package migrations
 
 import "embed"
 
-//go:embed core/*.sql
+//go:embed *.sql
 var migrationsFS embed.FS
 
 // GetMigrationsFS returns the embedded filesystem for SQL migrations.

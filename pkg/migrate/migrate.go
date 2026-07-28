@@ -23,7 +23,7 @@ func Migrate(ctx context.Context, db *sql.DB, migrationsFS embed.FS) (err error)
 		return fmt.Errorf("failed to create postgres driver: %w", err)
 	}
 
-	sourceDriver, err := iofs.New(migrationsFS, "core")
+	sourceDriver, err := iofs.New(migrationsFS, ".")
 	if err != nil {
 		return fmt.Errorf("failed to create iofs source driver: %w", err)
 	}

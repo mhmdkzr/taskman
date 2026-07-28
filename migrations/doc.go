@@ -1,2 +1,2 @@
-// Package migrations embeds SQL migration files for the core database schema.
+// Package migrations embeds SQL migration files for the database schema.
 package migrations

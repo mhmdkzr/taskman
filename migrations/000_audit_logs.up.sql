@@ -1,4 +1,4 @@
-CREATE TABLE core.audit_logs (
+CREATE TABLE audit_logs (
     request_id text NOT NULL,
     "timestamp" timestamp with time zone NOT NULL,
     duration_ns bigint NOT NULL,
@@ -20,7 +20,7 @@ CREATE TABLE core.audit_logs (
     CONSTRAINT audit_logs_pkey PRIMARY KEY (request_id)
 );
 
-CREATE INDEX idx_audit_logs_request_method ON core.audit_logs USING btree (request_method);
-CREATE INDEX idx_audit_logs_request_path ON core.audit_logs USING btree (request_path);
-CREATE INDEX idx_audit_logs_response_status_code ON core.audit_logs USING btree (response_status_code);
-CREATE INDEX idx_audit_logs_timestamp ON core.audit_logs USING btree ("timestamp" DESC);
+CREATE INDEX idx_audit_logs_request_method ON audit_logs USING btree (request_method);
+CREATE INDEX idx_audit_logs_request_path ON audit_logs USING btree (request_path);
+CREATE INDEX idx_audit_logs_response_status_code ON audit_logs USING btree (response_status_code);
+CREATE INDEX idx_audit_logs_timestamp ON audit_logs USING btree ("timestamp" DESC);

@@ -11,7 +11,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 )
 
-//go:embed core/*.sql
+//go:embed 001_create.up.sql
 var testMigrations embed.FS
 
 func TestMigrate_AppliesMigrations(t *testing.T) {
@@ -32,7 +32,7 @@ func TestMigrate_AppliesMigrations(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 
 	var count int
-	if err := db.QueryRow(`SELECT count(*) FROM core.migrate_test`).Scan(&count); err != nil {
+	if err := db.QueryRow(`SELECT count(*) FROM migrate_test`).Scan(&count); err != nil {
 		t.Fatalf("query migrated table: %v", err)
 	}
 	if count != 0 {
@@ -77,9 +77,7 @@ func setupPostgres(t *testing.T) (*sql.DB, string, func()) {
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
-	if _, err := db.Exec(`CREATE SCHEMA IF NOT EXISTS core`); err != nil {
-		t.Fatalf("create core schema: %v", err)
-	}
+
 	if err := db.Ping(); err != nil {
 		t.Fatalf("ping db: %v", err)
 	}

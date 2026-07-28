@@ -1,6 +1,6 @@
 # `migrate`
 
-One-shot command for applying the PostgreSQL schema migrations from the embedded SQL files under `migrations/core`.
+One-shot command for applying the PostgreSQL schema migrations from the embedded SQL files under `migrations`.
 
 ## Behavior
 

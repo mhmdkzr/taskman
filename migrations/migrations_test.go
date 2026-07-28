@@ -29,8 +29,8 @@ func TestMigrationsApply(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 
 	for _, table := range []string{"audit_logs"} {
-		if !relationExists(t, db, "core", table) {
-			t.Fatalf("expected core.%s to exist", table)
+		if !relationExists(t, db, "public", table) {
+			t.Fatalf("expected %s to exist in public schema", table)
 		}
 	}
 }
