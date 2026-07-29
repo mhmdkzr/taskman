@@ -86,34 +86,4 @@ func relationExists(t *testing.T, db *sql.DB, schema, relation string) bool {
 	return exists
 }
 
-func columnExists(t *testing.T, db *sql.DB, schema, table, column string) bool {
-	t.Helper()
 
-	var exists bool
-	if err := db.QueryRowContext(t.Context(), `
-		SELECT EXISTS (
-			SELECT 1
-			FROM information_schema.columns
-			WHERE table_schema = $1 AND table_name = $2 AND column_name = $3
-		)`, schema, table, column).Scan(&exists); err != nil {
-		t.Fatalf("query column existence: %v", err)
-	}
-	return exists
-}
-
-func enumLabelExists(t *testing.T, db *sql.DB, schema, enumName, label string) bool {
-	t.Helper()
-
-	var exists bool
-	if err := db.QueryRowContext(t.Context(), `
-		SELECT EXISTS (
-			SELECT 1
-			FROM pg_enum e
-			JOIN pg_type t ON t.oid = e.enumtypid
-			JOIN pg_namespace n ON n.oid = t.typnamespace
-			WHERE n.nspname = $1 AND t.typname = $2 AND e.enumlabel = $3
-		)`, schema, enumName, label).Scan(&exists); err != nil {
-		t.Fatalf("query enum label existence: %v", err)
-	}
-	return exists
-}
