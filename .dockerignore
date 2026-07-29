@@ -28,6 +28,7 @@ tmp/
 
 # Environment
 .env
+*.env
 .env.*
 
 # Documentation

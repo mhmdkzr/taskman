@@ -281,9 +281,6 @@ linters:
       - linters:
           - wrapcheck
         text: "go.temporal.io/sdk/internal.Future"
-      - linters:
-          - wrapcheck
-        text: "gitlab.exonyx.org/custody/keyman/pkg/client.Service"
       - path: _test\.go
         linters:
           - bodyclose
