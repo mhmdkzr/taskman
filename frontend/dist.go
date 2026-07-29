@@ -1,4 +1,4 @@
-// Package app contains the embedded frontend dist and common app-level types.
+// Package frontend embeds the frontend dist directory.
 package frontend
 
 import "embed"
