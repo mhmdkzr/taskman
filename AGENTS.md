@@ -60,7 +60,7 @@ Registration usually follows a three-layer delegation pattern:
 
 - Each module that publishes events owns a `streams.go` file with a `CreateStreams(ctx, js)` function that calls `js.CreateOrUpdateStream`. Streams use `Duplicates: 24 * time.Hour` for deduplication.
 - Subject names follow a dot-separated hierarchical convention.
-- Event types implement `MsgID() string` for idempotent publishing via the generic `app.Produce[Event interface{ MsgID() string }](ctx, js, subject, event)` helper.
+- Event types implement `MsgID() string` for idempotent publishing via the generic `msg.Produce[Event interface{ MsgID() string }](ctx, js, subject, event)` helper.
 - Consumption uses `jetstream.Consumer` directly via `js.CreateOrUpdateConsumer` and `consumer.Consume` with manual NAK/ACK handling.
 
 ## Pagination

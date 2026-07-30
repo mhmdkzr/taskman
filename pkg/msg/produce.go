@@ -1,4 +1,4 @@
-package app
+package msg
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-// Produce publishes an event to the given JetStream subject with idempotent deduplication via MsgID().
 func Produce[Event interface{ MsgID() string }](
 	ctx context.Context,
 	js jetstream.JetStream,
