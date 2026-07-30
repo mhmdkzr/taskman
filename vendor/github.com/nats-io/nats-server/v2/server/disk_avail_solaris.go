@@ -16,8 +16,9 @@
 package server
 
 import (
-	"golang.org/x/sys/unix"
 	"os"
+
+	"golang.org/x/sys/unix"
 )
 
 func diskAvailable(storeDir string) int64 {

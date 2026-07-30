@@ -85,5 +85,3 @@ func relationExists(t *testing.T, db *sql.DB, schema, relation string) bool {
 	}
 	return exists
 }
-
-
