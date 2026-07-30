@@ -7,7 +7,7 @@ services:
       - 127.0.0.1:8090:8080
     env_file:
       - .env
-      - compose.env
+      - .env.compose
     depends_on:
       postgres:
         condition: service_healthy
@@ -20,7 +20,7 @@ services:
     image: postgres:18.4-trixie@sha256:29ee7bb30d804447dc9a91fd0d74322ae1dc3a4072cc6346f70a5ed6e783b565
     env_file:
       - .env
-      - compose.env
+      - .env.compose
     ports:
       - 127.0.0.1:5432:5432
     healthcheck:
@@ -48,7 +48,7 @@ services:
     image: temporalio/auto-setup:1.29.7@sha256:f14912b699cf73015ad5c4fc18d522d4b014db90e794039214dfb7c022c2644f
     env_file:
       - .env
-      - compose.env
+      - .env.compose
     depends_on:
       temporal-postgresql:
         condition: service_healthy
@@ -67,7 +67,7 @@ services:
     image: postgres:18.4-trixie@sha256:29ee7bb30d804447dc9a91fd0d74322ae1dc3a4072cc6346f70a5ed6e783b565
     env_file:
       - .env
-      - compose.env
+      - .env.compose
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
       interval: 5s
