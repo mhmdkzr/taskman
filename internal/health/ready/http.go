@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/mhmdkzr/app/internal/app"
+	"github.com/mhmdkzr/app/pkg/resp"
 )
 
 // Handler serves the readiness check endpoint.
@@ -26,10 +27,10 @@ func (h Handler) Route() app.Route {
 }
 
 func (h Handler) handle(w http.ResponseWriter, r *http.Request) {
-	resp := readiness(r.Context(), h.app)
+	readyResp := readiness(r.Context(), h.app)
 	status := http.StatusOK
-	if resp.Status != "ok" {
+	if readyResp.Status != "ok" {
 		status = http.StatusServiceUnavailable
 	}
-	app.WriteJSON(w, status, resp)
+	resp.WriteJSON(w, status, readyResp)
 }

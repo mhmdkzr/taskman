@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/mhmdkzr/app/internal/config"
+	"github.com/mhmdkzr/app/pkg/resp"
 )
 
 func TestJoinBasePath(t *testing.T) {
@@ -85,7 +86,7 @@ func TestHandle(t *testing.T) {
 
 func TestWriteJSONAndError(t *testing.T) {
 	rr := httptest.NewRecorder()
-	WriteJSON(rr, http.StatusCreated, map[string]string{"status": "ok"})
+	resp.WriteJSON(rr, http.StatusCreated, map[string]string{"status": "ok"})
 
 	if rr.Code != http.StatusCreated {
 		t.Fatalf("status mismatch: got=%d want=%d", rr.Code, http.StatusCreated)
@@ -103,7 +104,7 @@ func TestWriteJSONAndError(t *testing.T) {
 	}
 
 	rr = httptest.NewRecorder()
-	WriteHTTPError(rr, http.StatusBadRequest, errors.New("boom"))
+	resp.WriteHTTPError(rr, http.StatusBadRequest, errors.New("boom"))
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("status mismatch: got=%d want=%d", rr.Code, http.StatusBadRequest)
 	}
@@ -114,7 +115,7 @@ func TestWriteJSONAndError(t *testing.T) {
 
 func TestWriteJSON_EncodeError(t *testing.T) {
 	rr := httptest.NewRecorder()
-	WriteJSON(rr, http.StatusOK, map[string]chan int{"bad": make(chan int)})
+	resp.WriteJSON(rr, http.StatusOK, map[string]chan int{"bad": make(chan int)})
 
 	if rr.Code != http.StatusInternalServerError {
 		t.Fatalf("status mismatch: got=%d want=%d", rr.Code, http.StatusInternalServerError)

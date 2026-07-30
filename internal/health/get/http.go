@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/mhmdkzr/app/internal/app"
+	"github.com/mhmdkzr/app/pkg/resp"
 )
 
 // Handler serves the health check endpoint.
@@ -24,6 +25,6 @@ func (h Handler) Route() app.Route {
 
 // handle writes the health status response.
 func (h Handler) handle(w http.ResponseWriter, r *http.Request) {
-	resp := get()
-	app.WriteJSON(w, http.StatusOK, resp)
+	healthResp := get()
+	resp.WriteJSON(w, http.StatusOK, healthResp)
 }
