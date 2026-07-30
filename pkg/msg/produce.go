@@ -1,3 +1,4 @@
+// Package msg provides helpers for publishing JetStream messages.
 package msg
 
 import (

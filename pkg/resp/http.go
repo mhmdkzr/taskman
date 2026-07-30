@@ -1,3 +1,4 @@
+// Package resp provides helpers for writing HTTP responses.
 package resp
 
 import (
