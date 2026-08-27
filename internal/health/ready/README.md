@@ -60,7 +60,7 @@ A failing check includes an `error` field:
 ## Example
 
 ```bash
-curl -sS http://127.0.0.1:8080/ready
+curl -sS http://127.0.0.1:8090/ready   # via Caddy; direct app is :8080
 ```
 
 ```json

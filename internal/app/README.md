@@ -1,17 +1,19 @@
 # `app`
 
-Application — the shared runtime context that every slice depends on. Provides the central `App` struct and NATS/JetStream abstractions. Configuration lives in `internal/config`.
+Application — the shared runtime context that every slice depends on. Provides the central `App` struct and the default Temporal task queue. Configuration lives in `internal/config`.
 
-HTTP response helpers formerly here have been extracted to `pkg/resp` (`resp.WriteJSON`, `resp.WriteHTTPError`).
+HTTP response helpers formerly here have been extracted to `pkg/jsonresp` (`jsonresp.WriteJSON`, `jsonresp.WriteHTTPError`). JetStream publishing is now in `pkg/produce` (`produce.Produce` with `MsgID`-based deduplication).
 
 ## Types
 
 | Type | Description |
 |---|---|
 | `App` | Central runtime context — holds DB (`*sql.DB`), NATS `*nats.Conn`, JetStream `jetstream.JetStream`, Temporal client, and config (`config.Config`) |
-| `Route` | HTTP route descriptor — method, path, handler function. Registered with base-path prefixing |
-## NATS / JetStream
+| `Deps` | Shared runtime dependencies (`DB`, `NC`, `JS`, `Temporal`) |
+| `Route` | HTTP route descriptor — method, path, handler function (see `internal/routes`). Registered with base-path prefixing via `App.Cfg.Server.BasePath` |
 
-| Function | Description |
+## Constants
+
+| Constant | Description |
 |---|---|
-| `Produce(ctx, js, subject, event)` | Publish a typed event to JetStream with `MsgID`-based deduplication |
+| `TemporalTaskQueue` | Default Temporal task queue name (`"app"`) |

@@ -4,9 +4,9 @@ Generic Go application starter. Provides a production-ready foundation with Post
 
 ## Architecture
 
-Inbound requests flow through the REST API. Internal logic is organized as
-vertical slices under `internal/`, each owning its HTTP handlers, domain types,
-persistence, and Temporal workflows/activities.
+Inbound requests hit Caddy (`:8090` → `app:8080`) and flow through the REST API.
+Internal logic is organized as vertical slices under `internal/`, each owning
+its HTTP handlers, domain types, persistence, and Temporal workflows/activities.
 
 ## Quick Start
 
@@ -28,26 +28,31 @@ go run ./cmd/main
 
 ## Project Layout
 
-| Path             | Purpose                                         |
-|------------------|--------------------------------------------------|
-| `cmd/`           | Entry points (server, CLI, migrations)           |
-| `internal/`      | Domain logic grouped by module and slice         |
-| `pkg/`           | Shared libraries (DB, NATS, pagination, logging) |
-| `migrations/`    | Database schema migrations                       |
-| `config/`        | Infrastructure configuration (NATS, Temporal)    |
-| `frontend/`      | Svelte 5 frontend (Vite + Deno)                  |
+| Path             | Purpose                                              |
+|------------------|------------------------------------------------------|
+| `cmd/`           | Entry points (server, CLI, migrations)               |
+| `internal/`      | Domain logic grouped by module and slice             |
+| `pkg/`           | Shared libraries (DB, NATS, pagination, logging)     |
+| `migrations/`    | Database schema migrations (via `pkg/migrate`)       |
+| `config/`        | Infrastructure configuration (Caddy, NATS, Temporal) |
+| `frontend/`      | Svelte 5 frontend (Vite + Deno)                      |
 
 ## Available Commands
 
 ```bash
-make lint       # fmt + vet + staticcheck + govulncheck + test
-make test       # run all tests
-make fe-dev     # run Vite dev server
+make lint          # vet + workflowcheck + staticcheck + golangci-lint + govulncheck
+make fmt           # gofmt + goimports + mdjsonfmt
+make test          # unit tests (go test ./...)
+make test-db       # DB tests (RUN_DB_TESTS=1, -run ^TestDB)
+make test-e2e      # e2e tests (RUN_E2E_TESTS=1)
+make fe-dev        # Vite dev server (Deno)
+make fe-build      # Vite production build
 ```
 
 ## Dependencies
 
-- Go 1.26+
+- Go 1.27+
+- Caddy 2.11 (reverse proxy, `127.0.0.1:8090` → `app:8080`)
 - PostgreSQL 18
 - NATS 2.14 with JetStream
 - Temporal 1.29
@@ -57,23 +62,27 @@ make fe-dev     # run Vite dev server
 
 ## Stack — Infrastructure Services
 
-All images in `compose.yaml` are pinned to `tag@sha256:digest`. Run `docker compose config` to validate.
+Run `docker compose config` to validate `compose.yaml`.
 
 | Service | Image | Ports (host→container) | Purpose |
 |---------|-------|------------------------|---------|
-| `postgres` | `postgres:18.4-trixie@sha256:29ee7bb30d804447dc9a91fd0d74322ae1dc3a4072cc6346f70a5ed6e783b565` | `127.0.0.1:5432:5432` | Primary DB |
-| `temporal-postgresql` | `postgres:18.4-trixie@sha256:29ee7bb30d804447dc9a91fd0d74322ae1dc3a4072cc6346f70a5ed6e783b565` | — | Temporal DB |
-| `nats` | `nats:2.14.2-alpine3.22@sha256:b039b46715673a9436989cfc49dde04e6bd57e205347478a58214789baf5efdc` | `127.0.0.1:4222:4222` | JetStream |
-| `temporal` | `temporalio/auto-setup:1.29.7@sha256:f14912b699cf73015ad5c4fc18d522d4b014db90e794039214dfb7c022c2644f` | `127.0.0.1:7233:7233` | Workflows |
-| `zitadel` | `ghcr.io/zitadel/zitadel:v4.17.1@sha256:3ac6910685d48f32481f01f45e3e6215efe5a9df2c069591b481e9a101712db5` | `127.0.0.1:8080:8080` | IAM/OIDC |
-| `zitadel-login` | `ghcr.io/zitadel/zitadel-login:v4.17.1@sha256:8035df2409afb35a3999482ee98e453261715f98d47e4b62e948e4a1ddf4345f` | `127.0.0.1:3001:3000` | Login UI (Next.js) |
-| `tigerbeetle` | `ghcr.io/tigerbeetle/tigerbeetle:0.17.9@sha256:48f623f9c1e9b6cc44d77ca93634595ae99cce3246ded418763eb1a62eee45e9` | `127.0.0.1:3000:3000` | Ledger DB |
-| `tigerbeetle-init` | `ghcr.io/tigerbeetle/tigerbeetle:0.17.9@sha256:48f623f9c1e9b6cc44d77ca93634595ae99cce3246ded418763eb1a62eee45e9` | — (profile `init`) | One-off format `0_0.tigerbeetle` |
-| `mailhog` | `mailhog/mailhog:v1.0.1@sha256:8d76a3d4ffa32a3661311944007a415332c4bb855657f4f6c57996405c009bea` | `127.0.0.1:1025:1025` / `127.0.0.1:8025:8025` | SMTP catch-all |
+| `caddy` | `caddy:2.11.4` | `127.0.0.1:8090:80` | Reverse proxy → `app:8080` (`/health`, gzip, stdout logs) |
+| `app` | `golang:1.27.0-alpine` (multi-stage, `frontend/dist` embedded) | — (`expose 8080` only) | Go API + embedded Svelte frontend; healthcheck `GET /health` |
+| `postgres` | `postgres:18.4-trixie` | `127.0.0.1:5432:5432` | Primary DB |
+| `temporal-postgresql` | `postgres:18.4-trixie` | — | Temporal DB |
+| `nats` | `nats:2.14.2-alpine3.22` | `127.0.0.1:4222:4222` | JetStream |
+| `temporal` | `temporalio/auto-setup:1.29.7` | `127.0.0.1:7233:7233` | Workflows |
+| `zitadel` | `ghcr.io/zitadel/zitadel:v4.17.1` | `127.0.0.1:8080:8080` | IAM/OIDC |
+| `zitadel-login` | `ghcr.io/zitadel/zitadel-login:v4.17.1` | `127.0.0.1:3001:3000` | Login UI (Next.js) |
+| `tigerbeetle` | `ghcr.io/tigerbeetle/tigerbeetle:0.17.9` | `127.0.0.1:3000:3000` | Ledger DB |
+| `tigerbeetle-init` | `ghcr.io/tigerbeetle/tigerbeetle:0.17.9` | — (profile `init`) | One-off format `0_0.tigerbeetle` |
+| `mailhog` | `mailhog/mailhog:v1.0.1` | `127.0.0.1:1025:1025` / `127.0.0.1:8025:8025` | SMTP catch-all |
 
-Volumes: `zitadel-bootstrap` (shared PAT between zitadel and zitadel-login), `tigerbeetle-data` (ledger).
+Public entry is `http://localhost:8090` (Caddy). `app` is not published directly; Caddy waits for `app` healthy (`wget /health`) and Caddy itself exposes `/health` for host checks. Config at `config/caddy/Caddyfile`.
 
-TigerBeetle requires `seccomp=unconfined` + `IPC_LOCK` and `--cache-grid`. See `compose.yaml:143`.
+Volumes: `zitadel-bootstrap` (shared PAT between zitadel and zitadel-login), `tigerbeetle-data` (ledger), `caddy-data` / `caddy-config` (Caddy persistence).
+
+TigerBeetle requires `seccomp=unconfined` + `IPC_LOCK` and `--cache-grid`. See `compose.yaml:168`.
 
 Zitadel bootstrap: `MasterkeyNeedsToHave32Characters` (dev only), `ZITADEL_EXTERNALDOMAIN=localhost`, DB `postgres` via `postgres:5432`. Console at `http://localhost:8080/ui/console`, Login UI at `http://localhost:3001/ui/v2/login`.
 
@@ -101,7 +110,15 @@ go get github.com/wneessen/go-mail@latest
 
 ## Environment
 
-- `.env` — app server (copy from `.env.example`)
+- `.env` — app server (copy from `.env.example`): `SERVER_BIND_ADDR`, `POSTGRES_*`, `NATS_URL`, `TEMPORAL_HOST`, `LOGGER_*`, `AUDIT_LOG_TIMEOUT`, `NOTIFIER_*`
 - `.env.compose` — compose overrides (`POSTGRES_HOST=postgres`, `NATS_URL=nats://nats:4222`, `TEMPORAL_HOST=temporal:7233`)
+- `config/caddy/Caddyfile` — Caddy reverse proxy (`:80` → `app:8080`, gzip, stdout logs)
 
-Relevant env for new stack (see `compose.yaml:78`): `ZITADEL_*`, `TIGERBEETLE_ADDRESS`, `MAILHOG_*`. Zitadel uses `MasterkeyNeedsToHave32Characters` in dev; rotate for prod.
+Relevant env for new stack (see `compose.yaml`): `ZITADEL_*`, `TIGERBEETLE_ADDRESS`, `MAILHOG_*`. Zitadel uses `MasterkeyNeedsToHave32Characters` in dev; rotate for prod.
+
+Health:
+
+- `GET /health` → `{"status":"ok","commit":"<short-sha>"}` (`pkg/githash`, `internal/health/get`) — liveness, always 200
+- `GET /ready` → per-dependency probes (postgres, NATS, Temporal) with 5s timeout — `internal/health/ready`
+
+Built Docker image (`Dockerfile`) is `golang:1.27.0-alpine` builder + `alpine:3.24` runtime, `deno task build` for frontend, `GOOS=linux CGO_ENABLED=0 -mod=vendor`.
