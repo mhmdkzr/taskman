@@ -1,10 +1,29 @@
 services:
+  caddy:
+    image: caddy:2.11.4@sha256:df7f1c2fb114453b951de51a98efc010db1655a92c2e86be6706714e2417a78d
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:8090:80
+    volumes:
+      - ./config/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:80/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    ports:
-      - 127.0.0.1:8090:8080
+    expose:
+      - 8080
     env_file:
       - .env
       - .env.compose
@@ -15,6 +34,12 @@ services:
         condition: service_started
       temporal:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   postgres:
     image: postgres:18.4-trixie@sha256:29ee7bb30d804447dc9a91fd0d74322ae1dc3a4072cc6346f70a5ed6e783b565
@@ -230,3 +255,5 @@ services:
 volumes:
   zitadel-bootstrap:
   tigerbeetle-data:
+  caddy-data:
+  caddy-config:

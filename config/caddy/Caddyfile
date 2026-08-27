@@ -1,0 +1,13 @@
+# Caddyfile for app reverse proxy.
+# Caddy listens on :80 inside the container (mapped to host 8090) and
+# forwards all requests to the Go app (app:8080). The Go service is not
+# exposed directly on the host.
+
+:80 {
+	reverse_proxy app:8080
+
+	log {
+		output stdout
+	}
+	encode gzip
+}
