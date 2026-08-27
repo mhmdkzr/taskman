@@ -1,4 +1,3 @@
-bin
 .env
 .codex
 .agents
@@ -9,24 +8,13 @@ bin
 .gotmp
 .tmp
 .test
-
+.cline
+.claude
 notes/draft
-*/**/.vite
-*/**/TODO.md
-*/**/TASKS.md
-*/**/*_PLAN.md
-*/**/REVIEW_*.md
-*/**/TASKS.md
-*/**/TODO.md
-*/**/BACKLOG.md
-
-TODO.md
-TASKS.md
-_PLAN.md
-REVIEW_*.md
-TASKS.md
-DEVLOG.md
-TODO.md
+bin
+main
+REVIEW.md
+.tasks
 
 frontend/dist
 frontend/node_modules

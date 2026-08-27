@@ -9,14 +9,14 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	testpg "github.com/testcontainers/testcontainers-go/modules/postgres"
 
-	coremigrate "github.com/mhmdkzr/app/pkg/migrate"
+	"github.com/mhmdkzr/app/pkg/migrate"
 )
 
 func TestMigrationsApply(t *testing.T) {
 	db, dsn, cleanup := setupMigrationPostgres(t)
 	t.Cleanup(cleanup)
 
-	if err := coremigrate.Migrate(context.Background(), db, GetMigrationsFS()); err != nil {
+	if err := migrate.Migrate(context.Background(), db, GetMigrationsFS()); err != nil {
 		t.Fatalf("migrate schema: %v", err)
 	}
 	_ = db.Close()

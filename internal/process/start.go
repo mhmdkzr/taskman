@@ -14,6 +14,7 @@ import (
 	"github.com/mhmdkzr/app/internal/app"
 	"github.com/mhmdkzr/app/internal/config"
 	"github.com/mhmdkzr/app/internal/register"
+	"github.com/mhmdkzr/app/internal/streams"
 	"github.com/mhmdkzr/app/migrations"
 	"github.com/mhmdkzr/app/pkg/logger"
 	"github.com/mhmdkzr/app/pkg/middleware"
@@ -83,7 +84,7 @@ func Start(ctx context.Context) error {
 		return fmt.Errorf("jetstream init: %w", err)
 	}
 
-	if err := app.CreateStreams(ctx, js); err != nil {
+	if err := streams.CreateStreams(ctx, js); err != nil {
 		return fmt.Errorf("create streams: %w", err)
 	}
 	slog.Info("jetstream initialized and streams created")
@@ -122,13 +123,18 @@ func Start(ctx context.Context) error {
 	register.RegisterEvents(w, a)
 	slog.Info("temporal worker registered", "task_queue", app.TemporalTaskQueue)
 
+	redactor, err := auditlog.NewWithRedactor(a.Deps.JS, auditlog.Config{}, auditlog.AuditEvent)
+	if err != nil {
+		return fmt.Errorf("auditlog init: %w", err)
+	}
+
 	httpServer := &http.Server{
 		Addr:              cfg.Server.BindAddr,
 		ReadHeaderTimeout: cfg.Server.Timeout,
 		Handler: middleware.Chain(a.Mux,
 			timeout.New(cfg.Server.Timeout),
 			clientip.New(),
-			auditlog.NewWithRedactor(a.Deps.JS, auditlog.AuditEvent),
+			redactor,
 			logging.New(),
 		),
 	}
@@ -168,7 +174,8 @@ func Start(ctx context.Context) error {
 }
 
 func startRuntimeProcesses(ctx context.Context, a app.App, cfg config.Config) error {
-	if err := auditlog.Start(ctx, a.Deps.JS, a.Deps.DB, cfg.AuditLog.Timeout); err != nil {
+	c := auditlog.Config{Subject: "api.audit", Stream: "API_AUDIT"}
+	if err := auditlog.Start(ctx, a.Deps.JS, a.Deps.DB, c, cfg.AuditLog.Timeout); err != nil {
 		return fmt.Errorf("start audit log consumer: %w", err)
 	}
 	slog.Info("audit log consumer started")

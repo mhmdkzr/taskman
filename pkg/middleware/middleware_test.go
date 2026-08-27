@@ -79,3 +79,42 @@ func TestChain_ReplacesContext(t *testing.T) {
 		t.Fatalf("request id = %q, want %q", gotID, "test-id")
 	}
 }
+
+func TestSkip(t *testing.T) {
+	tests := []struct {
+		name         string
+		path         string
+		wantWrapped  bool
+		wantResponse string
+	}{
+		{name: "matching request bypasses middleware", path: "/health", wantResponse: "next"},
+		{name: "other request uses middleware", path: "/api", wantWrapped: true, wantResponse: "middleware"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var wrapped bool
+			mw := func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					wrapped = true
+					w.WriteHeader(http.StatusAccepted)
+					_, _ = w.Write([]byte("middleware"))
+				})
+			}
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte("next"))
+			})
+
+			rec := httptest.NewRecorder()
+			Skip(mw, func(r *http.Request) bool { return r.URL.Path == "/health" })(handler).
+				ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))
+
+			if wrapped != tt.wantWrapped {
+				t.Fatalf("middleware called = %t, want %t", wrapped, tt.wantWrapped)
+			}
+			if rec.Body.String() != tt.wantResponse {
+				t.Fatalf("response body = %q, want %q", rec.Body.String(), tt.wantResponse)
+			}
+		})
+	}
+}

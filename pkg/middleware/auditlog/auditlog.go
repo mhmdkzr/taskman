@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,23 +16,42 @@ import (
 	"github.com/mhmdkzr/app/pkg/middleware"
 )
 
-// SubjectAPIAudit is the NATS subject for API audit events.
-const (
-	SubjectAPIAudit = "api.audit"
-	publishTimeout  = 5 * time.Second
-)
+const publishTimeout = 5 * time.Second
+
+// Config identifies the JetStream subject and stream used for API audit events.
+type Config struct {
+	Subject string
+	Stream  string
+}
+
+func (c Config) validate() error {
+	if strings.TrimSpace(c.Subject) == "" {
+		return fmt.Errorf("empty audit subject")
+	}
+	if strings.TrimSpace(c.Stream) == "" {
+		return fmt.Errorf("empty audit stream")
+	}
+	return nil
+}
 
 // New returns a middleware that logs API audit events to JetStream.
-func New(js jetstream.JetStream) middleware.Middleware {
-	return NewWithRedactor(js, nil)
+func New(js jetstream.JetStream, cfg Config) (middleware.Middleware, error) {
+	return NewWithRedactor(js, cfg, nil)
 }
 
 // NewWithRedactor returns an audit logging middleware with a redaction function.
 func NewWithRedactor(
 	js jetstream.JetStream,
+	cfg Config,
 	redactor func(EventAPIAuditLogged) EventAPIAuditLogged,
-) middleware.Middleware {
-	return newWithSubject(js, SubjectAPIAudit, redactor)
+) (middleware.Middleware, error) {
+	if js == nil {
+		return nil, fmt.Errorf("nil jetstream client")
+	}
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
+	return newWithSubject(js, cfg.Subject, redactor), nil
 }
 
 // newWithSubject returns an audit logging middleware that publishes to the given subject.

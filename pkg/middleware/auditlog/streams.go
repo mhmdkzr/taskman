@@ -11,16 +11,23 @@ import (
 // duplicateWindow is the deduplication window for JetStream streams.
 const duplicateWindow = 24 * time.Hour
 
-const streamAPIAudit = "API_AUDIT"
-
-// CreateStreams creates or updates the JetStream stream for API audit events.
-func CreateStreams(ctx context.Context, js jetstream.JetStream) error {
+// CreateStream creates or updates the configured JetStream stream for API audit events.
+func CreateStream(ctx context.Context, js jetstream.JetStream, cfg Config) error {
+	if ctx == nil {
+		return fmt.Errorf("nil context")
+	}
+	if js == nil {
+		return fmt.Errorf("nil jetstream client")
+	}
+	if err := cfg.validate(); err != nil {
+		return err
+	}
 	if _, err := js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
-		Name:       streamAPIAudit,
-		Subjects:   []string{SubjectAPIAudit},
+		Name:       cfg.Stream,
+		Subjects:   []string{cfg.Subject},
 		Duplicates: duplicateWindow,
 	}); err != nil {
-		return fmt.Errorf("create stream %s: %w", streamAPIAudit, err)
+		return fmt.Errorf("create stream %s: %w", cfg.Stream, err)
 	}
 	return nil
 }

@@ -1,6 +1,6 @@
 # `app`
 
-Application core — the shared runtime context that every slice depends on. Provides the central `App` struct and NATS/JetStream abstractions. Configuration lives in `internal/config`.
+Application — the shared runtime context that every slice depends on. Provides the central `App` struct and NATS/JetStream abstractions. Configuration lives in `internal/config`.
 
 HTTP response helpers formerly here have been extracted to `pkg/resp` (`resp.WriteJSON`, `resp.WriteHTTPError`).
 

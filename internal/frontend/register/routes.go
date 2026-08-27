@@ -4,8 +4,9 @@ package register
 import (
 	"github.com/mhmdkzr/app/internal/app"
 	"github.com/mhmdkzr/app/internal/frontend/serve"
+	"github.com/mhmdkzr/app/internal/routes"
 )
 
 func RegisterRoutes(a app.App) {
-	a.RegisterRoutes(serve.NewHandler().Route())
+	routes.RegisterRoutes(a, serve.NewHandler().Route())
 }

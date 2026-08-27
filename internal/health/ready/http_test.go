@@ -7,11 +7,12 @@ import (
 	"testing"
 
 	"github.com/mhmdkzr/app/internal/app"
+	"github.com/mhmdkzr/app/internal/routes"
 )
 
 func TestHandle_AllNilDeps_ReturnsDegraded(t *testing.T) {
 	a := app.App{Mux: http.NewServeMux()}
-	a.RegisterRoutes(NewHandler(a).Route())
+	routes.RegisterRoutes(a, NewHandler(a).Route())
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/ready", nil)
@@ -46,7 +47,7 @@ func TestHandle_AllNilDeps_ReturnsDegraded(t *testing.T) {
 
 func TestHandle_ReturnsJSON(t *testing.T) {
 	a := app.App{Mux: http.NewServeMux()}
-	a.RegisterRoutes(NewHandler(a).Route())
+	routes.RegisterRoutes(a, NewHandler(a).Route())
 
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/ready", nil)

@@ -1,4 +1,4 @@
-// Package config loads and validates core service configuration.
+// Package config loads and validates service configuration.
 package config
 
 import (

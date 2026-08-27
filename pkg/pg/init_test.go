@@ -11,7 +11,7 @@ func TestOpen_ReturnsPingError(t *testing.T) {
 		Port:     1,
 		User:     "user",
 		Password: "pass",
-		Database: "core",
+		Database: "app",
 		SSLMode:  "disable",
 	})
 	if err == nil {

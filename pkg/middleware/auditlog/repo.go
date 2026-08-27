@@ -1,7 +1,6 @@
 package auditlog
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -23,7 +22,7 @@ func insertAuditLog(ctx context.Context, db *sql.DB, event EventAPIAuditLogged) 
 	responseBody := toJSONBCompatibleString(event.Response.Body)
 
 	_, err = db.ExecContext(ctx, `
-		INSERT INTO core.audit_logs (
+		INSERT INTO audit_logs (
 			request_id,
 			timestamp,
 			duration_ns,
@@ -65,14 +64,10 @@ func insertAuditLog(ctx context.Context, db *sql.DB, event EventAPIAuditLogged) 
 }
 
 // toJSONBCompatibleString converts a byte slice to a JSONB-compatible string pointer.
-// Go's json.Marshal produces valid JSON per RFC 7159, escaping null bytes as \u0000.
-// But PostgreSQL jsonb rejects \u0000 in any form because its internal text representation
-// uses C-style null-terminated strings and cannot represent a null character.
 func toJSONBCompatibleString(body []byte) *string {
 	if len(body) == 0 {
 		return nil
 	}
-	body = bytes.ReplaceAll(body, []byte{0}, nil)
 	if json.Valid(body) {
 		s := string(body)
 		return &s

@@ -15,3 +15,17 @@ func Chain(h http.Handler, mws ...Middleware) http.Handler {
 	}
 	return h
 }
+
+// Skip wraps mw so that it is bypassed for requests matched by skip.
+func Skip(mw Middleware, skip func(*http.Request) bool) Middleware {
+	return func(next http.Handler) http.Handler {
+		wrapped := mw(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if skip(r) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			wrapped.ServeHTTP(w, r)
+		})
+	}
+}

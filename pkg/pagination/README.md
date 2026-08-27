@@ -1,4 +1,6 @@
-# `pkg/pagination`
+# `pagination`
+
+Import path: `github.com/mhmdkzr/app/pkg/pagination`
 
 Pagination metadata and validation utilities for list endpoints.
 
@@ -6,4 +8,4 @@ Pagination metadata and validation utilities for list endpoints.
 
 - `Meta` — struct with `Page`, `Size`, and `Total` fields, with normalization (`Normalize`) and validation (`Validate`) functions.
 - Constants: `DefaultPage=1`, `DefaultSize=10`, `MaxPageSize=1000`.
-- Used by list-style query slices (asset list, balance list, tx list, wallet list, etc.).
+- `ParseRequest` reads `page` and `size` query parameters from an HTTP request.

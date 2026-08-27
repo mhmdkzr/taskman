@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/mhmdkzr/app/frontend"
-	"github.com/mhmdkzr/app/internal/app"
+	"github.com/mhmdkzr/app/internal/routes"
 )
 
 type Handler struct {
@@ -26,8 +26,8 @@ func NewHandler() *Handler {
 	}
 }
 
-func (h *Handler) Route() app.Route {
-	return app.Route{
+func (h *Handler) Route() routes.Route {
+	return routes.Route{
 		Method:  http.MethodGet,
 		Path:    "/",
 		Handler: h.ServeHTTP,

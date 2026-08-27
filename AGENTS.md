@@ -1,25 +1,21 @@
-## Overview
+## Stack
 
-Go backend (vertical slice architecture) and frontend are both at the project root. Go code lives under `cmd/`, `internal/`, `pkg/`, etc. Frontend is a plain Svelte (not SvelteKit) project at `frontend/`, built with Vite + Deno.
+### Backend
 
-## Frontend UI Libraries
+- Go
+- PostgreSQL
+- NATS (with JetStream)
+- Temporal
+- Zitadel
+- TigerBeetle
+
+### Frontend
 
 - **Svelte 5** — component framework
 - **Tailwind CSS v4** — utility-first CSS
 - **shadcn-svelte** — component library / registry (Rhea style), configured in `frontend/components.json`
-- **Phosphor Icons** — icon library (via `phosphor-svelte`)
-- **Lucide Icons** — icon library (via `@lucide/svelte`)
-- **Geist** — font (via `@fontsource-variable/geist`)
-- **Source Sans 3** — font (via `@fontsource-variable/source-sans-3`)
-- **tailwind-merge** + **clsx** — class merging utilities
-- **tailwind-variants** — component variants
-- **tw-animate-css** — animation utilities
 
 ---
-
-## Embedding
-
-The frontend static build output (`frontend/dist/`) is embedded in the Go binary at compile time via `dist.go` (`package app`; exports `app.FS embed.FS`). In development, run the Vite dev server separately with `make fe-dev`. In production, the Go binary serves the embedded assets.
 
 ## Vertical Slices
 
@@ -31,36 +27,40 @@ already has a more specific package pattern for that module.
 ## Modules
 
 Related slices are grouped into modules, which are domain bounded contexts.
-Module-level shared types normally live in `internal/<module>/types.go`.
+
+Module-level shared types normally live in `internal/<module>/types.go`. Domain newtypes
+usually implement `Scan`/`Value` for database, `MarshalJSON`/`UnmarshalJSON` for serialization, and `String` for display. 
+
 Shared runtime dependencies live in `internal/app`. `app.App` contains `Deps`, `Cfg`,
-and `Mux`; `Deps` contains PostgreSQL, NATS, JetStream, and Temporal.
+and `Mux`; `Deps` contains runtime dependencies including PostgreSQL, NATS, JetStream, Temporal, TigerBeetle and Zitadel.
+
+Supporting packages live in `pkg/`.
 
 ## Registration Pattern
 
 Registration usually follows a three-layer delegation pattern:
 
-1. **Slice-level**: A slice exposes registration helpers such as `RegisterWorkflows(w worker.Worker, a app.App)` and `RegisterActivities(w worker.Worker, a app.App)`. Some slices put these helpers in `register.go`; others register directly from `workflow.go`, `activity.go`, or a module register package. Follow the nearby pattern.
-
+1. **Slice-level**: A slice exposes registration helpers such as `RegisterWorkflows(w worker.Worker, a app.App)` and `RegisterActivities(w worker.Worker, a app.App)`. Slices put these helpers in `register.go`.
 2. **Module-level** (`internal/<module>/register/`): Aggregation packages expose `RegisterRoutes`, `RegisterWorkflows`, and/or `RegisterActivities`, each delegating to constituent slices.
+3. **Root-level** (`internal/register/`): Top-level aggregation is split across `routes.go`, `workflows.go`, and `activities.go`. 
 
-3. **Root-level** (`internal/register/`): Top-level aggregation is split across `routes.go`, `workflows.go`, `activities.go`, and `events.go`. `internal/process/start.go` calls `RegisterRoutes`, `RegisterActivities`, and `RegisterWorkflows`.
+`internal/process/start.go` calls `RegisterRoutes`, `RegisterActivities`, and `RegisterWorkflows`.
 
 ## HTTP Conventions
 
-- Public API slices register routes via `a.Handle(method, path, handler)` (see `internal/app/router.go`).
+- Public API slices register routes via `routes.Handle(a, method, path, handler)` (see `internal/routes`).
 - Route patterns use Go `net/http` method patterns: `Route.Method` plus `Route.Path`, with path parameters read through `r.PathValue(...)`.
 - `app.App.Cfg.Server.BasePath` is applied centrally by `App.RegisterRoutes`; route definitions should remain module-relative, usually beginning with `/`.
 - Query slices should normally use `GET`.
 - Command slices should normally use `POST`, `PUT`, or `DELETE` and expose HTTP action routes whose last path segment is the action when the resource is not fully described by the method alone.
-- Handlers should parse path/query/body input into typed `Request` values via a `requestFromHTTP(r *http.Request)` function, then call a business logic function, write success with `app.WriteJSON`, and write errors with `app.WriteHTTPError`.
+- Handlers should parse path/query/body input into typed `Request` values via a `requestFromHTTP(r *http.Request)` function, then call a business logic function, write success with `jsonresp.WriteJSON`, and write errors with `jsonresp.WriteHTTPError`.
 - Handlers should map domain, validation, and Temporal errors to appropriate HTTP status codes via a local `httpStatusForError(err) int` function.
-- NATS and JetStream are still valid for internal messaging, event publication, consumers, and streaming integrations.
 
-## JetStream Events
+## NATS JetStream
 
-- Each module that publishes events owns a `streams.go` file with a `CreateStreams(ctx, js)` function that calls `js.CreateOrUpdateStream`. Streams use `Duplicates: 24 * time.Hour` for deduplication.
+- Each module that publishes events owns a `streams.go` file with a `CreateStreams(ctx, js)` function that calls `js.CreateOrUpdateStream`.
 - Subject names follow a dot-separated hierarchical convention.
-- Event types implement `MsgID() string` for idempotent publishing via the generic `msg.Produce[Event interface{ MsgID() string }](ctx, js, subject, event)` helper.
+- Event types implement `MsgID() string` for idempotent publishing via the generic `produce.Produce[Event interface{ MsgID() string }](ctx, js, subject, event)` helper.
 - Consumption uses `jetstream.Consumer` directly via `js.CreateOrUpdateConsumer` and `consumer.Consume` with manual NAK/ACK handling.
 
 ## Pagination
@@ -72,17 +72,17 @@ Registration usually follows a three-layer delegation pattern:
 
 ## Required Slice Documentation
 
-New slices must include a `README.md` file which explains what the slice is, what functionality it provides, how it behaves, and how it is invoked. When touching an existing slice, update its README if present; if the slice lacks one and the change is material, add it. For public API slices, document the HTTP route and include `curl` examples. For Temporal-backed slices, include Temporal CLI examples when useful.
+New slices must include a `README.md` file which explains what the slice is, what functionality it provides, how it behaves, and how it is invoked. When touching an existing slice, update its README if present; if the slice lacks one and the change is material, add it. For public API slices, document the HTTP route and include `curl` examples. For Temporal-backed slices, include Temporal CLI examples.
 
 ---
 
 ## Error Handling
 
 - Define domain errors as sentinel `var` values with `errors.New(...)`.
-- Use `errors.Is()` and `errors.As()` for error checking and unwrapping.
+- Use `errors.Is()` and `errors.AsType[T]()` for error checking and unwrapping.
 - Wrap errors with context using `fmt.Errorf("context: %w", err)` to provide error chains when useful.
 - We almost always should return errors, but if an error is not being explicitly returned, intentionally, the reason should always be explained via a comment and the error **must be logged with `Error` level**. There must be **no silent errors**.
-- HTTP handlers write domain errors to the response using `app.WriteHTTPError(w, status, err)`, which serializes as `{"error": "..."}` via `app.ErrorResponse`.
+- HTTP handlers write domain errors to the response using `jsonresp.WriteHTTPError(w, status, err)`, which serializes as `{"error": "..."}` via `jsonresp.ResponseError`.
 
 ---
 
@@ -96,28 +96,25 @@ New slices must include a `README.md` file which explains what the slice is, wha
 
 - If you need to use NATS in a test, use `pkg/natsembed` when an in-process NATS server is enough.
 - For e2e tests that run from `testing.T`, prefer `t.Context()` over `context.Background()` so request cancellation is tied to test lifecycle.
-- For testing DB-backed slices, use a temporary PostgreSQL database:
-  - create temp DB
-  - run migrations
-  - seed minimal fixture rows
-  - run slice logic
-  - assert
-  - drop DB in cleanup
-- Prefer the repo's `pkg/testdb` and Testcontainers pattern for PostgreSQL-backed tests:
+- For testing DB-backed slices, we use a temporary PostgreSQL database via `pkg/testdb` and Testcontainers pattern for PostgreSQL-backed tests:
   - start `postgres.Run(...)` with a disposable container image
   - register cleanup with `testcontainers.CleanupContainer`
   - use the container connection string with `sslmode=disable`
   - run migrations, then reopen/ping the database before seeding fixtures
 - Do NOT use mocks, unless you have checked with user and got a validation for your usecase.
-- Tests can load .env files if they need their values (see pkg/testenv for it).
+- Tests can load .env files if they need their values (see `pkg/testenv`).
+- Test files follow a `_test.go` / `_integration_test.go` split:
+  - Pure unit tests live in `_test.go` files and run under plain `go test ./...`.
+  - Integration tests (including DB-backed tests) live in `_integration_test.go` files (e.g. `repo_integration_test.go` for repository tests) and are gated with `testenv.SkipIfDBTestsDisabled` (or the network/e2e equivalents).
+  - Tests that are primarily about database behavior must be named with a `TestDB` prefix so they can be run selectively via `go test -run '^TestDB'` (see `make test-db`). Since `TestDB` implies integration, do not also append `_Integration` to their names. 
 
 ---
 
 ## Build and Validation
 
 - After making code changes, run the smallest sensible build/test/vet scope.
-- All Go code lives under the project root. Run Go commands from the root, e.g., `go vet ./...`.
 - Use `go vet`, and try to build the code so we can catch any compile-time errors. Do not store build artifacts; send them to `/dev/null` when building binaries.
+- Use `make lint` for running linters and `make fmt` for formatting.
 - For doc-only changes, Go validation is not required.
 
 ---
@@ -128,13 +125,13 @@ New slices must include a `README.md` file which explains what the slice is, wha
 
 ### Repository Pattern
 
-All database access must be wrapped in private functions whose only job is to take a `*sql.DB` (or `*sql.Tx`) and interact with the database. They would all be in `repo.go` files, and their tests in `repo_test.go` files.
+All database access must be wrapped in private functions whose only job is to take a `*sql.DB` (or `*sql.Tx`) and interact with the database. They would all be in `repo.go` files, and their tests in `repo_integration_test.go` files.
 
 ---
 
-## Documentation Accuracy
+## Documentation
 
-- The documentation in code should be accurate, clear and **up-to-date**, **in sync with code**. This includes the comments in code, module docs, and README.md files. Don't forget to update them when needed.
+- The documentation in code should be accurate, clear and **up-to-date**, **in sync with code**. This includes the comments in code, module docs, and README.md files. Don't forget to update them when code changes.
 - If you're using an external Go library, you can use `go doc` command to read its up-to-date docs and understand how to use it properly.
 
 ---
@@ -150,12 +147,14 @@ All database access must be wrapped in private functions whose only job is to ta
 - Don't introduce `interface{}` or `any` types unless the standard library or a generic API genuinely requires it. If there is a design choice, confirm with the user first.
 - **Make invalid state irrepresentable**, when possible.
 - Use the type system to **prevent invalid states at compile time**.
+- Utilize the newtype pattern with constructors that validate the input and return an error if the input is invalid, so we know all instances of the type are valid.
 - Prefer **simple** and **minimal** code. Care about **clarity** of the whole.
 - Avoid premature optimization and over-engineering.
 - Avoid sycophancy.
 - Use current Go syntax and features already supported by this repo's workspace Go version.
 - Detect important and critical decision points. When you find a decision point in front of you which you can't know what to do based on your context, **confirm your decisions with user** before taking actions. For simple decisions or decisions that can be made with current context, you don't need to do this.
-- Avoid premature abstractions. Don't add a level of indirection unless it actually helps and the indirection is worth the cost of it. Don't use helper functions that don't help reduce complexity and are better inlined.
+- Avoid premature abstractions. Don't add a level of indirection unless it actually helps and the indirection is worth the cost of it. Do not use helper functions that don't help reduce complexity and are better inlined.
+- Any duration crossing a wire or storage boundary (PostgreSQL `bigint` columns, JSON API fields, Temporal activity/workflow inputs) uses **raw nanoseconds**, matching Go's `time.Duration` (already an `int64` nanosecond count) exactly — no unit conversion at any layer. Domain code keeps using `time.Duration` natively.
 
 ---
 
@@ -169,15 +168,15 @@ All database access must be wrapped in private functions whose only job is to ta
   - `temporal`
   - `workflowcheck`
 - To see project structure, run `tree`.
-- All Go code lives under the project root. Run Go commands from the root, e.g., `go vet ./...`.
 - Do not modify `go.mod` file directly. Use `go` commands for it, e.g., use `go get` instead of adding dependencies manually.
 
 ---
 
 ## Temporal Rules
 
-- When working with Temporal, remember that temporal works under the assumption that workflows are deterministic and side-effect free, and activities are idempotent. Make sure this is true, otherwise it is a bug.
+- When working with Temporal, remember that temporal works under the assumption that **workflows are deterministic and side-effect free, and activities are idempotent.** Make sure this is true, otherwise it is **considered a bug**.
 - Workflows should validate inputs at the start, returning `temporal.NewNonRetryableApplicationError(err.Error(), "ValidationError", nil)` for invalid inputs.
+- Every activity's registered name is a `const` (e.g. `ActivityName`) declared exactly once, in that activity slice's own `activity.go`. Anywhere else in the codebase that needs the name must import and reference that const, never re-declare a local const with the same string, hardcode the literal, or compose it at runtime (e.g. `prefix + ".suffix"`). 
 
 ---
 
@@ -191,14 +190,20 @@ All database access must be wrapped in private functions whose only job is to ta
   Then ask the user for approval.
   If user provided a `-y` flag to the prompt (e.g. commit changes -y) you don't need to ask for approval.
 
-- Use conventional commits (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`).
+- Use conventional commits (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`, see `notes/resources/conventional-commits.md`).
 - Use conventional branch names such as `feat/...`, `fix/...`, `refactor/...`, `docs/...`, `test/...`. Do not use `codex/` prefixes.
 - Prefer small, incremental, focused commits. One logical change per commit.
-- Prefer package- or slice-scoped commits. Do not mix unrelated changes in one commit.
-- Separate refactors from behavior changes when practical.
+- Prefer package or slice-scoped commits. Do not mix unrelated changes in one commit.
 - Do not rewrite git history unless the user explicitly asks. Avoid `--amend`, rebase, and force-push by default.
 - Keep the worktree clean. Do not leave unrelated modified files, debug edits, or incidental formatting changes mixed into the work.
 - Before asking to commit, ensure the changed code builds and relevant tests pass at the smallest sensible scope.
 - Do not commit generated files, temporary files, local-only config, or anything containing secrets.
 - When code changes require doc updates, include the relevant doc updates in the same commit when practical.
-- Run `gofmt -w .` and check the code via `go vet ./...` before committing.
+- Run `make lint` and `make fmt` before committing.
+- Don't add "Co-Authored-By: Claude ..." line to commit messages.
+
+--- 
+
+## Deployment
+
+Use semantic versioning for release tags (see `notes/resources/semantic-versioning.md`).

@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+
+	"github.com/mhmdkzr/app/pkg/middleware/auditlog"
 )
 
 const (
@@ -79,11 +81,7 @@ func (h *NATSHandler) Handle(ctx context.Context, r slog.Record) error {
 		return nil
 	}
 
-	subject, err := getSubject(r.Level)
-	if err != nil {
-		h.logError(ctx, "failed to resolve NATS subject for log level", err, "")
-		return nil
-	}
+	subject := getSubject(r.Level)
 
 	if err := h.nc.Publish(subject, data); err != nil {
 		h.logError(ctx, "failed to publish log to NATS", err, subject)
@@ -127,21 +125,17 @@ func (h *NATSHandler) WithGroup(name string) slog.Handler {
 }
 
 // getSubject returns the NATS subject for the given log level.
-func getSubject(level slog.Level) (string, error) {
-	if level <= slog.LevelDebug {
-		return SubjectLogsDebug, nil
+func getSubject(level slog.Level) string {
+	switch {
+	case level <= slog.LevelDebug:
+		return SubjectLogsDebug
+	case level < slog.LevelWarn:
+		return SubjectLogsInfo
+	case level < slog.LevelError:
+		return SubjectLogsWarn
+	default:
+		return SubjectLogsError
 	}
-	if level < slog.LevelWarn {
-		return SubjectLogsInfo, nil
-	}
-	if level < slog.LevelError {
-		return SubjectLogsWarn, nil
-	}
-	if level >= slog.LevelError {
-		return SubjectLogsError, nil
-	}
-
-	return "", fmt.Errorf("%w: %s", errInvalidNATSLogLevel, level.String())
 }
 
 // buildAttributes builds the attribute map for a log record.
@@ -205,6 +199,15 @@ func addAttr(dst map[string]json.RawMessage, key string, value slog.Value) {
 		return
 	}
 
+	if auditlog.IsSensitiveKey(leafKey(key)) {
+		raw, err := json.Marshal(auditlog.Marker)
+		if err != nil {
+			return
+		}
+		dst[key] = raw
+		return
+	}
+
 	if errValue, ok := value.Any().(error); ok && errValue != nil {
 		raw, err := json.Marshal(errValue.Error())
 		if err != nil {
@@ -219,6 +222,17 @@ func addAttr(dst map[string]json.RawMessage, key string, value slog.Value) {
 		return
 	}
 	dst[key] = raw
+}
+
+// leafKey returns the last dot-separated segment of a joined attribute key,
+// i.e. the attribute's own key with any group prefixes stripped. Sensitivity
+// is checked against this leaf so a grouped key like "request.password" is
+// still redacted based on "password".
+func leafKey(key string) string {
+	if idx := strings.LastIndex(key, "."); idx >= 0 {
+		return key[idx+1:]
+	}
+	return key
 }
 
 // joinGroups joins group names with a key using dot notation.
@@ -237,7 +251,7 @@ func joinGroups(groups []string, key string) string {
 
 // logError logs an error from the NATS handler itself.
 func (h *NATSHandler) logError(ctx context.Context, msg string, err error, subject string) {
-	r := slog.NewRecord(time.Now(), slog.LevelInfo, msg, 0)
+	r := slog.NewRecord(time.Now(), slog.LevelError, msg, 0)
 	r.AddAttrs(slog.String("error", err.Error()))
 	if subject != "" {
 		r.AddAttrs(slog.String("subject", subject))

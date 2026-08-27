@@ -9,12 +9,12 @@ import (
 
 // Config holds the PostgreSQL connection configuration loaded from environment variables.
 type Config struct {
-	Host        string `env:"HOST"`
-	Port        int    `env:"PORT"`
-	User        string `env:"USER"`
-	Password    string `env:"PASSWORD"`
-	Database    string `env:"DATABASE"`
-	SSLMode     string `env:"SSLMODE"`
+	Host        string `env:"HOST,required"`
+	Port        int    `env:"PORT,required"`
+	User        string `env:"USER,required"`
+	Password    string `env:"PASSWORD,required"`
+	Database    string `env:"DATABASE,required"`
+	SSLMode     string `env:"SSLMODE,required"`
 	AutoMigrate bool   `env:"AUTO_MIGRATE"`
 }
 

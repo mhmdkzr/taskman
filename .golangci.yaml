@@ -270,6 +270,13 @@ linters:
     generated: lax
     rules:
       - linters:
+          - errcheck
+        source: "errors\\.AsType\\["
+        # errors.AsType[T](err) returns (T, bool), not (T, error) -- errcheck's
+        # check-type-assertions heuristic misreads the discarded T (a pointer
+        # error type) as an unchecked error. The bool is always checked at
+        # call sites; this is a false positive on every use, not a real issue.
+      - linters:
           - canonicalheader
         text: "TRON-PRO-API-KEY"
       - linters:
@@ -281,11 +288,17 @@ linters:
       - linters:
           - wrapcheck
         text: "go.temporal.io/sdk/internal.Future"
+        path: "internal/.*/types/.*\\.go"
+        # Domain newtypes (open two-value string enums, UUID-backed IDs) intentionally
+        # repeat the same Scan/Value/MarshalJSON/UnmarshalJSON boilerplate per type per
+        # CLAUDE.md's type-safety convention — each is its own irreducible domain type,
+        # not accidental copy-paste.
       - path: _test\.go
         linters:
           - bodyclose
           - cyclop
           - dupl
+          - dupword
           - errcheck
           - exhaustive
           - exhaustruct
@@ -310,4 +323,5 @@ linters:
     paths:
       - "migrations/"
       - "bin/"
+      - "third_party/"
       - "vendor/"

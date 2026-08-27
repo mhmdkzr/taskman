@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mhmdkzr/app/pkg/embeddednats"
+	"github.com/mhmdkzr/app/pkg/natsembed"
 )
 
 func TestInit_ReturnsFormatError(t *testing.T) {
@@ -43,10 +43,7 @@ func TestGetSubject(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.want, func(t *testing.T) {
-			got, err := getSubject(tc.level)
-			if err != nil {
-				t.Fatalf("getSubject: %v", err)
-			}
+			got := getSubject(tc.level)
 			if got != tc.want {
 				t.Fatalf("subject mismatch: got=%q want=%q", got, tc.want)
 			}
@@ -55,7 +52,7 @@ func TestGetSubject(t *testing.T) {
 }
 
 func TestNATSHandler_Handle(t *testing.T) {
-	nc, _, err := embeddednats.Connect()
+	nc, _, err := natsembed.Connect()
 	if err != nil {
 		t.Fatalf("connect embedded nats: %v", err)
 	}
@@ -71,7 +68,7 @@ func TestNATSHandler_Handle(t *testing.T) {
 
 	h := NewNATSHandler(slog.DiscardHandler, nc).
 		WithGroup("request").
-		WithAttrs([]slog.Attr{slog.String("service", "core")})
+		WithAttrs([]slog.Attr{slog.String("service", "app")})
 
 	if err := h.Handle(
 		context.Background(),

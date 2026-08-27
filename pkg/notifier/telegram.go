@@ -75,8 +75,7 @@ func (h *Handler) processMessages(ctx context.Context) {
 func (h *Handler) sendBatch(msgs []*nats.Msg) {
 	message := formatBatchMessage(msgs)
 	if err := h.sendMsg(message); err != nil {
-		var apiErr tgbotapi.Error
-		if errors.As(err, &apiErr) && apiErr.RetryAfter > 0 {
+		if apiErr, ok := errors.AsType[tgbotapi.Error](err); ok && apiErr.RetryAfter > 0 {
 			<-time.After(time.Duration(apiErr.RetryAfter) * time.Second)
 			if err := h.sendMsg(message); err != nil {
 				fmt.Fprintf(os.Stderr, "notifier: failed to send telegram message after retry: %v\n", err)

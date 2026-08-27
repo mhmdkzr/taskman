@@ -11,8 +11,8 @@ import (
 
 	"github.com/nats-io/nats.go/jetstream"
 
-	"github.com/mhmdkzr/app/pkg/embeddednats"
 	"github.com/mhmdkzr/app/pkg/middleware"
+	"github.com/mhmdkzr/app/pkg/natsembed"
 )
 
 func TestEvent_MsgID(t *testing.T) {
@@ -61,7 +61,7 @@ func TestEvent_JSONBodiesAreStrings(t *testing.T) {
 }
 
 func TestNew_PublishesAuditEvent(t *testing.T) {
-	nc, js, err := embeddednats.Connect()
+	nc, js, err := natsembed.Connect()
 	if err != nil {
 		t.Fatalf("nats embed connect: %v", err)
 	}
@@ -69,11 +69,8 @@ func TestNew_PublishesAuditEvent(t *testing.T) {
 
 	ctx := t.Context()
 	subject, stream := uniqueAuditTestSubject(t)
-	if _, err := js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
-		Name:       stream,
-		Subjects:   []string{subject},
-		Duplicates: time.Hour,
-	}); err != nil {
+	cfg := Config{Subject: subject, Stream: stream}
+	if err := CreateStream(ctx, js, cfg); err != nil {
 		t.Fatalf("create stream: %v", err)
 	}
 
@@ -94,7 +91,10 @@ func TestNew_PublishesAuditEvent(t *testing.T) {
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 
-	mw := newWithSubject(js, subject, nil)
+	mw, err := New(js, cfg)
+	if err != nil {
+		t.Fatalf("new middleware: %v", err)
+	}
 	rec := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/test?foo=bar", bytes.NewReader([]byte(`{"key":"val"}`)))
 	r.RemoteAddr = "10.0.0.1:54321"
@@ -161,7 +161,7 @@ func TestNew_PublishesAuditEvent(t *testing.T) {
 }
 
 func TestNew_WithoutBody(t *testing.T) {
-	nc, js, err := embeddednats.Connect()
+	nc, js, err := natsembed.Connect()
 	if err != nil {
 		t.Fatalf("nats embed connect: %v", err)
 	}
@@ -215,13 +215,13 @@ func TestNew_WithoutBody(t *testing.T) {
 }
 
 func TestNew_HandlerBodyStillReadable(t *testing.T) {
-	nc, js, err := embeddednats.Connect()
+	nc, js, err := natsembed.Connect()
 	if err != nil {
 		t.Fatalf("nats embed connect: %v", err)
 	}
 	defer nc.Close()
 
-	mw := New(js)
+	mw := mustNew(t, js, Config{Subject: "test.audit", Stream: "TEST_AUDIT"})
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		buf := new(bytes.Buffer)
@@ -237,7 +237,7 @@ func TestNew_HandlerBodyStillReadable(t *testing.T) {
 }
 
 func TestNewWithRedactor_PublishesRedactedAuditEvent(t *testing.T) {
-	nc, js, err := embeddednats.Connect()
+	nc, js, err := natsembed.Connect()
 	if err != nil {
 		t.Fatalf("nats embed connect: %v", err)
 	}
@@ -303,7 +303,7 @@ func TestNewWithRedactor_PublishesRedactedAuditEvent(t *testing.T) {
 }
 
 func TestNew_SetsRequestID(t *testing.T) {
-	nc, js, err := embeddednats.Connect()
+	nc, js, err := natsembed.Connect()
 	if err != nil {
 		t.Fatalf("nats embed connect: %v", err)
 	}
@@ -316,7 +316,7 @@ func TestNew_SetsRequestID(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		mw := New(js)
+		mw := mustNew(t, js, Config{Subject: "test.audit", Stream: "TEST_AUDIT"})
 		rec := httptest.NewRecorder()
 		mw(handler).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 
@@ -335,7 +335,7 @@ func TestNew_SetsRequestID(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		})
 
-		mw := New(js)
+		mw := mustNew(t, js, Config{Subject: "test.audit", Stream: "TEST_AUDIT"})
 		rec := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
 		r.Header.Set("X-Request-ID", "my-trace-id")
@@ -389,4 +389,14 @@ func uniqueAuditTestSubject(t *testing.T) (subject, stream string) {
 
 	suffix := fmt.Sprintf("%s_%d", t.Name(), time.Now().UnixNano())
 	return "api.audit." + suffix, "API_AUDIT_" + suffix
+}
+
+func mustNew(t *testing.T, js jetstream.JetStream, cfg Config) middleware.Middleware {
+	t.Helper()
+
+	mw, err := New(js, cfg)
+	if err != nil {
+		t.Fatalf("new audit middleware: %v", err)
+	}
+	return mw
 }

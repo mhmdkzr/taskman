@@ -19,9 +19,15 @@ Readiness check slice that probes all external dependencies and reports their st
 {
   "status": "ok",
   "checks": {
-    "database":  { "status": "ok" },
-    "nats":      { "status": "ok" },
-    "temporal":  { "status": "ok" }
+    "database": {
+      "status": "ok"
+    },
+    "nats": {
+      "status": "ok"
+    },
+    "temporal": {
+      "status": "ok"
+    }
   }
 }
 ```
@@ -32,8 +38,13 @@ A failing check includes an `error` field:
 {
   "status": "degraded",
   "checks": {
-    "database": { "status": "ok" },
-    "nats":     { "status": "error", "error": "not connected" }
+    "database": {
+      "status": "ok"
+    },
+    "nats": {
+      "status": "error",
+      "error": "not connected"
+    }
   }
 }
 ```
@@ -53,5 +64,18 @@ curl -sS http://127.0.0.1:8080/ready
 ```
 
 ```json
-{"status":"ok","checks":{"database":{"status":"ok"},"nats":{"status":"ok"},"temporal":{"status":"ok"}}}
+{
+  "status": "ok",
+  "checks": {
+    "database": {
+      "status": "ok"
+    },
+    "nats": {
+      "status": "ok"
+    },
+    "temporal": {
+      "status": "ok"
+    }
+  }
+}
 ```

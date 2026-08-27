@@ -15,8 +15,9 @@ type Redactor func(EventAPIAuditLogged) EventAPIAuditLogged
 // Marker is the replacement string for redacted sensitive data.
 const Marker = "[REDACTED]"
 
-// sensitiveKeys contains keys whose values should be redacted.
-var sensitiveKeys = map[string]struct{}{
+// SensitiveKeys contains normalized keys whose values should be redacted.
+// Keys are normalized via NormalizeKey before lookup.
+var SensitiveKeys = map[string]struct{}{
 	"password":           {},
 	"secret":             {},
 	"token":              {},
@@ -78,7 +79,7 @@ func redactHeaders(headers http.Header, keys map[string]struct{}) http.Header {
 	out := make(http.Header, len(headers))
 	for key, values := range headers {
 		copied := append([]string(nil), values...)
-		if _, ok := keys[normalizeKey(key)]; ok {
+		if _, ok := keys[NormalizeKey(key)]; ok {
 			for i := range copied {
 				copied[i] = Marker
 			}
@@ -99,7 +100,7 @@ func redactQuery(raw string) string {
 		return raw
 	}
 	for key := range values {
-		if isSensitiveKey(key) {
+		if IsSensitiveKey(key) {
 			for i := range values[key] {
 				values[key][i] = Marker
 			}
@@ -132,7 +133,7 @@ func redactJSONValue(value any) {
 	switch typed := value.(type) {
 	case map[string]any:
 		for key, nested := range typed {
-			if isSensitiveKey(key) {
+			if IsSensitiveKey(key) {
 				typed[key] = Marker
 				continue
 			}
@@ -145,14 +146,14 @@ func redactJSONValue(value any) {
 	}
 }
 
-// isSensitiveKey returns true if the key should be redacted.
-func isSensitiveKey(key string) bool {
-	_, ok := sensitiveKeys[normalizeKey(key)]
+// IsSensitiveKey returns true if the key should be redacted.
+func IsSensitiveKey(key string) bool {
+	_, ok := SensitiveKeys[NormalizeKey(key)]
 	return ok
 }
 
-// normalizeKey normalizes a header key to a lowercase string without separators.
-func normalizeKey(key string) string {
+// NormalizeKey normalizes a header key to a lowercase string without separators.
+func NormalizeKey(key string) string {
 	var b strings.Builder
 	b.Grow(len(key))
 	for _, r := range key {

@@ -11,7 +11,7 @@ import (
 	"github.com/mhmdkzr/app/internal/config"
 )
 
-// App bundles the core application dependencies, configuration, and HTTP mux.
+// App bundles the application dependencies, configuration, and HTTP mux.
 type App struct {
 	Deps Deps
 	Cfg  config.Config

@@ -11,14 +11,10 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-const (
-	streamName   = "API_AUDIT"
-	consumerName = "audit-log-db-writer"
-	subject      = SubjectAPIAudit
-)
+const consumerName = "audit-log-db-writer"
 
 // Start starts the audit log consumer that writes events to the database.
-func Start(ctx context.Context, js jetstream.JetStream, db *sql.DB, timeout time.Duration) error {
+func Start(ctx context.Context, js jetstream.JetStream, db *sql.DB, cfg Config, timeout time.Duration) error {
 	if ctx == nil {
 		return fmt.Errorf("nil context")
 	}
@@ -36,10 +32,10 @@ func Start(ctx context.Context, js jetstream.JetStream, db *sql.DB, timeout time
 		defer cancel()
 	}
 
-	consumer, err := js.CreateOrUpdateConsumer(setupCtx, streamName, jetstream.ConsumerConfig{
+	consumer, err := js.CreateOrUpdateConsumer(setupCtx, cfg.Stream, jetstream.ConsumerConfig{
 		Name:          consumerName,
 		Durable:       consumerName,
-		FilterSubject: subject,
+		FilterSubject: cfg.Subject,
 	})
 	if err != nil {
 		return fmt.Errorf("create consumer %s: %w", consumerName, err)
