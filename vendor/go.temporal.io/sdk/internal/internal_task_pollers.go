@@ -904,6 +904,7 @@ func (callback *workflowTaskStorageMetrics) GetDriverNames() []string {
 	return names
 }
 
+
 func newLocalActivityPoller(
 	params workerExecutionParameters,
 	laTunnel *localActivityTunnel,

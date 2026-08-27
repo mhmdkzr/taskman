@@ -167,8 +167,8 @@ func (dfc *DefaultFailureConverter) ErrorToFailure(err error) *failurepb.Failure
 	case *nexus.HandlerError:
 		if err.OriginalFailure != nil {
 			f, err := nexusFailureToTemporalFailure(*err.OriginalFailure, true)
-			// If there was an error converting the original failure, we will ignore it
-			// since we don't want to fail the entire conversion just because we couldn't convert the original failure.
+			// If there was an error converting the original failure, we will ignore it 
+			// since we don't want to fail the entire conversion just because we couldn't convert the original failure. 
 			if err == nil {
 				return f
 			}

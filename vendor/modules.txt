@@ -1,3 +1,6 @@
+# cdr.dev/slog/v3 v3.0.0-rc1
+## explicit; go 1.20
+cdr.dev/slog/v3
 # dario.cat/mergo v1.0.2
 ## explicit; go 1.13
 dario.cat/mergo
@@ -25,6 +28,9 @@ github.com/cenkalti/backoff/v4
 # github.com/cespare/xxhash/v2 v2.3.0
 ## explicit; go 1.11
 github.com/cespare/xxhash/v2
+# github.com/coder/clistat v1.2.1
+## explicit; go 1.23.1
+github.com/coder/clistat
 # github.com/containerd/errdefs v1.0.0
 ## explicit; go 1.20
 github.com/containerd/errdefs
@@ -61,13 +67,34 @@ github.com/ebitengine/purego/internal/cgo
 github.com/ebitengine/purego/internal/fakecgo
 github.com/ebitengine/purego/internal/strings
 github.com/ebitengine/purego/internal/xreflect
+# github.com/elastic/go-sysinfo v1.15.1
+## explicit; go 1.21
+github.com/elastic/go-sysinfo
+github.com/elastic/go-sysinfo/internal/registry
+github.com/elastic/go-sysinfo/providers/aix
+github.com/elastic/go-sysinfo/providers/darwin
+github.com/elastic/go-sysinfo/providers/linux
+github.com/elastic/go-sysinfo/providers/shared
+github.com/elastic/go-sysinfo/providers/windows
+github.com/elastic/go-sysinfo/types
+# github.com/elastic/go-windows v1.0.0
+## explicit
+github.com/elastic/go-windows
+# github.com/envoyproxy/protoc-gen-validate v1.3.3
+## explicit; go 1.24.1
+github.com/envoyproxy/protoc-gen-validate/validate
 # github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a
 ## explicit
 github.com/facebookgo/clock
-# github.com/felixge/httpsnoop v1.0.4
-## explicit; go 1.13
+# github.com/felixge/httpsnoop v1.1.0
+## explicit; go 1.25
 github.com/felixge/httpsnoop
-# github.com/go-logr/logr v1.4.3
+# github.com/go-jose/go-jose/v4 v4.1.4
+## explicit; go 1.24.0
+github.com/go-jose/go-jose/v4
+github.com/go-jose/go-jose/v4/cipher
+github.com/go-jose/go-jose/v4/json
+# github.com/go-logr/logr v1.4.4
 ## explicit; go 1.18
 github.com/go-logr/logr
 github.com/go-logr/logr/funcr
@@ -107,16 +134,26 @@ github.com/google/go-tpm/tpmutil/tbs
 # github.com/google/uuid v1.6.0
 ## explicit
 github.com/google/uuid
-# github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.2
+# github.com/gorilla/securecookie v1.1.2
+## explicit; go 1.20
+github.com/gorilla/securecookie
+# github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
 ## explicit; go 1.23.0
 github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/retry
 github.com/grpc-ecosystem/go-grpc-middleware/v2/metadata
 github.com/grpc-ecosystem/go-grpc-middleware/v2/util/backoffutils
-# github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.7
-## explicit; go 1.24.0
+# github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
+## explicit; go 1.25.0
 github.com/grpc-ecosystem/grpc-gateway/v2/internal/httprule
+github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-openapiv2/options
 github.com/grpc-ecosystem/grpc-gateway/v2/runtime
 github.com/grpc-ecosystem/grpc-gateway/v2/utilities
+# github.com/hashicorp/errwrap v1.0.0
+## explicit
+github.com/hashicorp/errwrap
+# github.com/hashicorp/go-multierror v1.1.1
+## explicit; go 1.13
+github.com/hashicorp/go-multierror
 # github.com/jackc/pgx/v5 v5.9.2
 ## explicit; go 1.25.0
 # github.com/joho/godotenv v1.5.1
@@ -203,6 +240,9 @@ github.com/moby/sys/userns
 ## explicit; go 1.18
 github.com/moby/term
 github.com/moby/term/windows
+# github.com/muhlemmer/gu v0.3.1
+## explicit; go 1.18
+github.com/muhlemmer/gu
 # github.com/nats-io/jwt/v2 v2.8.1
 ## explicit; go 1.25.0
 github.com/nats-io/jwt/v2
@@ -248,12 +288,20 @@ github.com/opencontainers/go-digest
 ## explicit; go 1.18
 github.com/opencontainers/image-spec/specs-go
 github.com/opencontainers/image-spec/specs-go/v1
+# github.com/pkg/errors v0.9.1
+## explicit
+github.com/pkg/errors
 # github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
 ## explicit
 github.com/pmezard/go-difflib/difflib
 # github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55
 ## explicit; go 1.14
 github.com/power-devops/perfstat
+# github.com/prometheus/procfs v0.15.1
+## explicit; go 1.20
+github.com/prometheus/procfs
+github.com/prometheus/procfs/internal/fs
+github.com/prometheus/procfs/internal/util
 # github.com/robfig/cron v1.2.0
 ## explicit
 github.com/robfig/cron
@@ -268,6 +316,11 @@ github.com/shirou/gopsutil/v4/process
 # github.com/sirupsen/logrus v1.9.4
 ## explicit; go 1.17
 github.com/sirupsen/logrus
+# github.com/spf13/afero v1.15.0
+## explicit; go 1.23.0
+github.com/spf13/afero
+github.com/spf13/afero/internal/common
+github.com/spf13/afero/mem
 # github.com/stretchr/objx v0.5.3
 ## explicit; go 1.20
 github.com/stretchr/objx
@@ -290,26 +343,115 @@ github.com/testcontainers/testcontainers-go/wait
 # github.com/testcontainers/testcontainers-go/modules/postgres v0.42.0
 ## explicit; go 1.25.0
 github.com/testcontainers/testcontainers-go/modules/postgres
+# github.com/tigerbeetle/tigerbeetle-go v0.17.9
+## explicit; go 1.17
+github.com/tigerbeetle/tigerbeetle-go
+github.com/tigerbeetle/tigerbeetle-go/native
 # github.com/tklauser/go-sysconf v0.3.16
 ## explicit; go 1.24.0
 github.com/tklauser/go-sysconf
 # github.com/tklauser/numcpus v0.11.0
 ## explicit; go 1.24.0
 github.com/tklauser/numcpus
+# github.com/wneessen/go-mail v0.8.1
+## explicit; go 1.25.0
+github.com/wneessen/go-mail
+github.com/wneessen/go-mail/internal/dkim
+github.com/wneessen/go-mail/internal/ntlm
+github.com/wneessen/go-mail/internal/pkcs7
+github.com/wneessen/go-mail/log
+github.com/wneessen/go-mail/smtp
 # github.com/yusufpapurcu/wmi v1.2.4
 ## explicit; go 1.16
 github.com/yusufpapurcu/wmi
+# github.com/zitadel/oidc/v3 v3.49.2
+## explicit; go 1.25.0
+github.com/zitadel/oidc/v3/internal/otel
+github.com/zitadel/oidc/v3/pkg/client
+github.com/zitadel/oidc/v3/pkg/client/profile
+github.com/zitadel/oidc/v3/pkg/crypto
+github.com/zitadel/oidc/v3/pkg/http
+github.com/zitadel/oidc/v3/pkg/oidc
+# github.com/zitadel/schema v1.3.2
+## explicit; go 1.20
+github.com/zitadel/schema
+# github.com/zitadel/zitadel-go/v3 v3.29.3
+## explicit; go 1.25.0
+github.com/zitadel/zitadel-go/v3/pkg/authorization
+github.com/zitadel/zitadel-go/v3/pkg/client
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/action
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/action/v2
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/action/v2beta
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/admin
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/analytics/v2beta
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/app
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/app/v2beta
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/application/v2
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/auth
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/authn
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/authoption
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/authorization/v2
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/authorization/v2beta
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/change
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/event
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/feature
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/feature/v2
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/feature/v2beta
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/filter/v2
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/filter/v2beta
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/idp
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/idp/v2
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/instance
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/instance/v2
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/instance/v2beta
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/internal_permission/v2
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/internal_permission/v2beta
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/management
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/member
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/message
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/metadata
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/metadata/v2
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/metadata/v2beta
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/milestone
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/object
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/object/v2
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/object/v2beta
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/oidc/v2
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/oidc/v2beta
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/org
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/org/v2
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/org/v2beta
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/policy
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/project
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/project/v2
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/project/v2beta
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/protoc/v2
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/quota
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/saml/v2
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/session/v2
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/session/v2beta
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/settings
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/settings/v2
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/settings/v2beta
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/system
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/text
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/user
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/user/v2
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/user/v2beta
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/v1
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/webkey/v2
+github.com/zitadel/zitadel-go/v3/pkg/client/zitadel/webkey/v2beta
+github.com/zitadel/zitadel-go/v3/pkg/zitadel
 # go.opentelemetry.io/auto/sdk v1.2.1
 ## explicit; go 1.24.0
 go.opentelemetry.io/auto/sdk
 go.opentelemetry.io/auto/sdk/internal/telemetry
-# go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0
-## explicit; go 1.23.0
+# go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.70.0
+## explicit; go 1.25.0
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/request
 go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconv
-go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp/internal/semconvutil
-# go.opentelemetry.io/otel v1.43.0
+# go.opentelemetry.io/otel v1.45.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/otel
 go.opentelemetry.io/otel/attribute
@@ -321,20 +463,16 @@ go.opentelemetry.io/otel/internal/baggage
 go.opentelemetry.io/otel/internal/errorhandler
 go.opentelemetry.io/otel/internal/global
 go.opentelemetry.io/otel/propagation
-go.opentelemetry.io/otel/semconv/v1.20.0
-go.opentelemetry.io/otel/semconv/v1.26.0
+go.opentelemetry.io/otel/semconv/internal/metricpool
 go.opentelemetry.io/otel/semconv/v1.37.0
-go.opentelemetry.io/otel/semconv/v1.40.0
-# go.opentelemetry.io/otel/metric v1.43.0
+go.opentelemetry.io/otel/semconv/v1.43.0
+go.opentelemetry.io/otel/semconv/v1.43.0/httpconv
+# go.opentelemetry.io/otel/metric v1.45.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/otel/metric
 go.opentelemetry.io/otel/metric/embedded
 go.opentelemetry.io/otel/metric/noop
-# go.opentelemetry.io/otel/sdk v1.43.0
-## explicit; go 1.25.0
-# go.opentelemetry.io/otel/sdk/metric v1.43.0
-## explicit; go 1.25.0
-# go.opentelemetry.io/otel/trace v1.43.0
+# go.opentelemetry.io/otel/trace v1.45.0
 ## explicit; go 1.25.0
 go.opentelemetry.io/otel/trace
 go.opentelemetry.io/otel/trace/embedded
@@ -403,7 +541,7 @@ go.temporal.io/sdk/log
 go.temporal.io/sdk/temporal
 go.temporal.io/sdk/worker
 go.temporal.io/sdk/workflow
-# golang.org/x/crypto v0.52.0
+# golang.org/x/crypto v0.54.0
 ## explicit; go 1.25.0
 golang.org/x/crypto/bcrypt
 golang.org/x/crypto/blake2b
@@ -415,13 +553,14 @@ golang.org/x/crypto/cryptobyte/asn1
 golang.org/x/crypto/curve25519
 golang.org/x/crypto/internal/alias
 golang.org/x/crypto/internal/poly1305
+golang.org/x/crypto/md4
 golang.org/x/crypto/nacl/box
 golang.org/x/crypto/nacl/secretbox
 golang.org/x/crypto/ocsp
 golang.org/x/crypto/salsa20/salsa
 golang.org/x/crypto/ssh
 golang.org/x/crypto/ssh/internal/bcrypt_pbkdf
-# golang.org/x/net v0.55.0
+# golang.org/x/net v0.57.0
 ## explicit; go 1.25.0
 golang.org/x/net/http/httpguts
 golang.org/x/net/http2
@@ -431,11 +570,16 @@ golang.org/x/net/internal/httpcommon
 golang.org/x/net/internal/httpsfv
 golang.org/x/net/internal/timeseries
 golang.org/x/net/trace
-# golang.org/x/sync v0.20.0
+# golang.org/x/oauth2 v0.36.0
+## explicit; go 1.25.0
+golang.org/x/oauth2
+golang.org/x/oauth2/clientcredentials
+golang.org/x/oauth2/internal
+# golang.org/x/sync v0.22.0
 ## explicit; go 1.25.0
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
-# golang.org/x/sys v0.45.0
+# golang.org/x/sys v0.47.0
 ## explicit; go 1.25.0
 golang.org/x/sys/cpu
 golang.org/x/sys/unix
@@ -444,25 +588,38 @@ golang.org/x/sys/windows/registry
 golang.org/x/sys/windows/svc
 golang.org/x/sys/windows/svc/eventlog
 golang.org/x/sys/windows/svc/mgr
-# golang.org/x/text v0.37.0
+# golang.org/x/text v0.40.0
 ## explicit; go 1.25.0
+golang.org/x/text/cases
+golang.org/x/text/internal
+golang.org/x/text/internal/language
+golang.org/x/text/internal/language/compact
+golang.org/x/text/internal/tag
+golang.org/x/text/language
+golang.org/x/text/runes
 golang.org/x/text/secure/bidirule
+golang.org/x/text/secure/precis
 golang.org/x/text/transform
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
+golang.org/x/text/width
 # golang.org/x/time v0.15.0
 ## explicit; go 1.25.0
 golang.org/x/time/rate
-# google.golang.org/genproto/googleapis/api v0.0.0-20260209200024-4cfbd4190f57
-## explicit; go 1.24.0
+# golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
+## explicit; go 1.18
+golang.org/x/xerrors
+golang.org/x/xerrors/internal
+# google.golang.org/genproto/googleapis/api v0.0.0-20260803160001-6ac0973c030d
+## explicit; go 1.25.0
 google.golang.org/genproto/googleapis/api
 google.golang.org/genproto/googleapis/api/annotations
 google.golang.org/genproto/googleapis/api/httpbody
-# google.golang.org/genproto/googleapis/rpc v0.0.0-20260209200024-4cfbd4190f57
-## explicit; go 1.24.0
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20260803160001-6ac0973c030d
+## explicit; go 1.25.0
 google.golang.org/genproto/googleapis/rpc/status
-# google.golang.org/grpc v1.79.3
-## explicit; go 1.24.0
+# google.golang.org/grpc v1.83.0
+## explicit; go 1.25.0
 google.golang.org/grpc
 google.golang.org/grpc/attributes
 google.golang.org/grpc/backoff
@@ -482,6 +639,7 @@ google.golang.org/grpc/credentials/insecure
 google.golang.org/grpc/encoding
 google.golang.org/grpc/encoding/internal
 google.golang.org/grpc/encoding/proto
+google.golang.org/grpc/experimental/balancer/weight
 google.golang.org/grpc/experimental/stats
 google.golang.org/grpc/grpclog
 google.golang.org/grpc/grpclog/internal
@@ -489,7 +647,6 @@ google.golang.org/grpc/health/grpc_health_v1
 google.golang.org/grpc/internal
 google.golang.org/grpc/internal/backoff
 google.golang.org/grpc/internal/balancer/gracefulswitch
-google.golang.org/grpc/internal/balancer/weight
 google.golang.org/grpc/internal/balancerload
 google.golang.org/grpc/internal/binarylog
 google.golang.org/grpc/internal/buffer
@@ -500,6 +657,7 @@ google.golang.org/grpc/internal/grpclog
 google.golang.org/grpc/internal/grpcsync
 google.golang.org/grpc/internal/grpcutil
 google.golang.org/grpc/internal/idle
+google.golang.org/grpc/internal/mem
 google.golang.org/grpc/internal/metadata
 google.golang.org/grpc/internal/pretty
 google.golang.org/grpc/internal/proxyattributes
@@ -514,7 +672,9 @@ google.golang.org/grpc/internal/stats
 google.golang.org/grpc/internal/status
 google.golang.org/grpc/internal/syscall
 google.golang.org/grpc/internal/transport
+google.golang.org/grpc/internal/transport/internal
 google.golang.org/grpc/internal/transport/networktype
+google.golang.org/grpc/internal/transport/readyreader
 google.golang.org/grpc/keepalive
 google.golang.org/grpc/mem
 google.golang.org/grpc/metadata
@@ -568,3 +728,9 @@ google.golang.org/protobuf/types/known/wrapperspb
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
+# howett.net/plist v1.0.0
+## explicit; go 1.12
+howett.net/plist
+# tailscale.com v1.80.3
+## explicit; go 1.23.1
+tailscale.com/types/ptr
