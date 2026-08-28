@@ -18,13 +18,16 @@ import (
 
 // Config is the top-level application configuration loaded from environment variables.
 type Config struct {
-	NATS     NATSConfig      `envPrefix:"NATS_"`
-	Server   ServerConfig    `envPrefix:"SERVER_"`
-	Logger   logger.Config   `envPrefix:"LOGGER_"`
-	Database pg.Config       `envPrefix:"POSTGRES_"`
-	Temporal TemporalConfig  `envPrefix:"TEMPORAL_"`
-	AuditLog AuditLogConfig  `envPrefix:"AUDIT_LOG_"`
-	Notifier notifier.Config `envPrefix:"NOTIFIER_"`
+	NATS        NATSConfig        `envPrefix:"NATS_"`
+	Server      ServerConfig      `envPrefix:"SERVER_"`
+	Logger      logger.Config     `envPrefix:"LOGGER_"`
+	Database    pg.Config         `envPrefix:"POSTGRES_"`
+	Temporal    TemporalConfig    `envPrefix:"TEMPORAL_"`
+	AuditLog    AuditLogConfig    `envPrefix:"AUDIT_LOG_"`
+	Notifier    notifier.Config   `envPrefix:"NOTIFIER_"`
+	TigerBeetle TigerBeetleConfig `envPrefix:"TIGERBEETLE_"`
+	Zitadel     ZitadelConfig     `envPrefix:"ZITADEL_CLIENT_"`
+	SMTP        SMTPConfig        `envPrefix:"SMTP_"`
 }
 
 type NATSConfig struct {
@@ -45,6 +48,26 @@ type ServerConfig struct {
 type TemporalConfig struct {
 	Host      string `env:"HOST"`
 	Namespace string `env:"NAMESPACE"`
+}
+
+type TigerBeetleConfig struct {
+	Address   string `env:"ADDRESS" envDefault:"127.0.0.1:3000"`
+	ClusterID uint64 `env:"CLUSTER_ID" envDefault:"0"`
+}
+
+type ZitadelConfig struct {
+	Domain       string `env:"DOMAIN" envDefault:"127.0.0.1:8080"`
+	InstanceHost string `env:"INSTANCE_HOST" envDefault:""`
+	Insecure     bool   `env:"INSECURE" envDefault:"true"`
+}
+
+type SMTPConfig struct {
+	Host     string `env:"HOST" envDefault:"127.0.0.1"`
+	Port     int    `env:"PORT" envDefault:"1025"`
+	From     string `env:"FROM" envDefault:"noreply@example.com"`
+	FromName string `env:"FROM_NAME" envDefault:"App"`
+	Username string `env:"USERNAME"`
+	Password string `env:"PASSWORD"`
 }
 
 // Load reads environment variables into cfg, first loading .env if SKIP_ENV_AUTO_LOAD is not set.
@@ -87,6 +110,15 @@ func (cfg *Config) Validate() error {
 	if err := cfg.Notifier.Validate(); err != nil {
 		return fmt.Errorf("notifier: %w", err)
 	}
+	if err := cfg.TigerBeetle.validate(); err != nil {
+		return fmt.Errorf("tigerbeetle: %w", err)
+	}
+	if err := cfg.Zitadel.validate(); err != nil {
+		return fmt.Errorf("zitadel: %w", err)
+	}
+	if err := cfg.SMTP.validate(); err != nil {
+		return fmt.Errorf("smtp: %w", err)
+	}
 	return nil
 }
 
@@ -114,6 +146,36 @@ func (c TemporalConfig) validate() error {
 func (c AuditLogConfig) validate() error {
 	if c.Timeout <= 0 {
 		return fmt.Errorf("TIMEOUT must be positive")
+	}
+	return nil
+}
+
+func (c TigerBeetleConfig) validate() error {
+	if c.Address == "" {
+		return fmt.Errorf("ADDRESS must not be empty")
+	}
+	return nil
+}
+
+func (c ZitadelConfig) validate() error {
+	if c.Domain == "" {
+		return fmt.Errorf("DOMAIN must not be empty")
+	}
+	return nil
+}
+
+func (c SMTPConfig) validate() error {
+	if c.Host == "" {
+		return fmt.Errorf("HOST must not be empty")
+	}
+	if c.Port < 1 || c.Port > 65535 {
+		return fmt.Errorf("PORT %d is outside range [1, 65535]", c.Port)
+	}
+	if c.From == "" {
+		return fmt.Errorf("FROM must not be empty")
+	}
+	if !strings.Contains(c.From, "@") {
+		return fmt.Errorf("FROM %q must contain @", c.From)
 	}
 	return nil
 }

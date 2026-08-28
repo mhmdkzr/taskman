@@ -4,10 +4,15 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	tigerbeetle "github.com/tigerbeetle/tigerbeetle-go"
+	mail "github.com/wneessen/go-mail"
+	zitadelclient "github.com/zitadel/zitadel-go/v3/pkg/client"
+	zitadel "github.com/zitadel/zitadel-go/v3/pkg/zitadel"
 	temporalclient "go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
@@ -84,6 +89,11 @@ func Start(ctx context.Context) error {
 		return fmt.Errorf("jetstream init: %w", err)
 	}
 
+	auditlogCfg := auditlog.Config{Subject: "api.audit", Stream: "API_AUDIT"}
+	if err := auditlog.CreateStream(ctx, js, auditlogCfg); err != nil {
+		return fmt.Errorf("create audit stream: %w", err)
+	}
+
 	if err := streams.CreateStreams(ctx, js); err != nil {
 		return fmt.Errorf("create streams: %w", err)
 	}
@@ -104,12 +114,44 @@ func Start(ctx context.Context) error {
 	}
 	slog.Info("temporal connected and healthy", "host", cfg.Temporal.Host)
 
+	tb, err := tigerbeetle.NewClient(tigerbeetle.ToUint128(cfg.TigerBeetle.ClusterID), []string{cfg.TigerBeetle.Address})
+	if err != nil {
+		return fmt.Errorf("connect tigerbeetle: %w", err)
+	}
+	defer tb.Close()
+	if err := tb.Nop(); err != nil {
+		return fmt.Errorf("check tigerbeetle health: %w", err)
+	}
+
+	zitadelHost, zitadelPort, err := net.SplitHostPort(cfg.Zitadel.Domain)
+	if err != nil {
+		return fmt.Errorf("parse zitadel domain: %w", err)
+	}
+	zitadelOptions := []zitadel.Option{zitadel.WithInsecure(zitadelPort)}
+	if cfg.Zitadel.InstanceHost != "" {
+		zitadelOptions = append(zitadelOptions, zitadel.WithTransportHeader("x-zitadel-instance-host", cfg.Zitadel.InstanceHost))
+	}
+	zc, err := zitadelclient.New(ctx, zitadel.New(zitadelHost, zitadelOptions...))
+	if err != nil {
+		return fmt.Errorf("connect zitadel: %w", err)
+	}
+	defer zc.Close()
+
+	mailer, err := mail.NewClient(cfg.SMTP.Host, mail.WithPort(cfg.SMTP.Port), mail.WithTLSPolicy(mail.NoTLS))
+	if err != nil {
+		return fmt.Errorf("create mailer: %w", err)
+	}
+	defer mailer.Close()
+
 	a := app.App{
 		Deps: app.Deps{
-			DB:       db,
-			NC:       nc,
-			JS:       js,
-			Temporal: t,
+			DB:          db,
+			NC:          nc,
+			JS:          js,
+			Temporal:    t,
+			TigerBeetle: tb,
+			Zitadel:     zc,
+			Mailer:      mailer,
 		},
 		Cfg: cfg,
 		Mux: http.NewServeMux(),
@@ -123,7 +165,7 @@ func Start(ctx context.Context) error {
 	register.RegisterEvents(w, a)
 	slog.Info("temporal worker registered", "task_queue", app.TemporalTaskQueue)
 
-	redactor, err := auditlog.NewWithRedactor(a.Deps.JS, auditlog.Config{}, auditlog.AuditEvent)
+	redactor, err := auditlog.NewWithRedactor(a.Deps.JS, auditlogCfg, auditlog.AuditEvent)
 	if err != nil {
 		return fmt.Errorf("auditlog init: %w", err)
 	}

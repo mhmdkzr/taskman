@@ -19,8 +19,23 @@ The `Config.Load()` method:
 | `Config` | Top-level application configuration |
 | `ServerConfig` | HTTP server bind address and base path |
 | `TemporalConfig` | Temporal host and namespace |
+| `TigerBeetleConfig` | TigerBeetle address and cluster ID (`TIGERBEETLE_*`) |
+| `ZitadelConfig` | Zitadel client domain and insecure flag (`ZITADEL_CLIENT_*`) |
+| `SMTPConfig` | SMTP mailer host/port/credentials (`SMTP_*`, MailHog defaults) |
 
 Nested configuration types are defined in their respective packages:
 - `pkg/logger.Config`
 - `pkg/pg.Config`
 - `pkg/notifier.Config`
+
+### TigerBeetle
+
+`TIGERBEETLE_ADDRESS` (default `127.0.0.1:3000`) and `TIGERBEETLE_CLUSTER_ID` (default `0`, `uint64`). Validated: `ADDRESS` non-empty. Compose override `tigerbeetle:3000`.
+
+### Zitadel Client
+
+`ZITADEL_CLIENT_DOMAIN` (default `127.0.0.1:8080`, e.g. `zitadel:8080` in compose) and `ZITADEL_CLIENT_INSECURE` (default `true`). Validated: `DOMAIN` non-empty. Built with `zitadel.New(domain, zitadel.WithInsecure(...))` and `client.New`.
+
+### SMTP (MailHog)
+
+`SMTP_HOST` (default `127.0.0.1`, compose `mailhog`), `SMTP_PORT` (default `1025`), `SMTP_FROM` (default `noreply@example.com`), `SMTP_FROM_NAME`, `SMTP_USERNAME`, `SMTP_PASSWORD`. Validated: `HOST` non-empty, `PORT` 1–65535, `FROM` contains `@`. Built with `mail.NewClient(host, mail.WithPort(port), ...)`. MailHog UI at `http://localhost:8025`, SMTP at `localhost:1025`.

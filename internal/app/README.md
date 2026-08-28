@@ -8,8 +8,8 @@ HTTP response helpers formerly here have been extracted to `pkg/jsonresp` (`json
 
 | Type | Description |
 |---|---|
-| `App` | Central runtime context — holds DB (`*sql.DB`), NATS `*nats.Conn`, JetStream `jetstream.JetStream`, Temporal client, and config (`config.Config`) |
-| `Deps` | Shared runtime dependencies (`DB`, `NC`, `JS`, `Temporal`) |
+| `App` | Central runtime context — holds DB (`*sql.DB`), NATS `*nats.Conn`, JetStream `jetstream.JetStream`, Temporal client, TigerBeetle `tigerbeetle.Client`, Zitadel `*client.Client`, SMTP `*mail.Client`, and config (`config.Config`) |
+| `Deps` | Shared runtime dependencies (`DB`, `NC`, `JS`, `Temporal`, `TigerBeetle`, `Zitadel`, `Mailer`) — see `pkg/stack` for anchored deps (`tigerbeetle-go`, `zitadel-go`, `go-mail`) |
 | `Route` | HTTP route descriptor — method, path, handler function (see `internal/routes`). Registered with base-path prefixing via `App.Cfg.Server.BasePath` |
 
 ## Constants

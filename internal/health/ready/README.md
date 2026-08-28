@@ -25,7 +25,19 @@ Readiness check slice that probes all external dependencies and reports their st
     "nats": {
       "status": "ok"
     },
+    "jetstream": {
+      "status": "ok"
+    },
     "temporal": {
+      "status": "ok"
+    },
+    "tigerbeetle": {
+      "status": "ok"
+    },
+    "zitadel": {
+      "status": "ok"
+    },
+    "mailer": {
       "status": "ok"
     }
   }
@@ -55,7 +67,11 @@ A failing check includes an `error` field:
 |------------|-------------------------------------|
 | `database` | `sql.DB.PingContext`                |
 | `nats`     | `nats.Conn.Status() == CONNECTED`   |
+| `jetstream` | JetStream `AccountInfo`             |
 | `temporal` | `temporalclient.Client.CheckHealth` |
+| `tigerbeetle` | TigerBeetle `Nop` request          |
+| `zitadel` | Zitadel Auth `Healthz` RPC            |
+| `mailer` | SMTP connection and greeting          |
 
 ## Example
 
@@ -73,7 +89,19 @@ curl -sS http://127.0.0.1:8090/ready   # via Caddy; direct app is :8080
     "nats": {
       "status": "ok"
     },
+    "jetstream": {
+      "status": "ok"
+    },
     "temporal": {
+      "status": "ok"
+    },
+    "tigerbeetle": {
+      "status": "ok"
+    },
+    "zitadel": {
+      "status": "ok"
+    },
+    "mailer": {
       "status": "ok"
     }
   }

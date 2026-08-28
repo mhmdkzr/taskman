@@ -6,7 +6,11 @@ import (
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	mail "github.com/wneessen/go-mail"
 	temporalclient "go.temporal.io/sdk/client"
+
+	tigerbeetle "github.com/tigerbeetle/tigerbeetle-go"
+	zitadelclient "github.com/zitadel/zitadel-go/v3/pkg/client"
 
 	"github.com/mhmdkzr/app/internal/config"
 )
@@ -20,10 +24,13 @@ type App struct {
 
 // Deps holds the shared runtime dependencies of the application.
 type Deps struct {
-	DB       *sql.DB
-	NC       *nats.Conn
-	JS       jetstream.JetStream
-	Temporal temporalclient.Client
+	DB          *sql.DB
+	NC          *nats.Conn
+	JS          jetstream.JetStream
+	Temporal    temporalclient.Client
+	TigerBeetle tigerbeetle.Client
+	Zitadel     *zitadelclient.Client
+	Mailer      *mail.Client
 }
 
 // TemporalTaskQueue is the default task queue name for all Temporal workflows.

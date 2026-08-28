@@ -33,7 +33,11 @@ func TestHandle_AllNilDeps_ReturnsDegraded(t *testing.T) {
 	allFailing := []*CheckResult{
 		resp.Checks.Database,
 		resp.Checks.NATS,
+		resp.Checks.JetStream,
 		resp.Checks.Temporal,
+		resp.Checks.TigerBeetle,
+		resp.Checks.Zitadel,
+		resp.Checks.Mailer,
 	}
 	for i, r := range allFailing {
 		if r == nil {
