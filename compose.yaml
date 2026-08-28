@@ -103,7 +103,7 @@ services:
   zitadel:
     image: ghcr.io/zitadel/zitadel:v4.17.1@sha256:3ac6910685d48f32481f01f45e3e6215efe5a9df2c069591b481e9a101712db5
     restart: unless-stopped
-    command: start-from-init --masterkey "MasterkeyNeedsToHave32Characters"
+    command: start-from-init --masterkeyFromEnv
     env_file:
       - .env
       - .env.compose
