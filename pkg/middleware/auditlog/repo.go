@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // insertAuditLog inserts an audit event into the database.
@@ -68,15 +69,43 @@ func toJSONBCompatibleString(body []byte) *string {
 	if len(body) == 0 {
 		return nil
 	}
-	if json.Valid(body) {
-		s := string(body)
-		return &s
+	var value any
+	if json.Unmarshal(body, &value) == nil {
+		removeNUL(value)
+		if encoded, err := json.Marshal(value); err == nil {
+			s := string(encoded)
+			return &s
+		}
 	}
-	b, err := json.Marshal(string(body))
+	b, err := json.Marshal(strings.ReplaceAll(string(body), "\x00", ""))
 	if err != nil {
-		s := string(body)
+		s := strings.ReplaceAll(string(body), "\x00", "")
 		return &s
 	}
 	s := string(b)
 	return &s
+}
+
+// removeNUL removes code points PostgreSQL JSONB does not accept.
+func removeNUL(value any) {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, nested := range typed {
+			switch child := nested.(type) {
+			case string:
+				typed[key] = strings.ReplaceAll(child, "\x00", "")
+			default:
+				removeNUL(child)
+			}
+		}
+	case []any:
+		for i, nested := range typed {
+			switch child := nested.(type) {
+			case string:
+				typed[i] = strings.ReplaceAll(child, "\x00", "")
+			default:
+				removeNUL(child)
+			}
+		}
+	}
 }

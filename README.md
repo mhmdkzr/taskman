@@ -80,6 +80,18 @@ Run `docker compose config` to validate `compose.yaml`.
 
 Public entry is `http://localhost:8090` (Caddy). `app` is not published directly; Caddy waits for `app` healthy (`wget /health`) and Caddy itself exposes `/health` for host checks. Config at `config/caddy/Caddyfile`.
 
+## Authentication and notifications
+
+The browser uses a backend-for-frontend OIDC flow: it navigates to `GET /auth/login`,
+the Go server handles the Zitadel callback, and the SPA uses only the opaque
+PostgreSQL-backed session cookie. Configure the confidential Zitadel Web application
+and the `AUTH_*` variables in `.env` before setting `AUTH_ENABLED=true`; the exact
+callback URLs must be registered in Zitadel. The SPA must never receive Zitadel tokens.
+
+`/webhooks/*` is intentionally not proxied by Caddy. To enable Zitadel HTTP notification
+delivery, set a strong `WEBHOOKS_ZITADEL_PATH_SECRET`, then configure the Zitadel endpoint
+as `http://app:8080/webhooks/zitadel/notifications/<secret>` on the private Compose network.
+
 Volumes: `zitadel-bootstrap` (shared PAT between zitadel and zitadel-login), `tigerbeetle-data` (ledger), `caddy-data` / `caddy-config` (Caddy persistence).
 
 TigerBeetle requires `seccomp=unconfined` + `IPC_LOCK` and `--cache-grid`. See `compose.yaml:168`.

@@ -71,6 +71,28 @@ func TestAuditEvent_RedactsSecretQueryParameters(t *testing.T) {
 	}
 }
 
+func TestAuditEvent_RedactsOAuthCallbackQueryParameters(t *testing.T) {
+	event := EventAPIAuditLogged{
+		Request: middleware.RequestData{
+			Query: "code=authorization-code&state=callback-state&error_description=keep",
+		},
+	}
+
+	got := AuditEvent(event)
+	values, err := url.ParseQuery(got.Request.Query)
+	if err != nil {
+		t.Fatalf("parse redacted query: %v", err)
+	}
+	for _, key := range []string{"code", "state"} {
+		if values.Get(key) != Marker {
+			t.Fatalf("%s = %q, want marker", key, values.Get(key))
+		}
+	}
+	if values.Get("error_description") != "keep" {
+		t.Fatalf("error_description = %q, want keep", values.Get("error_description"))
+	}
+}
+
 func TestAuditEvent_RedactsRecursiveJSONBodies(t *testing.T) {
 	event := EventAPIAuditLogged{
 		Request: middleware.RequestData{

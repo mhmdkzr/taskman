@@ -20,6 +20,7 @@ test/
 # Build artifacts
 dist/
 tmp/
+frontend/node_modules/
 *.exe
 *.dll
 *.so

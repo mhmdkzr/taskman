@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 
+	"github.com/alexedwards/scs/v2"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	mail "github.com/wneessen/go-mail"
@@ -31,6 +32,7 @@ type Deps struct {
 	TigerBeetle tigerbeetle.Client
 	Zitadel     *zitadelclient.Client
 	Mailer      *mail.Client
+	Sessions    *scs.SessionManager
 }
 
 // TemporalTaskQueue is the default task queue name for all Temporal workflows.

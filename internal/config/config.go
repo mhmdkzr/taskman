@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -27,6 +28,8 @@ type Config struct {
 	Notifier    notifier.Config   `envPrefix:"NOTIFIER_"`
 	TigerBeetle TigerBeetleConfig `envPrefix:"TIGERBEETLE_"`
 	Zitadel     ZitadelConfig     `envPrefix:"ZITADEL_CLIENT_"`
+	Auth        AuthConfig        `envPrefix:"AUTH_"`
+	Webhooks    WebhooksConfig    `envPrefix:"WEBHOOKS_"`
 	SMTP        SMTPConfig        `envPrefix:"SMTP_"`
 }
 
@@ -59,6 +62,26 @@ type ZitadelConfig struct {
 	Domain       string `env:"DOMAIN" envDefault:"127.0.0.1:8080"`
 	InstanceHost string `env:"INSTANCE_HOST" envDefault:""`
 	Insecure     bool   `env:"INSECURE" envDefault:"true"`
+}
+
+// AuthConfig configures the server-side OIDC client and its persistent browser sessions.
+type AuthConfig struct {
+	Enabled               bool          `env:"ENABLED" envDefault:"false"`
+	Issuer                string        `env:"ISSUER" envDefault:""`
+	InternalAddress       string        `env:"INTERNAL_ADDRESS" envDefault:""`
+	ClientID              string        `env:"CLIENT_ID" envDefault:""`
+	ClientSecret          string        `env:"CLIENT_SECRET" envDefault:""`
+	RedirectURL           string        `env:"REDIRECT_URL" envDefault:""`
+	PostLogoutRedirectURL string        `env:"POST_LOGOUT_REDIRECT_URL" envDefault:""`
+	SessionLifetime       time.Duration `env:"SESSION_LIFETIME" envDefault:"24h"`
+	SessionIdleTimeout    time.Duration `env:"SESSION_IDLE_TIMEOUT" envDefault:"8h"`
+	RefreshLeeway         time.Duration `env:"REFRESH_LEEWAY" envDefault:"1m"`
+	CookieSecure          bool          `env:"COOKIE_SECURE" envDefault:"true"`
+}
+
+// WebhooksConfig configures the listener that is reachable only from the private network.
+type WebhooksConfig struct {
+	ZitadelPathSecret string `env:"ZITADEL_PATH_SECRET" envDefault:""`
 }
 
 type SMTPConfig struct {
@@ -116,9 +139,42 @@ func (cfg *Config) Validate() error {
 	if err := cfg.Zitadel.validate(); err != nil {
 		return fmt.Errorf("zitadel: %w", err)
 	}
+	if err := cfg.Auth.validate(); err != nil {
+		return fmt.Errorf("auth: %w", err)
+	}
+	if err := cfg.Webhooks.validate(); err != nil {
+		return fmt.Errorf("webhooks: %w", err)
+	}
 	if err := cfg.SMTP.validate(); err != nil {
 		return fmt.Errorf("smtp: %w", err)
 	}
+	return nil
+}
+
+func (c AuthConfig) validate() error {
+	if !c.Enabled {
+		return nil
+	}
+	for name, value := range map[string]string{
+		"ISSUER": c.Issuer, "CLIENT_ID": c.ClientID, "CLIENT_SECRET": c.ClientSecret,
+		"REDIRECT_URL": c.RedirectURL, "POST_LOGOUT_REDIRECT_URL": c.PostLogoutRedirectURL,
+	} {
+		if value == "" {
+			return fmt.Errorf("%s must not be empty when ENABLED", name)
+		}
+	}
+	if c.SessionLifetime <= 0 || c.SessionIdleTimeout <= 0 || c.RefreshLeeway < 0 {
+		return fmt.Errorf("session durations must be positive (refresh leeway may be zero)")
+	}
+	if c.InternalAddress != "" {
+		if _, _, err := net.SplitHostPort(c.InternalAddress); err != nil {
+			return fmt.Errorf("INTERNAL_ADDRESS must be host:port when ENABLED: %w", err)
+		}
+	}
+	return nil
+}
+
+func (c WebhooksConfig) validate() error {
 	return nil
 }
 

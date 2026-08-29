@@ -6,7 +6,10 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 
+	"github.com/alexedwards/scs/postgresstore"
+	"github.com/alexedwards/scs/v2"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	tigerbeetle "github.com/tigerbeetle/tigerbeetle-go"
@@ -17,7 +20,10 @@ import (
 	"go.temporal.io/sdk/worker"
 
 	"github.com/mhmdkzr/app/internal/app"
+	"github.com/mhmdkzr/app/internal/auth/bff"
+	authregister "github.com/mhmdkzr/app/internal/auth/register"
 	"github.com/mhmdkzr/app/internal/config"
+	zitadelnotifications "github.com/mhmdkzr/app/internal/notifications/zitadel"
 	"github.com/mhmdkzr/app/internal/register"
 	"github.com/mhmdkzr/app/internal/streams"
 	"github.com/mhmdkzr/app/migrations"
@@ -39,6 +45,9 @@ func Start(ctx context.Context) error {
 	var cfg config.Config
 	if err := cfg.Load(); err != nil {
 		return fmt.Errorf("load config: %w", err)
+	}
+	if err := cfg.Validate(); err != nil {
+		return fmt.Errorf("validate config: %w", err)
 	}
 
 	nc, err := nats.Connect(cfg.NATS.URL)
@@ -82,6 +91,21 @@ func Start(ctx context.Context) error {
 		if err := runMigrations(ctx, cfg.Database); err != nil {
 			return fmt.Errorf("migrate db: %w", err)
 		}
+	}
+
+	sessionStore := postgresstore.New(db)
+	defer sessionStore.StopCleanup()
+	sessions := scs.New()
+	sessions.Store = sessionStore
+	sessions.HashTokenInStore = true
+	sessions.Cookie.Name = "app_session"
+	sessions.Cookie.HttpOnly = true
+	sessions.Cookie.SameSite = http.SameSiteStrictMode
+	sessions.Cookie.Secure = cfg.Auth.CookieSecure
+	sessions.Cookie.Path = "/"
+	if cfg.Auth.Enabled {
+		sessions.Lifetime = cfg.Auth.SessionLifetime
+		sessions.IdleTimeout = cfg.Auth.SessionIdleTimeout
 	}
 
 	js, err := jetstream.New(nc)
@@ -137,6 +161,14 @@ func Start(ctx context.Context) error {
 	}
 	defer zc.Close()
 
+	var authService *bff.Service
+	if cfg.Auth.Enabled {
+		authService, err = bff.New(ctx, cfg.Auth, db, sessions)
+		if err != nil {
+			return fmt.Errorf("initialize BFF authentication: %w", err)
+		}
+	}
+
 	mailer, err := mail.NewClient(cfg.SMTP.Host, mail.WithPort(cfg.SMTP.Port), mail.WithTLSPolicy(mail.NoTLS))
 	if err != nil {
 		return fmt.Errorf("create mailer: %w", err)
@@ -152,6 +184,7 @@ func Start(ctx context.Context) error {
 			TigerBeetle: tb,
 			Zitadel:     zc,
 			Mailer:      mailer,
+			Sessions:    sessions,
 		},
 		Cfg: cfg,
 		Mux: http.NewServeMux(),
@@ -160,6 +193,7 @@ func Start(ctx context.Context) error {
 	w := worker.New(t, app.TemporalTaskQueue, worker.Options{})
 
 	register.RegisterRoutes(a)
+	authregister.RegisterRoutes(a, authService)
 	register.RegisterActivities(w, a)
 	register.RegisterWorkflows(w, a)
 	register.RegisterEvents(w, a)
@@ -169,16 +203,33 @@ func Start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("auditlog init: %w", err)
 	}
+	applicationHandler := sessions.LoadAndSave(middleware.Chain(a.Mux,
+		timeout.New(cfg.Server.Timeout),
+		clientip.New(),
+		redactor,
+		logging.New(),
+	))
+	var handler http.Handler = applicationHandler
+	if cfg.Webhooks.ZitadelPathSecret != "" {
+		webhookMux := http.NewServeMux()
+		zitadelnotifications.NewHandler(cfg.Webhooks.ZitadelPathSecret, mailer, cfg.SMTP).Register(webhookMux)
+		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.HasPrefix(r.URL.Path, "/webhooks/") {
+				webhookMux.ServeHTTP(w, r)
+				return
+			}
+			applicationHandler.ServeHTTP(w, r)
+		})
+	}
 
 	httpServer := &http.Server{
 		Addr:              cfg.Server.BindAddr,
 		ReadHeaderTimeout: cfg.Server.Timeout,
-		Handler: middleware.Chain(a.Mux,
-			timeout.New(cfg.Server.Timeout),
-			clientip.New(),
-			redactor,
-			logging.New(),
-		),
+		ReadTimeout:       cfg.Server.Timeout,
+		WriteTimeout:      cfg.Server.Timeout,
+		IdleTimeout:       cfg.Server.Timeout,
+		MaxHeaderBytes:    1 << 20,
+		Handler:           handler,
 	}
 	httpErrCh := make(chan error, 1)
 	go func() {

@@ -36,6 +36,17 @@ Nested configuration types are defined in their respective packages:
 
 `ZITADEL_CLIENT_DOMAIN` (default `127.0.0.1:8080`, e.g. `zitadel:8080` in compose) and `ZITADEL_CLIENT_INSECURE` (default `true`). Validated: `DOMAIN` non-empty. Built with `zitadel.New(domain, zitadel.WithInsecure(...))` and `client.New`.
 
+### BFF authentication and private webhooks
+
+`AUTH_*` configures the confidential server-side Zitadel OIDC client and the
+PostgreSQL-backed SCS session. Authentication is disabled unless `AUTH_ENABLED=true`.
+`AUTH_INTERNAL_ADDRESS` is optional and Compose-only: it dials the private
+provider address while retaining the public `AUTH_ISSUER` URL and Host header.
+When enabled, issuer, client credentials, exact callback URLs, and positive session
+durations are required. `WEBHOOKS_ZITADEL_PATH_SECRET` enables the private-network
+notification handler on the existing app listener; Caddy deliberately returns 404 for its
+public `/webhooks/*` counterpart.
+
 ### SMTP (MailHog)
 
 `SMTP_HOST` (default `127.0.0.1`, compose `mailhog`), `SMTP_PORT` (default `1025`), `SMTP_FROM` (default `noreply@example.com`), `SMTP_FROM_NAME`, `SMTP_USERNAME`, `SMTP_PASSWORD`. Validated: `HOST` non-empty, `PORT` 1–65535, `FROM` contains `@`. Built with `mail.NewClient(host, mail.WithPort(port), ...)`. MailHog UI at `http://localhost:8025`, SMTP at `localhost:1025`.

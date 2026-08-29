@@ -86,14 +86,9 @@ New slices must include a `README.md` file which explains what the slice is, wha
 
 ---
 
-## Code and Test Sync
+## Testing
 
 - If you change `[file].go`, and `[file]_test.go` or other related test files are present, keep them in sync with the behavior you changed.
-
----
-
-## Testing Rules
-
 - If you need to use NATS in a test, use `pkg/natsembed` when an in-process NATS server is enough.
 - For e2e tests that run from `testing.T`, prefer `t.Context()` over `context.Background()` so request cancellation is tied to test lifecycle.
 - For testing DB-backed slices, we use a temporary PostgreSQL database via `pkg/testdb` and Testcontainers pattern for PostgreSQL-backed tests:
@@ -207,3 +202,7 @@ All database access must be wrapped in private functions whose only job is to ta
 ## Deployment
 
 Use semantic versioning for release tags (see `notes/resources/semantic-versioning.md`).
+
+--- 
+
+- Be concise and task-focused.
