@@ -15,9 +15,18 @@ func RegisterRoutes(a app.App, service *bff.Service) {
 		return
 	}
 	h := bff.NewHandler(service)
-	routes.RegisterRoutes(a,
-		routes.Route{Method: http.MethodGet, Path: "/auth/login", Handler: service.TransactionMiddleware(http.HandlerFunc(h.Login)).ServeHTTP},
-		routes.Route{Method: http.MethodGet, Path: "/auth/callback", Handler: service.TransactionMiddleware(http.HandlerFunc(h.Callback)).ServeHTTP},
+	routes.RegisterRoutes(
+		a,
+		routes.Route{
+			Method:  http.MethodGet,
+			Path:    "/auth/login",
+			Handler: service.TransactionMiddleware(http.HandlerFunc(h.Login)).ServeHTTP,
+		},
+		routes.Route{
+			Method:  http.MethodGet,
+			Path:    "/auth/callback",
+			Handler: service.TransactionMiddleware(http.HandlerFunc(h.Callback)).ServeHTTP,
+		},
 		routes.Route{Method: http.MethodPost, Path: "/auth/logout", Handler: h.Logout},
 		routes.Route{Method: http.MethodGet, Path: "/api/me", Handler: h.Me},
 	)

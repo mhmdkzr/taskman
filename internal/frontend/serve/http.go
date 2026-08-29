@@ -38,7 +38,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/")
 	if path != "" {
 		if _, err := fs.Stat(h.subFS, path); err != nil {
-			if strings.HasPrefix(path, "api/") || strings.HasPrefix(path, "auth/") || strings.HasPrefix(path, "webhooks/") {
+			if strings.HasPrefix(path, "api/") || strings.HasPrefix(path, "auth/") ||
+				strings.HasPrefix(path, "webhooks/") {
 				http.NotFound(w, r)
 				return
 			}

@@ -41,7 +41,10 @@ type notification struct {
 }
 
 func (h Handler) handle(w http.ResponseWriter, r *http.Request) {
-	if subtle.ConstantTimeCompare([]byte(strings.TrimPrefix(r.URL.Path, "/webhooks/zitadel/notifications/")), []byte(h.pathSecret)) != 1 {
+	if subtle.ConstantTimeCompare(
+		[]byte(strings.TrimPrefix(r.URL.Path, "/webhooks/zitadel/notifications/")),
+		[]byte(h.pathSecret),
+	) != 1 {
 		http.NotFound(w, r)
 		return
 	}
@@ -52,7 +55,8 @@ func (h Handler) handle(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid notification payload", http.StatusBadRequest)
 		return
 	}
-	if payload.ContextInfo.RecipientEmailAddress == "" || payload.TemplateData.Subject == "" || payload.TemplateData.Text == "" {
+	if payload.ContextInfo.RecipientEmailAddress == "" || payload.TemplateData.Subject == "" ||
+		payload.TemplateData.Text == "" {
 		http.Error(w, "incomplete notification payload", http.StatusBadRequest)
 		return
 	}

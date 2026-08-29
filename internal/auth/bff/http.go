@@ -59,7 +59,8 @@ func (h Handler) login(w http.ResponseWriter, r *http.Request) {
 func (h Handler) callback(w http.ResponseWriter, r *http.Request) {
 	expectedState := h.service.transactions.GetString(r.Context(), stateKey)
 	callbackState := r.URL.Query().Get("state")
-	if r.URL.Query().Get("error") != "" || r.URL.Query().Get("code") == "" || expectedState == "" || subtle.ConstantTimeCompare([]byte(callbackState), []byte(expectedState)) != 1 {
+	if r.URL.Query().Get("error") != "" || r.URL.Query().Get("code") == "" || expectedState == "" ||
+		subtle.ConstantTimeCompare([]byte(callbackState), []byte(expectedState)) != 1 {
 		jsonresp.WriteHTTPError(w, http.StatusBadRequest, errInvalidCallback)
 		return
 	}

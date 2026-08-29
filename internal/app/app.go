@@ -1,3 +1,5 @@
+// Package app holds the shared runtime dependencies (App.Deps), configuration
+// (App.Cfg), and HTTP mux (App.Mux) that slices register against.
 package app
 
 import (
@@ -7,11 +9,10 @@ import (
 	"github.com/alexedwards/scs/v2"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
-	mail "github.com/wneessen/go-mail"
-	temporalclient "go.temporal.io/sdk/client"
-
 	tigerbeetle "github.com/tigerbeetle/tigerbeetle-go"
+	mail "github.com/wneessen/go-mail"
 	zitadelclient "github.com/zitadel/zitadel-go/v3/pkg/client"
+	temporalclient "go.temporal.io/sdk/client"
 
 	"github.com/mhmdkzr/app/internal/config"
 )

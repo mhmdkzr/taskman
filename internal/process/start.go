@@ -2,6 +2,7 @@ package process
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"net"
@@ -62,17 +63,8 @@ func Start(ctx context.Context) error {
 	}
 	slog.Info("logger initialized")
 
-	if cfg.Notifier.Enabled {
-		if cfg.Notifier.Telegram.BotToken == "" {
-			return fmt.Errorf("notifier is enabled but telegram bot token is not provided")
-		}
-		if cfg.Notifier.Telegram.ChannelID == 0 {
-			return fmt.Errorf("notifier is enabled but telegram channel id is not provided")
-		}
-		if err := notifier.Start(ctx, nc, cfg.Notifier); err != nil {
-			return fmt.Errorf("start notifier: %w", err)
-		}
-		slog.Info("notifier started")
+	if err := startNotifier(ctx, nc, cfg.Notifier); err != nil {
+		return err
 	}
 
 	db, err := pg.Open(ctx, cfg.Database)
@@ -93,20 +85,8 @@ func Start(ctx context.Context) error {
 		}
 	}
 
-	sessionStore := postgresstore.New(db)
+	sessions, sessionStore := newSessionManager(db, cfg.Auth)
 	defer sessionStore.StopCleanup()
-	sessions := scs.New()
-	sessions.Store = sessionStore
-	sessions.HashTokenInStore = true
-	sessions.Cookie.Name = "app_session"
-	sessions.Cookie.HttpOnly = true
-	sessions.Cookie.SameSite = http.SameSiteStrictMode
-	sessions.Cookie.Secure = cfg.Auth.CookieSecure
-	sessions.Cookie.Path = "/"
-	if cfg.Auth.Enabled {
-		sessions.Lifetime = cfg.Auth.SessionLifetime
-		sessions.IdleTimeout = cfg.Auth.SessionIdleTimeout
-	}
 
 	js, err := jetstream.New(nc)
 	if err != nil {
@@ -123,57 +103,43 @@ func Start(ctx context.Context) error {
 	}
 	slog.Info("jetstream initialized and streams created")
 
-	t, err := temporalclient.Dial(temporalclient.Options{
-		HostPort:  cfg.Temporal.Host,
-		Namespace: cfg.Temporal.Namespace,
-		Logger:    logger.NewTemporalLogger(slog.Default()),
-	})
+	t, err := connectTemporal(ctx, cfg.Temporal)
 	if err != nil {
-		return fmt.Errorf("dial temporal client: %w", err)
+		return err
 	}
 	defer t.Close()
-
-	if _, err := t.CheckHealth(ctx, &temporalclient.CheckHealthRequest{}); err != nil {
-		return fmt.Errorf("check temporal health: %w", err)
-	}
 	slog.Info("temporal connected and healthy", "host", cfg.Temporal.Host)
 
-	tb, err := tigerbeetle.NewClient(tigerbeetle.ToUint128(cfg.TigerBeetle.ClusterID), []string{cfg.TigerBeetle.Address})
+	tb, err := connectTigerBeetle(cfg.TigerBeetle)
 	if err != nil {
-		return fmt.Errorf("connect tigerbeetle: %w", err)
+		return err
 	}
 	defer tb.Close()
-	if err := tb.Nop(); err != nil {
-		return fmt.Errorf("check tigerbeetle health: %w", err)
-	}
 
-	zitadelHost, zitadelPort, err := net.SplitHostPort(cfg.Zitadel.Domain)
+	zc, err := connectZitadel(ctx, cfg.Zitadel)
 	if err != nil {
-		return fmt.Errorf("parse zitadel domain: %w", err)
+		return err
 	}
-	zitadelOptions := []zitadel.Option{zitadel.WithInsecure(zitadelPort)}
-	if cfg.Zitadel.InstanceHost != "" {
-		zitadelOptions = append(zitadelOptions, zitadel.WithTransportHeader("x-zitadel-instance-host", cfg.Zitadel.InstanceHost))
-	}
-	zc, err := zitadelclient.New(ctx, zitadel.New(zitadelHost, zitadelOptions...))
-	if err != nil {
-		return fmt.Errorf("connect zitadel: %w", err)
-	}
-	defer zc.Close()
-
-	var authService *bff.Service
-	if cfg.Auth.Enabled {
-		authService, err = bff.New(ctx, cfg.Auth, db, sessions)
-		if err != nil {
-			return fmt.Errorf("initialize BFF authentication: %w", err)
+	defer func() {
+		if err := zc.Close(); err != nil {
+			slog.Error("close zitadel client", "error", err)
 		}
+	}()
+
+	authService, err := newAuthService(ctx, cfg.Auth, db, sessions)
+	if err != nil {
+		return err
 	}
 
 	mailer, err := mail.NewClient(cfg.SMTP.Host, mail.WithPort(cfg.SMTP.Port), mail.WithTLSPolicy(mail.NoTLS))
 	if err != nil {
 		return fmt.Errorf("create mailer: %w", err)
 	}
-	defer mailer.Close()
+	defer func() {
+		if err := mailer.Close(); err != nil {
+			slog.Error("close mailer", "error", err)
+		}
+	}()
 
 	a := app.App{
 		Deps: app.Deps{
@@ -209,35 +175,8 @@ func Start(ctx context.Context) error {
 		redactor,
 		logging.New(),
 	))
-	var handler http.Handler = applicationHandler
-	if cfg.Webhooks.ZitadelPathSecret != "" {
-		webhookMux := http.NewServeMux()
-		zitadelnotifications.NewHandler(cfg.Webhooks.ZitadelPathSecret, mailer, cfg.SMTP).Register(webhookMux)
-		handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if strings.HasPrefix(r.URL.Path, "/webhooks/") {
-				webhookMux.ServeHTTP(w, r)
-				return
-			}
-			applicationHandler.ServeHTTP(w, r)
-		})
-	}
-
-	httpServer := &http.Server{
-		Addr:              cfg.Server.BindAddr,
-		ReadHeaderTimeout: cfg.Server.Timeout,
-		ReadTimeout:       cfg.Server.Timeout,
-		WriteTimeout:      cfg.Server.Timeout,
-		IdleTimeout:       cfg.Server.Timeout,
-		MaxHeaderBytes:    1 << 20,
-		Handler:           handler,
-	}
-	httpErrCh := make(chan error, 1)
-	go func() {
-		slog.Info("http server listening", "addr", cfg.Server.BindAddr)
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			httpErrCh <- fmt.Errorf("listen and serve http: %w", err)
-		}
-	}()
+	handler := withWebhooks(applicationHandler, mailer, cfg.Webhooks, cfg.SMTP)
+	httpServer, httpErrCh := startHTTPServer(handler, cfg.Server)
 
 	if err := w.Start(); err != nil {
 		return fmt.Errorf("start temporal worker: %w", err)
@@ -264,6 +203,155 @@ func Start(ctx context.Context) error {
 		return fmt.Errorf("shutdown http server: %w", err)
 	}
 	return nil
+}
+
+// newSessionManager builds the PostgreSQL-backed session manager shared by
+// the app and the BFF auth service's own transaction store.
+func newSessionManager(db *sql.DB, cfg config.AuthConfig) (*scs.SessionManager, *postgresstore.PostgresStore) {
+	sessionStore := postgresstore.New(db)
+	sessions := scs.New()
+	sessions.Store = sessionStore
+	sessions.HashTokenInStore = true
+	sessions.Cookie.Name = "app_session"
+	sessions.Cookie.HttpOnly = true
+	sessions.Cookie.SameSite = http.SameSiteStrictMode
+	sessions.Cookie.Secure = cfg.CookieSecure
+	sessions.Cookie.Path = "/"
+	if cfg.Enabled {
+		sessions.Lifetime = cfg.SessionLifetime
+		sessions.IdleTimeout = cfg.SessionIdleTimeout
+	}
+	return sessions, sessionStore
+}
+
+// connectTemporal dials the Temporal frontend and verifies it is healthy.
+func connectTemporal(ctx context.Context, cfg config.TemporalConfig) (temporalclient.Client, error) {
+	t, err := temporalclient.Dial(temporalclient.Options{
+		HostPort:  cfg.Host,
+		Namespace: cfg.Namespace,
+		Logger:    logger.NewTemporalLogger(slog.Default()),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("dial temporal client: %w", err)
+	}
+	if _, err := t.CheckHealth(ctx, &temporalclient.CheckHealthRequest{}); err != nil {
+		t.Close()
+		return nil, fmt.Errorf("check temporal health: %w", err)
+	}
+	return t, nil
+}
+
+// connectTigerBeetle connects to the TigerBeetle cluster and verifies it is healthy.
+func connectTigerBeetle(cfg config.TigerBeetleConfig) (tigerbeetle.Client, error) {
+	tb, err := tigerbeetle.NewClient(tigerbeetle.ToUint128(cfg.ClusterID), []string{cfg.Address})
+	if err != nil {
+		return nil, fmt.Errorf("connect tigerbeetle: %w", err)
+	}
+	if err := tb.Nop(); err != nil {
+		tb.Close()
+		return nil, fmt.Errorf("check tigerbeetle health: %w", err)
+	}
+	return tb, nil
+}
+
+// startHTTPServer starts the application HTTP server in the background,
+// reporting any ListenAndServe failure (other than a graceful shutdown) on
+// the returned channel.
+func startHTTPServer(handler http.Handler, cfg config.ServerConfig) (*http.Server, <-chan error) {
+	httpServer := &http.Server{
+		Addr:              cfg.BindAddr,
+		ReadHeaderTimeout: cfg.Timeout,
+		ReadTimeout:       cfg.Timeout,
+		WriteTimeout:      cfg.Timeout,
+		IdleTimeout:       cfg.Timeout,
+		MaxHeaderBytes:    1 << 20,
+		Handler:           handler,
+	}
+	httpErrCh := make(chan error, 1)
+	go func() {
+		slog.Info("http server listening", "addr", cfg.BindAddr)
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			httpErrCh <- fmt.Errorf("listen and serve http: %w", err)
+		}
+	}()
+	return httpServer, httpErrCh
+}
+
+// startNotifier validates and starts the optional Telegram notifier.
+func startNotifier(ctx context.Context, nc *nats.Conn, cfg notifier.Config) error {
+	if !cfg.Enabled {
+		return nil
+	}
+	if cfg.Telegram.BotToken == "" {
+		return fmt.Errorf("notifier is enabled but telegram bot token is not provided")
+	}
+	if cfg.Telegram.ChannelID == 0 {
+		return fmt.Errorf("notifier is enabled but telegram channel id is not provided")
+	}
+	if err := notifier.Start(ctx, nc, cfg); err != nil {
+		return fmt.Errorf("start notifier: %w", err)
+	}
+	slog.Info("notifier started")
+	return nil
+}
+
+// connectZitadel dials the Zitadel API server used for management/admin calls.
+func connectZitadel(ctx context.Context, cfg config.ZitadelConfig) (*zitadelclient.Client, error) {
+	zitadelHost, zitadelPort, err := net.SplitHostPort(cfg.Domain)
+	if err != nil {
+		return nil, fmt.Errorf("parse zitadel domain: %w", err)
+	}
+	zitadelOptions := []zitadel.Option{zitadel.WithInsecure(zitadelPort)}
+	if cfg.InstanceHost != "" {
+		zitadelOptions = append(
+			zitadelOptions,
+			zitadel.WithTransportHeader("x-zitadel-instance-host", cfg.InstanceHost),
+		)
+	}
+	zc, err := zitadelclient.New(ctx, zitadel.New(zitadelHost, zitadelOptions...))
+	if err != nil {
+		return nil, fmt.Errorf("connect zitadel: %w", err)
+	}
+	return zc, nil
+}
+
+// newAuthService initializes BFF authentication when enabled, returning nil otherwise.
+func newAuthService(
+	ctx context.Context,
+	cfg config.AuthConfig,
+	db *sql.DB,
+	sessions *scs.SessionManager,
+) (*bff.Service, error) {
+	if !cfg.Enabled {
+		return nil, nil //nolint:nilnil // disabled auth is a valid state, not an error
+	}
+	authService, err := bff.New(ctx, cfg, db, sessions)
+	if err != nil {
+		return nil, fmt.Errorf("initialize BFF authentication: %w", err)
+	}
+	return authService, nil
+}
+
+// withWebhooks routes the private /webhooks/ prefix to the Zitadel webhook
+// handler when configured, falling back to applicationHandler otherwise.
+func withWebhooks(
+	applicationHandler http.Handler,
+	mailer *mail.Client,
+	webhooks config.WebhooksConfig,
+	smtp config.SMTPConfig,
+) http.Handler {
+	if webhooks.ZitadelPathSecret == "" {
+		return applicationHandler
+	}
+	webhookMux := http.NewServeMux()
+	zitadelnotifications.NewHandler(webhooks.ZitadelPathSecret, mailer, smtp).Register(webhookMux)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/webhooks/") {
+			webhookMux.ServeHTTP(w, r)
+			return
+		}
+		applicationHandler.ServeHTTP(w, r)
+	})
 }
 
 func startRuntimeProcesses(ctx context.Context, a app.App, cfg config.Config) error {

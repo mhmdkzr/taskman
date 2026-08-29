@@ -54,29 +54,29 @@ type TemporalConfig struct {
 }
 
 type TigerBeetleConfig struct {
-	Address   string `env:"ADDRESS" envDefault:"127.0.0.1:3000"`
+	Address   string `env:"ADDRESS"    envDefault:"127.0.0.1:3000"`
 	ClusterID uint64 `env:"CLUSTER_ID" envDefault:"0"`
 }
 
 type ZitadelConfig struct {
-	Domain       string `env:"DOMAIN" envDefault:"127.0.0.1:8080"`
+	Domain       string `env:"DOMAIN"        envDefault:"127.0.0.1:8080"`
 	InstanceHost string `env:"INSTANCE_HOST" envDefault:""`
-	Insecure     bool   `env:"INSECURE" envDefault:"true"`
+	Insecure     bool   `env:"INSECURE"      envDefault:"true"`
 }
 
 // AuthConfig configures the server-side OIDC client and its persistent browser sessions.
 type AuthConfig struct {
-	Enabled               bool          `env:"ENABLED" envDefault:"false"`
-	Issuer                string        `env:"ISSUER" envDefault:""`
-	InternalAddress       string        `env:"INTERNAL_ADDRESS" envDefault:""`
-	ClientID              string        `env:"CLIENT_ID" envDefault:""`
-	ClientSecret          string        `env:"CLIENT_SECRET" envDefault:""`
-	RedirectURL           string        `env:"REDIRECT_URL" envDefault:""`
+	Enabled               bool          `env:"ENABLED"                  envDefault:"false"`
+	Issuer                string        `env:"ISSUER"                   envDefault:""`
+	InternalAddress       string        `env:"INTERNAL_ADDRESS"         envDefault:""`
+	ClientID              string        `env:"CLIENT_ID"                envDefault:""`
+	ClientSecret          string        `env:"CLIENT_SECRET"            envDefault:""`
+	RedirectURL           string        `env:"REDIRECT_URL"             envDefault:""`
 	PostLogoutRedirectURL string        `env:"POST_LOGOUT_REDIRECT_URL" envDefault:""`
-	SessionLifetime       time.Duration `env:"SESSION_LIFETIME" envDefault:"24h"`
-	SessionIdleTimeout    time.Duration `env:"SESSION_IDLE_TIMEOUT" envDefault:"8h"`
-	RefreshLeeway         time.Duration `env:"REFRESH_LEEWAY" envDefault:"1m"`
-	CookieSecure          bool          `env:"COOKIE_SECURE" envDefault:"true"`
+	SessionLifetime       time.Duration `env:"SESSION_LIFETIME"         envDefault:"24h"`
+	SessionIdleTimeout    time.Duration `env:"SESSION_IDLE_TIMEOUT"     envDefault:"8h"`
+	RefreshLeeway         time.Duration `env:"REFRESH_LEEWAY"           envDefault:"1m"`
+	CookieSecure          bool          `env:"COOKIE_SECURE"            envDefault:"true"`
 }
 
 // WebhooksConfig configures the listener that is reachable only from the private network.
@@ -85,9 +85,9 @@ type WebhooksConfig struct {
 }
 
 type SMTPConfig struct {
-	Host     string `env:"HOST" envDefault:"127.0.0.1"`
-	Port     int    `env:"PORT" envDefault:"1025"`
-	From     string `env:"FROM" envDefault:"noreply@example.com"`
+	Host     string `env:"HOST"      envDefault:"127.0.0.1"`
+	Port     int    `env:"PORT"      envDefault:"1025"`
+	From     string `env:"FROM"      envDefault:"noreply@example.com"`
 	FromName string `env:"FROM_NAME" envDefault:"App"`
 	Username string `env:"USERNAME"`
 	Password string `env:"PASSWORD"`

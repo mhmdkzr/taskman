@@ -9,8 +9,6 @@ import (
 )
 
 // EventAPIAuditLogged contains the full audit trail for a single API request.
-//
-//nolint:recvcheck // MarshalJSON and MsgID operate on immutable values; UnmarshalJSON must mutate the receiver.
 type EventAPIAuditLogged struct {
 	RequestID string                  `json:"request_id"`
 	Timestamp time.Time               `json:"timestamp"`

@@ -45,7 +45,7 @@ tools:
 fmt:
 	@gofmt -w $(SRC_DIRS)
 	@goimports -w $(SRC_DIRS)
-	@files=$$(git ls-files '*.md' | grep -Ev '(^|/)vendor/|^scripts/testdata/'); \
+	@files=$$(git ls-files '*.md' | grep -Ev '(^|/)vendor/|^scripts/mdjsonfmt/testdata/'); \
 	if [ -n "$$files" ]; then scripts/mdjsonfmt/mdjsonfmt.sh $$files; fi
 
 vet:
