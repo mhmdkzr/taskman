@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
+	"encoding/gob"
 	"fmt"
 	"net"
 	"net/http"
@@ -26,8 +27,8 @@ const (
 	verifierKey     = "auth.verifier"
 	nonceKey        = "auth.nonce"
 	returnToKey     = "auth.return_to"
-	accessTokenKey  = "auth.access_token"
-	refreshTokenKey = "auth.refresh_token"
+	accessTokenKey  = "auth.access_token"  //nolint:gosec // session map key name, not a credential
+	refreshTokenKey = "auth.refresh_token" //nolint:gosec // session map key name, not a credential
 	expiryKey       = "auth.expiry"
 	userIDKey       = "auth.user_id"
 )
@@ -43,7 +44,16 @@ type Service struct {
 }
 
 // New discovers the configured OIDC provider once at startup.
-func New(ctx context.Context, cfg config.AuthConfig, db *sql.DB, sessions *scs.SessionManager) (*Service, error) {
+func New(
+	ctx context.Context,
+	cfg config.AuthConfig,
+	db *sql.DB,
+	sessions *scs.SessionManager,
+) (*Service, error) {
+	// scs's default gob codec requires concrete types stored under an
+	// interface{} (the session value map) to be registered; expiryKey holds
+	// a time.Time.
+	gob.Register(time.Time{})
 	httpClient, err := oidcHTTPClient(cfg)
 	if err != nil {
 		return nil, err
@@ -61,7 +71,14 @@ func New(ctx context.Context, cfg config.AuthConfig, db *sql.DB, sessions *scs.S
 	transactions.Cookie.SameSite = http.SameSiteLaxMode
 	transactions.Cookie.Secure = cfg.CookieSecure
 	transactions.Cookie.Path = "/auth"
-	return &Service{cfg: cfg, db: db, sessions: sessions, transactions: transactions, discovery: discovery, http: httpClient}, nil
+	return &Service{
+		cfg:          cfg,
+		db:           db,
+		sessions:     sessions,
+		transactions: transactions,
+		discovery:    discovery,
+		http:         httpClient,
+	}, nil
 }
 
 // oidcHTTPClient dials the optional private provider address while retaining
@@ -76,7 +93,11 @@ func oidcHTTPClient(cfg config.AuthConfig) (*http.Client, error) {
 	if err != nil || issuer.Host == "" {
 		return nil, fmt.Errorf("parse OIDC issuer for internal address: %w", err)
 	}
-	transport := http.DefaultTransport.(*http.Transport).Clone()
+	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return nil, fmt.Errorf("unexpected http.DefaultTransport type %T", http.DefaultTransport)
+	}
+	transport := defaultTransport.Clone()
 	dialer := &net.Dialer{}
 	transport.DialContext = func(ctx context.Context, network, address string) (net.Conn, error) {
 		if address == issuer.Host {
@@ -130,10 +151,30 @@ type endpointCaller struct {
 func (e endpointCaller) TokenEndpoint() string    { return e.endpoint }
 func (e endpointCaller) HttpClient() *http.Client { return e.http }
 
-func (s *Service) exchange(ctx context.Context, code, verifier string) (accessToken, refreshToken string, expiry time.Time, err error) {
-	token, err := client.CallTokenEndpointWithAuthFn(ctx, &oidc.AccessTokenRequest{
-		Code: code, RedirectURI: s.cfg.RedirectURL, ClientID: s.cfg.ClientID, CodeVerifier: verifier,
-	}, httphelper.AuthorizeBasic(s.cfg.ClientID, s.cfg.ClientSecret), endpointCaller{endpoint: s.discovery.TokenEndpoint, http: s.http})
+// accessTokenRequest mirrors oidc.AccessTokenRequest but tags GrantType as a
+// form field: the upstream type only exposes it via a GrantType() method (to
+// satisfy oidc.TokenRequest), which the schema encoder never serializes, so
+// using it as-is silently drops grant_type from the request body.
+type accessTokenRequest struct {
+	GrantType    oidc.GrantType `schema:"grant_type"`
+	Code         string         `schema:"code"`
+	RedirectURI  string         `schema:"redirect_uri"`
+	ClientID     string         `schema:"client_id"`
+	CodeVerifier string         `schema:"code_verifier,omitempty"`
+}
+
+func (s *Service) exchange(ctx context.Context, code, verifier string) (string, string, time.Time, error) {
+	token, err := client.CallTokenEndpointWithAuthFn(ctx, &accessTokenRequest{
+		GrantType:    oidc.GrantTypeCode,
+		Code:         code,
+		RedirectURI:  s.cfg.RedirectURL,
+		ClientID:     s.cfg.ClientID,
+		CodeVerifier: verifier,
+	}, httphelper.AuthorizeBasic(s.cfg.ClientID, s.cfg.ClientSecret),
+		endpointCaller{
+			endpoint: s.discovery.TokenEndpoint,
+			http:     s.http,
+		})
 	if err != nil {
 		return "", "", time.Time{}, fmt.Errorf("exchange authorization code: %w", err)
 	}

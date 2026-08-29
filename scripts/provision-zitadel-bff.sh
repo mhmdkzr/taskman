@@ -10,7 +10,7 @@ token_file=$(mktemp)
 response_file=$(mktemp)
 trap 'rm -f "$token_file" "$response_file"' EXIT
 
-docker compose cp zitadel:/zitadel/bootstrap/login-client.pat "$token_file" >/dev/null
+docker compose cp zitadel:/zitadel/bootstrap/admin-provisioner.pat "$token_file" >/dev/null
 token=$(tr -d '\r\n' <"$token_file")
 auth_header="Authorization: Bearer $token"
 

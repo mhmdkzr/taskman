@@ -5,16 +5,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mhmdkzr/app/internal/identity"
 	"github.com/zitadel/oidc/v3/pkg/client"
 	httphelper "github.com/zitadel/oidc/v3/pkg/http"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
+
+	"github.com/mhmdkzr/app/internal/identity"
 )
 
 var errUnauthenticated = errors.New("unauthenticated")
@@ -29,7 +31,12 @@ func Principal(ctx context.Context) (identity.UserID, bool) {
 
 func (s *Service) introspect(ctx context.Context, token string) (identity.ZitadelSubject, error) {
 	form := url.Values{"token": {token}}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.discovery.IntrospectionEndpoint, strings.NewReader(form.Encode()))
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		s.discovery.IntrospectionEndpoint,
+		strings.NewReader(form.Encode()),
+	)
 	if err != nil {
 		return "", fmt.Errorf("create introspection request: %w", err)
 	}
@@ -39,7 +46,11 @@ func (s *Service) introspect(ctx context.Context, token string) (identity.Zitade
 	if err != nil {
 		return "", fmt.Errorf("introspect access token: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			slog.Error("close introspection response body", "error", err)
+		}
+	}()
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("introspection returned %s", resp.Status)
 	}
@@ -53,7 +64,11 @@ func (s *Service) introspect(ctx context.Context, token string) (identity.Zitade
 	if !result.Active {
 		return "", errUnauthenticated
 	}
-	return identity.NewZitadelSubject(result.Subject)
+	subject, err := identity.NewZitadelSubject(result.Subject)
+	if err != nil {
+		return "", fmt.Errorf("parse introspected subject: %w", err)
+	}
+	return subject, nil
 }
 
 func (s *Service) principal(r *http.Request) (identity.UserID, error) {
@@ -79,13 +94,28 @@ func (s *Service) principal(r *http.Request) (identity.UserID, error) {
 	return identity.UserID(id), nil
 }
 
+// refreshTokenRequest mirrors oidc.RefreshTokenRequest but adds an explicit
+// grant_type field: per that type's own doc comment, it "is not useful for
+// making refresh requests because the grant_type is not included explicitly".
+type refreshTokenRequest struct {
+	GrantType    oidc.GrantType `schema:"grant_type"`
+	RefreshToken string         `schema:"refresh_token"`
+	ClientID     string         `schema:"client_id"`
+}
+
 func (s *Service) refresh(ctx context.Context, refreshToken string) (string, error) {
 	if refreshToken == "" {
 		return "", errUnauthenticated
 	}
-	token, err := client.CallTokenEndpointWithAuthFn(ctx, &oidc.RefreshTokenRequest{
-		RefreshToken: refreshToken, ClientID: s.cfg.ClientID,
-	}, httphelper.AuthorizeBasic(s.cfg.ClientID, s.cfg.ClientSecret), endpointCaller{endpoint: s.discovery.TokenEndpoint, http: s.http})
+	token, err := client.CallTokenEndpointWithAuthFn(ctx, &refreshTokenRequest{
+		GrantType:    oidc.GrantTypeRefreshToken,
+		RefreshToken: refreshToken,
+		ClientID:     s.cfg.ClientID,
+	}, httphelper.AuthorizeBasic(s.cfg.ClientID, s.cfg.ClientSecret),
+		endpointCaller{
+			endpoint: s.discovery.TokenEndpoint,
+			http:     s.http,
+		})
 	if err != nil {
 		return "", fmt.Errorf("refresh access token: %w", err)
 	}

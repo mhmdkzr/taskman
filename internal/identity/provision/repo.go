@@ -3,7 +3,6 @@ package provision
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -14,7 +13,7 @@ import (
 func findOrCreate(ctx context.Context, db *sql.DB, subject identity.ZitadelSubject) (identity.UserID, error) {
 	userID, err := identity.NewUserID()
 	if err != nil {
-		return identity.UserID{}, err
+		return identity.UserID{}, fmt.Errorf("generate user id: %w", err)
 	}
 	var stored uuid.UUID
 	err = db.QueryRowContext(ctx, `
@@ -23,18 +22,6 @@ func findOrCreate(ctx context.Context, db *sql.DB, subject identity.ZitadelSubje
 		RETURNING id`, userID.UUID(), string(subject)).Scan(&stored)
 	if err != nil {
 		return identity.UserID{}, fmt.Errorf("upsert user identity mapping: %w", err)
-	}
-	return identity.UserID(stored), nil
-}
-
-func find(ctx context.Context, db *sql.DB, subject identity.ZitadelSubject) (identity.UserID, error) {
-	var stored uuid.UUID
-	err := db.QueryRowContext(ctx, `SELECT id FROM users WHERE zitadel_sub = $1`, string(subject)).Scan(&stored)
-	if errors.Is(err, sql.ErrNoRows) {
-		return identity.UserID{}, sql.ErrNoRows
-	}
-	if err != nil {
-		return identity.UserID{}, fmt.Errorf("find user identity mapping: %w", err)
 	}
 	return identity.UserID(stored), nil
 }

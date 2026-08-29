@@ -8,9 +8,91 @@ import (
 	"testing"
 
 	"github.com/alexedwards/scs/v2"
-	"github.com/mhmdkzr/app/internal/config"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
+
+	"github.com/mhmdkzr/app/internal/config"
 )
+
+// tokenEndpointStub records the last request form body it received and
+// replies with a fixed access token response.
+func tokenEndpointStub(t *testing.T) (*httptest.Server, *url.Values) {
+	t.Helper()
+	var gotForm url.Values
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("parse token request form: %v", err)
+		}
+		gotForm = r.PostForm
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(oidc.AccessTokenResponse{
+			AccessToken:  "access-token",
+			RefreshToken: "refresh-token",
+			TokenType:    "Bearer",
+			ExpiresIn:    3600,
+		})
+	}))
+	t.Cleanup(server.Close)
+	return server, &gotForm
+}
+
+func TestExchangeSendsAuthorizationCodeGrantType(t *testing.T) {
+	t.Parallel()
+	server, gotForm := tokenEndpointStub(t)
+	service := &Service{
+		cfg: config.AuthConfig{
+			ClientID:     "client",
+			ClientSecret: "secret",
+			RedirectURL:  "https://app.example/auth/callback",
+		},
+		discovery: &oidc.DiscoveryConfiguration{TokenEndpoint: server.URL},
+		http:      server.Client(),
+	}
+	accessToken, refreshToken, _, err := service.exchange(t.Context(), "auth-code", "verifier")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if accessToken != "access-token" || refreshToken != "refresh-token" {
+		t.Fatalf("exchange() = (%q, %q), want (access-token, refresh-token)", accessToken, refreshToken)
+	}
+	if got := gotForm.Get("grant_type"); got != string(oidc.GrantTypeCode) {
+		t.Fatalf("grant_type = %q, want %q", got, oidc.GrantTypeCode)
+	}
+	if got := gotForm.Get("code"); got != "auth-code" {
+		t.Fatalf("code = %q, want auth-code", got)
+	}
+	if got := gotForm.Get("code_verifier"); got != "verifier" {
+		t.Fatalf("code_verifier = %q, want verifier", got)
+	}
+}
+
+func TestRefreshSendsRefreshTokenGrantType(t *testing.T) {
+	t.Parallel()
+	server, gotForm := tokenEndpointStub(t)
+	sessions := scs.New()
+	service := &Service{
+		cfg:       config.AuthConfig{ClientID: "client", ClientSecret: "secret"},
+		discovery: &oidc.DiscoveryConfiguration{TokenEndpoint: server.URL},
+		http:      server.Client(),
+		sessions:  sessions,
+	}
+	ctx, err := sessions.Load(t.Context(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	accessToken, err := service.refresh(ctx, "old-refresh-token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if accessToken != "access-token" {
+		t.Fatalf("refresh() = %q, want access-token", accessToken)
+	}
+	if got := gotForm.Get("grant_type"); got != string(oidc.GrantTypeRefreshToken) {
+		t.Fatalf("grant_type = %q, want %q", got, oidc.GrantTypeRefreshToken)
+	}
+	if got := gotForm.Get("refresh_token"); got != "old-refresh-token" {
+		t.Fatalf("refresh_token = %q, want old-refresh-token", got)
+	}
+}
 
 func TestSafeReturnTo(t *testing.T) {
 	t.Parallel()
@@ -50,9 +132,14 @@ func TestOIDCHTTPClientDialsPrivateAddressAndPreservesIssuerHost(t *testing.T) {
 func TestLoginUsesStrictShortLivedSessionAndPKCE(t *testing.T) {
 	t.Parallel()
 	sessions := scs.New()
-	service := &Service{cfg: config.AuthConfig{ClientID: "client", RedirectURL: "https://app.example/auth/callback"}, sessions: sessions, transactions: sessions, discovery: &oidc.DiscoveryConfiguration{AuthorizationEndpoint: "https://id.example/authorize"}}
+	service := &Service{
+		cfg:          config.AuthConfig{ClientID: "client", RedirectURL: "https://app.example/auth/callback"},
+		sessions:     sessions,
+		transactions: sessions,
+		discovery:    &oidc.DiscoveryConfiguration{AuthorizationEndpoint: "https://id.example/authorize"},
+	}
 	handler := NewHandler(service)
-	request := httptest.NewRequest("GET", "/auth/login?return_to=//evil.example", nil)
+	request := httptest.NewRequest(http.MethodGet, "/auth/login?return_to=//evil.example", nil)
 	ctx, err := sessions.Load(request.Context(), "")
 	if err != nil {
 		t.Fatal(err)
@@ -72,7 +159,8 @@ func TestLoginUsesStrictShortLivedSessionAndPKCE(t *testing.T) {
 	if sessions.GetString(ctx, returnToKey) != "/" {
 		t.Fatalf("return destination = %q, want /", sessions.GetString(ctx, returnToKey))
 	}
-	if sessions.GetString(ctx, stateKey) == "" || sessions.GetString(ctx, verifierKey) == "" || sessions.GetString(ctx, nonceKey) == "" {
+	if sessions.GetString(ctx, stateKey) == "" || sessions.GetString(ctx, verifierKey) == "" ||
+		sessions.GetString(ctx, nonceKey) == "" {
 		t.Fatal("missing callback state")
 	}
 }
@@ -81,7 +169,7 @@ func TestCallbackRejectsMissingStoredState(t *testing.T) {
 	t.Parallel()
 	sessions := scs.New()
 	handler := NewHandler(&Service{sessions: sessions, transactions: sessions})
-	request := httptest.NewRequest("GET", "/auth/callback?code=code&state=state", nil)
+	request := httptest.NewRequest(http.MethodGet, "/auth/callback?code=code&state=state", nil)
 	ctx, err := sessions.Load(request.Context(), "")
 	if err != nil {
 		t.Fatal(err)
@@ -97,7 +185,7 @@ func TestCallbackRejectsMismatchedStoredState(t *testing.T) {
 	t.Parallel()
 	sessions := scs.New()
 	handler := NewHandler(&Service{sessions: sessions, transactions: sessions})
-	request := httptest.NewRequest("GET", "/auth/callback?code=code&state=wrong", nil)
+	request := httptest.NewRequest(http.MethodGet, "/auth/callback?code=code&state=wrong", nil)
 	ctx, err := sessions.Load(request.Context(), "")
 	if err != nil {
 		t.Fatal(err)
@@ -114,7 +202,7 @@ func TestLogoutRejectsRequestWithoutCSRFHeader(t *testing.T) {
 	t.Parallel()
 	sessions := scs.New()
 	handler := NewHandler(&Service{sessions: sessions})
-	request := httptest.NewRequest("POST", "/auth/logout", nil)
+	request := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
 	ctx, err := sessions.Load(request.Context(), "")
 	if err != nil {
 		t.Fatal(err)
@@ -130,7 +218,7 @@ func TestLogoutXHRDestroysLocalSessionWithoutFollowingEndSession(t *testing.T) {
 	t.Parallel()
 	sessions := scs.New()
 	handler := NewHandler(&Service{sessions: sessions})
-	request := httptest.NewRequest("POST", "/auth/logout", nil)
+	request := httptest.NewRequest(http.MethodPost, "/auth/logout", nil)
 	request.Header.Set("X-Requested-With", "XMLHttpRequest")
 	ctx, err := sessions.Load(request.Context(), "")
 	if err != nil {
