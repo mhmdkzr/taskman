@@ -30,6 +30,7 @@ import (
 	"github.com/mhmdkzr/app/internal/auth/loginui"
 	authregister "github.com/mhmdkzr/app/internal/auth/register"
 	"github.com/mhmdkzr/app/internal/config"
+	"github.com/mhmdkzr/app/internal/metrics"
 	zitadelnotifications "github.com/mhmdkzr/app/internal/notifications/zitadel"
 	"github.com/mhmdkzr/app/internal/register"
 	"github.com/mhmdkzr/app/internal/streams"
@@ -178,9 +179,11 @@ func Start(ctx context.Context) error {
 		Mux: http.NewServeMux(),
 	}
 
+	m := metrics.New()
+
 	w := worker.New(t, app.TemporalTaskQueue, worker.Options{})
 
-	register.RegisterRoutes(a)
+	register.RegisterRoutes(a, m)
 	authregister.RegisterRoutes(a, authService, loginUIService)
 	register.RegisterActivities(w, a)
 	register.RegisterWorkflows(w, a)
@@ -192,10 +195,11 @@ func Start(ctx context.Context) error {
 		return fmt.Errorf("auditlog init: %w", err)
 	}
 	applicationHandler := sessions.LoadAndSave(middleware.Chain(a.Mux,
+		m.Middleware,
 		timeout.New(cfg.Server.Timeout),
 		clientip.New(),
-		redactor,
-		logging.New(),
+		middleware.Skip(redactor, func(r *http.Request) bool { return r.URL.Path == "/metrics" }),
+		middleware.Skip(logging.New(), func(r *http.Request) bool { return r.URL.Path == "/metrics" }),
 	))
 	handler := withWebhooks(applicationHandler, mailer, cfg.Webhooks, cfg.SMTP)
 	httpServer, httpErrCh := startHTTPServer(handler, cfg.Server)

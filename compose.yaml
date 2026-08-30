@@ -83,6 +83,8 @@ services:
     env_file:
       - .env
       - .env.compose
+    environment:
+      PROMETHEUS_ENDPOINT: 0.0.0.0:8000
     depends_on:
       temporal-postgresql:
         condition: service_healthy
@@ -127,6 +129,8 @@ services:
     env_file:
       - .env
       - .env.compose
+    environment:
+      ZITADEL_METRICS_TYPE: otel
     depends_on:
       postgres:
         condition: service_healthy
@@ -242,13 +246,19 @@ services:
 
   node-exporter:
     image: prom/node-exporter:v1.12.1@sha256:da83fae85603c4e47e6c68369a7d746e2dda683dc35ea2e234b4f171e0d92798
-    network_mode: host
+    expose:
+      - 9100
+    ports:
+      - 127.0.0.1:9100:9100
     command:
       - --path.procfs=/host/proc
       - --path.sysfs=/host/sys
+      - --path.rootfs=/host
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
+      - /:/host:ro,rslave
+    pid: host
 
   nats-exporter:
     image: natsio/prometheus-nats-exporter:0.20.1@sha256:2a4c7a0656c29dacc11dc9f3584ca08a9bc08219eaa14b332abd6234e031e5f4
@@ -275,12 +285,30 @@ services:
     ports:
       - 127.0.0.1:9187:9187
 
+  prometheus:
+    image: prom/prometheus:v3.8.0
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:9090:9090
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    depends_on:
+      - app
+      - postgres-exporter
+      - nats-exporter
+      - node-exporter
+
 volumes:
   zitadel-bootstrap:
   tigerbeetle-data:
   rustfs-data:
   caddy-data:
   caddy-config:
+  prometheus-data:
 
 networks:
   default:
