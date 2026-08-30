@@ -88,11 +88,18 @@ PostgreSQL-backed session cookie. Configure the confidential Zitadel Web applica
 and the `AUTH_*` variables in `.env` before setting `AUTH_ENABLED=true`; the exact
 callback URLs must be registered in Zitadel. The SPA must never receive Zitadel tokens.
 
+`internal/auth/loginui` (routes under `/auth/session/*`) lets the Svelte SPA render its
+own login form instead of Zitadel's hosted/`zitadel-login` UI, driving Zitadel's Session
+API directly. It authenticates its own server-to-server calls with the same
+IAM_LOGIN_CLIENT-scoped PAT `zitadel-login` uses (`AUTH_LOGIN_CLIENT_PAT_PATH`, read from
+the shared `zitadel-bootstrap` volume, which `app` now also mounts read-only). See
+`internal/auth/loginui/README.md`.
+
 `/webhooks/*` is intentionally not proxied by Caddy. To enable Zitadel HTTP notification
 delivery, set a strong `WEBHOOKS_ZITADEL_PATH_SECRET`, then configure the Zitadel endpoint
 as `http://app:8080/webhooks/zitadel/notifications/<secret>` on the private Compose network.
 
-Volumes: `zitadel-bootstrap` (shared PAT between zitadel and zitadel-login), `tigerbeetle-data` (ledger), `caddy-data` / `caddy-config` (Caddy persistence).
+Volumes: `zitadel-bootstrap` (shared PATs between zitadel, zitadel-login, and app — see `internal/auth/loginui/README.md`), `tigerbeetle-data` (ledger), `caddy-data` / `caddy-config` (Caddy persistence).
 
 TigerBeetle requires `seccomp=unconfined` + `IPC_LOCK` and `--cache-grid`. See `compose.yaml:168`.
 

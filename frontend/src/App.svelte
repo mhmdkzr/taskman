@@ -1,6 +1,16 @@
 <script>
   import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card"
   import { Button } from "$lib/components/ui/button"
+  import LoginForm from "$lib/components/LoginForm.svelte"
+  import RegisterForm from "$lib/components/RegisterForm.svelte"
+  import VerifyEmailPage from "$lib/components/VerifyEmailPage.svelte"
+  import ForgotPasswordForm from "$lib/components/ForgotPasswordForm.svelte"
+  import ResetPasswordPage from "$lib/components/ResetPasswordPage.svelte"
+
+  const params = new URLSearchParams(window.location.search)
+  const authRequestId = params.get("authRequest")
+  const path = window.location.pathname
+
   let user = $state(null)
   let loading = $state(true)
   let authAvailable = $state(true)
@@ -41,28 +51,46 @@
     }
   }
 
-  loadUser()
+  const isRegister = path === "/register"
+  const isVerifyEmail = path === "/verify-email"
+  const isForgotPassword = path === "/forgot-password"
+  const isResetPassword = path === "/reset-password"
+  const isStandaloneRoute = authRequestId || isRegister || isVerifyEmail || isForgotPassword || isResetPassword
+
+  if (!isStandaloneRoute) loadUser()
 </script>
 
-<div class="flex min-h-dvh items-center justify-center p-4">
-  <Card class="w-full max-w-sm">
-    <CardHeader>
-      <CardTitle>App</CardTitle>
-    </CardHeader>
-    <CardContent>
-      {#if loading}
-        Loading…
-      {:else if user}
-        <p class="mb-4">Signed in as {user.id}</p>
-        <Button onclick={logout}>Sign out</Button>
-      {:else if !authAvailable}
-        <p>Authentication is not configured.</p>
-      {:else}
-        <Button href="/auth/login?return_to=/">Sign in</Button>
-      {/if}
-      {#if actionError}
-        <p class="mt-4 text-destructive" role="alert">{actionError}</p>
-      {/if}
-    </CardContent>
-  </Card>
-</div>
+{#if authRequestId}
+  <LoginForm {authRequestId} />
+{:else if isRegister}
+  <RegisterForm />
+{:else if isVerifyEmail}
+  <VerifyEmailPage userId={params.get("userId") ?? ""} code={params.get("code") ?? ""} />
+{:else if isForgotPassword}
+  <ForgotPasswordForm />
+{:else if isResetPassword}
+  <ResetPasswordPage userId={params.get("userId") ?? ""} code={params.get("code") ?? ""} />
+{:else}
+  <div class="flex min-h-dvh items-center justify-center p-4">
+    <Card class="w-full max-w-sm">
+      <CardHeader>
+        <CardTitle>App</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {#if loading}
+          Loading…
+        {:else if user}
+          <p class="mb-4">Signed in as {user.id}</p>
+          <Button onclick={logout}>Sign out</Button>
+        {:else if !authAvailable}
+          <p>Authentication is not configured.</p>
+        {:else}
+          <Button href="/auth/login?return_to=/">Sign in</Button>
+        {/if}
+        {#if actionError}
+          <p class="mt-4 text-destructive" role="alert">{actionError}</p>
+        {/if}
+      </CardContent>
+    </Card>
+  </div>
+{/if}

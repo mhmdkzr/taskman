@@ -79,3 +79,14 @@ fe-build:
 
 fe-preview:
 	@cd "$(FRONTEND)" && $(DENO) task preview
+
+fe-test-unit:
+	@cd "$(FRONTEND)" && $(DENO) task test
+
+# Requires the full Compose stack running (`docker compose up -d`) and
+# provisioned (AUTH_ENABLED=true, scripts/provision-zitadel-bff.sh run) —
+# see frontend/e2e/README.md.
+fe-test-e2e:
+	@cd "$(FRONTEND)" && $(DENO) task test:e2e
+
+fe-test: fe-test-unit

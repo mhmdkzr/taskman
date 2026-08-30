@@ -6,6 +6,8 @@ app_name=app-bff-local
 project_name=ZITADEL
 redirect_url=http://localhost:8090/auth/callback
 post_logout_url=http://localhost:8090/
+login_ui_base_uri=http://localhost:8090/
+login_client_pat_path=/zitadel/bootstrap/login-client.pat
 token_file=$(mktemp)
 response_file=$(mktemp)
 trap 'rm -f "$token_file" "$response_file"' EXIT
@@ -49,6 +51,16 @@ update_env AUTH_CLIENT_ID "$client_id"
 update_env AUTH_CLIENT_SECRET "$client_secret"
 update_env AUTH_REDIRECT_URL "$redirect_url"
 update_env AUTH_POST_LOGOUT_REDIRECT_URL "$post_logout_url"
+update_env AUTH_LOGIN_CLIENT_PAT_PATH "$login_client_pat_path"
 update_env AUTH_COOKIE_SECURE false
 
+# Point ZITADEL's Login V2 base URI at our own custom login UI
+# (internal/auth/loginui + frontend/src/lib/components/LoginForm.svelte)
+# instead of the zitadel-login container, so authorization requests never
+# redirect to ZITADEL's hosted UI. Idempotent: safe to rerun.
+curl -fsS -X PUT -H "$auth_header" -H 'Host: localhost' -H 'Content-Type: application/json' \
+	-d "$(jq -n --arg uri "$login_ui_base_uri" '{loginV2: {required: true, baseUri: $uri}}')" \
+	http://127.0.0.1:8080/v2/features/instance >/dev/null
+
 printf 'ZITADEL BFF client %s configured. Client secret was written only to .env.\n' "$app_id"
+printf 'Login V2 base URI set to %s (zitadel-login is no longer used for authorization requests).\n' "$login_ui_base_uri"

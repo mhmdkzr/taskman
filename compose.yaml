@@ -30,12 +30,16 @@ services:
     env_file:
       - .env
       - .env.compose
+    volumes:
+      - zitadel-bootstrap:/zitadel/bootstrap:ro
     depends_on:
       postgres:
         condition: service_healthy
       nats:
         condition: service_started
       temporal:
+        condition: service_healthy
+      zitadel:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1"]
@@ -102,6 +106,17 @@ services:
       timeout: 5s
       retries: 60
       start_period: 10s
+
+  temporal-ui:
+    image: temporalio/ui:2.51.0@sha256:5c72329a014fb247ef66d051dd45b3a5c251d06f82709a852e364f0fd8b69a04
+    env_file:
+      - .env
+      - .env.compose
+    depends_on:
+      temporal:
+        condition: service_healthy
+    ports:
+      - 127.0.0.1:8000:8080
 
   zitadel:
     image: ghcr.io/zitadel/zitadel:v4.17.1@sha256:3ac6910685d48f32481f01f45e3e6215efe5a9df2c069591b481e9a101712db5
@@ -199,51 +214,40 @@ services:
       retries: 5
       start_period: 10s
 
-  temporal-ui:
-    image: temporalio/ui:2.51.0@sha256:5c72329a014fb247ef66d051dd45b3a5c251d06f82709a852e364f0fd8b69a04
+  node-exporter:
+    image: prom/node-exporter:v1.12.1@sha256:da83fae85603c4e47e6c68369a7d746e2dda683dc35ea2e234b4f171e0d92798
+    network_mode: host
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+
+  nats-exporter:
+    image: natsio/prometheus-nats-exporter:0.20.1@sha256:2a4c7a0656c29dacc11dc9f3584ca08a9bc08219eaa14b332abd6234e031e5f4
+    depends_on:
+      nats:
+        condition: service_started
+    command:
+      - -varz
+      - -connz
+      - -routez
+      - -subz
+      - http://nats:8222
+    ports:
+      - 127.0.0.1:7777:7777
+
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.20.1@sha256:4f3d82803c1f99ea5e767890de3557d2479ebbc711f63f2e04c663daa840057a
     env_file:
       - .env
       - .env.compose
     depends_on:
-      temporal:
+      postgres:
         condition: service_healthy
     ports:
-      - 127.0.0.1:8000:8080
-
-  # node-exporter:
-  #   image: prom/node-exporter:v1.12.1@sha256:da83fae85603c4e47e6c68369a7d746e2dda683dc35ea2e234b4f171e0d92798
-  #   network_mode: host
-  #   command:
-  #     - --path.procfs=/host/proc
-  #     - --path.sysfs=/host/sys
-  #   volumes:
-  #     - /proc:/host/proc:ro
-  #     - /sys:/host/sys:ro
-
-  # nats-exporter:
-  #   image: natsio/prometheus-nats-exporter:0.20.1@sha256:2a4c7a0656c29dacc11dc9f3584ca08a9bc08219eaa14b332abd6234e031e5f4
-  #   depends_on:
-  #     nats:
-  #       condition: service_started
-  #   command:
-  #     - -varz
-  #     - -connz
-  #     - -routez
-  #     - -subz
-  #     - http://nats:8222
-  #   ports:
-  #     - 127.0.0.1:7777:7777
-
-  # postgres-exporter:
-  #   image: prometheuscommunity/postgres-exporter:v0.20.1@sha256:4f3d82803c1f99ea5e767890de3557d2479ebbc711f63f2e04c663daa840057a
-  #   env_file:
-  #     - .env
-  #     - .env.compose
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #   ports:
-  #     - 127.0.0.1:9187:9187
+      - 127.0.0.1:9187:9187
 
 volumes:
   zitadel-bootstrap:

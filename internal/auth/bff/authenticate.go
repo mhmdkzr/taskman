@@ -2,6 +2,7 @@ package bff
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,9 +18,13 @@ import (
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 
 	"github.com/mhmdkzr/app/internal/identity"
+	"github.com/mhmdkzr/app/internal/identity/provision"
 )
 
-var errUnauthenticated = errors.New("unauthenticated")
+var (
+	errUnauthenticated = errors.New("unauthenticated")
+	errInvalidCallback = errors.New("invalid authentication callback")
+)
 
 type principalContextKey struct{}
 
@@ -27,6 +32,47 @@ type principalContextKey struct{}
 func Principal(ctx context.Context) (identity.UserID, bool) {
 	id, ok := ctx.Value(principalContextKey{}).(identity.UserID)
 	return id, ok
+}
+
+// CompleteAuthorizationCallback validates an OIDC authorization-code callback
+// against the stored transaction (state, PKCE verifier), exchanges the code,
+// provisions/loads the app-owned identity, and establishes the browser's app
+// session. It returns the safe post-login redirect target.
+//
+// It is shared by the classic top-level redirect callback (bff/http.go) and
+// the custom Session-API login UI (auth/loginui), which reaches the same
+// point via ZITADEL's CreateCallback rather than a browser redirect.
+func (s *Service) CompleteAuthorizationCallback(ctx context.Context, code, state string) (string, error) {
+	expectedState := s.transactions.GetString(ctx, stateKey)
+	if code == "" || expectedState == "" ||
+		subtle.ConstantTimeCompare([]byte(state), []byte(expectedState)) != 1 {
+		return "", errInvalidCallback
+	}
+	verifier := s.transactions.GetString(ctx, verifierKey)
+	returnTo := safeReturnTo(s.transactions.GetString(ctx, returnToKey))
+	if err := s.transactions.Destroy(ctx); err != nil {
+		return "", fmt.Errorf("destroy auth transaction: %w", err)
+	}
+	accessToken, refreshToken, expiry, err := s.exchange(ctx, code, verifier)
+	if err != nil {
+		return "", err
+	}
+	subject, err := s.introspect(ctx, accessToken)
+	if err != nil {
+		return "", err
+	}
+	userID, err := provision.FindOrCreate(ctx, s.db, subject)
+	if err != nil {
+		return "", fmt.Errorf("provision app identity: %w", err)
+	}
+	if err := s.sessions.RenewToken(ctx); err != nil {
+		return "", fmt.Errorf("renew session: %w", err)
+	}
+	s.sessions.Put(ctx, accessTokenKey, accessToken)
+	s.sessions.Put(ctx, refreshTokenKey, refreshToken)
+	s.sessions.Put(ctx, expiryKey, expiry)
+	s.sessions.Put(ctx, userIDKey, userID.String())
+	return returnTo, nil
 }
 
 func (s *Service) introspect(ctx context.Context, token string) (identity.ZitadelSubject, error) {

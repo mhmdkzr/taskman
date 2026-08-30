@@ -73,6 +73,8 @@ type AuthConfig struct {
 	ClientSecret          string        `env:"CLIENT_SECRET"            envDefault:""`
 	RedirectURL           string        `env:"REDIRECT_URL"             envDefault:""`
 	PostLogoutRedirectURL string        `env:"POST_LOGOUT_REDIRECT_URL" envDefault:""`
+	LoginClientPATPath    string        `env:"LOGIN_CLIENT_PAT_PATH"    envDefault:""`
+	AdminPATPath          string        `env:"ADMIN_PAT_PATH"           envDefault:""`
 	SessionLifetime       time.Duration `env:"SESSION_LIFETIME"         envDefault:"24h"`
 	SessionIdleTimeout    time.Duration `env:"SESSION_IDLE_TIMEOUT"     envDefault:"8h"`
 	RefreshLeeway         time.Duration `env:"REFRESH_LEEWAY"           envDefault:"1m"`
@@ -158,6 +160,7 @@ func (c AuthConfig) validate() error {
 	for name, value := range map[string]string{
 		"ISSUER": c.Issuer, "CLIENT_ID": c.ClientID, "CLIENT_SECRET": c.ClientSecret,
 		"REDIRECT_URL": c.RedirectURL, "POST_LOGOUT_REDIRECT_URL": c.PostLogoutRedirectURL,
+		"LOGIN_CLIENT_PAT_PATH": c.LoginClientPATPath, "ADMIN_PAT_PATH": c.AdminPATPath,
 	} {
 		if value == "" {
 			return fmt.Errorf("%s must not be empty when ENABLED", name)

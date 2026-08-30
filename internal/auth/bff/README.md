@@ -5,6 +5,14 @@ authorization-code flow with PKCE; `GET /auth/callback` exchanges the code on
 the server; `POST /auth/logout` destroys the local session; and `GET /api/me`
 returns the app-owned user ID.
 
+The code-exchange/introspection/provisioning logic behind `/auth/callback` is
+exported as `Service.CompleteAuthorizationCallback` so
+[`internal/auth/loginui`](../loginui/README.md) — the custom Session-API
+login UI — can reach the same end state via ZITADEL's `CreateCallback`
+instead of a browser redirect. `Service.HTTPClient()`/`Issuer()` are exported
+for the same reason: that slice calls ZITADEL's REST API directly and reuses
+this service's private-address-aware HTTP client instead of duplicating it.
+
 Tokens are stored only in the PostgreSQL-backed SCS session. The browser gets
 one opaque `app_session` cookie with `HttpOnly`, `Secure`, and `SameSite=Strict`.
 A separate, ten-minute `auth_transaction` cookie is used only to carry OAuth

@@ -114,6 +114,17 @@ func (s *Service) TransactionMiddleware(next http.Handler) http.Handler {
 	return s.transactions.LoadAndSave(next)
 }
 
+// HTTPClient returns the HTTP client dialed to reach the configured ZITADEL
+// issuer, honoring the optional private Compose address override (see
+// oidcHTTPClient). Other slices that must call ZITADEL's REST APIs directly
+// (e.g. auth/loginui's Session API calls) reuse this instead of duplicating
+// the dial override.
+func (s *Service) HTTPClient() *http.Client { return s.http }
+
+// Issuer returns the configured ZITADEL issuer URL, the base for ZITADEL's
+// v2 REST APIs.
+func (s *Service) Issuer() string { return s.cfg.Issuer }
+
 func (s *Service) authorizationURL(state, verifier, nonce string) string {
 	values := url.Values{
 		"client_id":             {s.cfg.ClientID},

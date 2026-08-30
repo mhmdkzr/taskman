@@ -1,18 +1,14 @@
 package bff
 
 import (
-	"crypto/subtle"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"time"
 
-	"github.com/mhmdkzr/app/internal/identity/provision"
 	"github.com/mhmdkzr/app/pkg/jsonresp"
 )
-
-var errInvalidCallback = errors.New("invalid authentication callback")
 
 // Handler exposes browser-facing BFF endpoints.
 type Handler struct{ service *Service }
@@ -57,43 +53,38 @@ func (h Handler) login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h Handler) callback(w http.ResponseWriter, r *http.Request) {
-	expectedState := h.service.transactions.GetString(r.Context(), stateKey)
-	callbackState := r.URL.Query().Get("state")
-	if r.URL.Query().Get("error") != "" || r.URL.Query().Get("code") == "" || expectedState == "" ||
-		subtle.ConstantTimeCompare([]byte(callbackState), []byte(expectedState)) != 1 {
+	if r.URL.Query().Get("error") != "" {
 		jsonresp.WriteHTTPError(w, http.StatusBadRequest, errInvalidCallback)
 		return
 	}
-	verifier := h.service.transactions.GetString(r.Context(), verifierKey)
-	returnTo := safeReturnTo(h.service.transactions.GetString(r.Context(), returnToKey))
-	if err := h.service.transactions.Destroy(r.Context()); err != nil {
-		jsonresp.WriteHTTPError(w, http.StatusInternalServerError, fmt.Errorf("destroy auth transaction: %w", err))
-		return
-	}
-	accessToken, refreshToken, expiry, err := h.service.exchange(r.Context(), r.URL.Query().Get("code"), verifier)
+	returnTo, err := h.service.CompleteAuthorizationCallback(
+		r.Context(), r.URL.Query().Get("code"), r.URL.Query().Get("state"),
+	)
 	if err != nil {
-		jsonresp.WriteHTTPError(w, http.StatusBadGateway, err)
+		jsonresp.WriteHTTPError(w, httpStatusForError(err), err)
 		return
 	}
-	subject, err := h.service.introspect(r.Context(), accessToken)
-	if err != nil {
-		jsonresp.WriteHTTPError(w, http.StatusUnauthorized, err)
-		return
+	// Re-applied even though CompleteAuthorizationCallback already sanitizes
+	// returnTo: it crosses a package boundary, so treat it as untrusted here too.
+	safeRedirect := safeReturnTo(returnTo)
+	//nolint:gosec // safeRedirect is validated by safeReturnTo to be a local path
+	http.Redirect(w, r, safeRedirect, http.StatusFound)
+}
+
+// httpStatusForError maps CompleteAuthorizationCallback's error outcomes to
+// HTTP status codes: a malformed/mismatched callback is the caller's fault,
+// a failed introspection means the token ZITADEL issued was rejected, and
+// anything else (code exchange, provisioning, session storage) is this
+// service failing to complete a callback ZITADEL considers valid.
+func httpStatusForError(err error) int {
+	switch {
+	case errors.Is(err, errInvalidCallback):
+		return http.StatusBadRequest
+	case errors.Is(err, errUnauthenticated):
+		return http.StatusUnauthorized
+	default:
+		return http.StatusBadGateway
 	}
-	userID, err := provision.FindOrCreate(r.Context(), h.service.db, subject)
-	if err != nil {
-		jsonresp.WriteHTTPError(w, http.StatusInternalServerError, err)
-		return
-	}
-	if err := h.service.sessions.RenewToken(r.Context()); err != nil {
-		jsonresp.WriteHTTPError(w, 500, fmt.Errorf("renew session: %w", err))
-		return
-	}
-	h.service.sessions.Put(r.Context(), accessTokenKey, accessToken)
-	h.service.sessions.Put(r.Context(), refreshTokenKey, refreshToken)
-	h.service.sessions.Put(r.Context(), expiryKey, expiry)
-	h.service.sessions.Put(r.Context(), userIDKey, userID.String())
-	http.Redirect(w, r, returnTo, http.StatusFound)
 }
 
 func (h Handler) logout(w http.ResponseWriter, r *http.Request) {

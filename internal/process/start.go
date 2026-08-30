@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/alexedwards/scs/postgresstore"
@@ -22,6 +23,7 @@ import (
 
 	"github.com/mhmdkzr/app/internal/app"
 	"github.com/mhmdkzr/app/internal/auth/bff"
+	"github.com/mhmdkzr/app/internal/auth/loginui"
 	authregister "github.com/mhmdkzr/app/internal/auth/register"
 	"github.com/mhmdkzr/app/internal/config"
 	zitadelnotifications "github.com/mhmdkzr/app/internal/notifications/zitadel"
@@ -141,6 +143,11 @@ func Start(ctx context.Context) error {
 		}
 	}()
 
+	loginUIService, err := newLoginUIService(cfg.Auth, cfg.SMTP, sessions, authService, mailer)
+	if err != nil {
+		return err
+	}
+
 	a := app.App{
 		Deps: app.Deps{
 			DB:          db,
@@ -159,7 +166,7 @@ func Start(ctx context.Context) error {
 	w := worker.New(t, app.TemporalTaskQueue, worker.Options{})
 
 	register.RegisterRoutes(a)
-	authregister.RegisterRoutes(a, authService)
+	authregister.RegisterRoutes(a, authService, loginUIService)
 	register.RegisterActivities(w, a)
 	register.RegisterWorkflows(w, a)
 	register.RegisterEvents(w, a)
@@ -330,6 +337,48 @@ func newAuthService(
 		return nil, fmt.Errorf("initialize BFF authentication: %w", err)
 	}
 	return authService, nil
+}
+
+// newLoginUIService initializes the custom Session-API login UI when the BFF
+// is enabled, returning nil otherwise. It reuses the BFF's own HTTP client
+// (which honors the private Compose address override) and issuer.
+//
+// Session/OIDC-auth-request calls use cfg.LoginClientPATPath's token, which
+// must belong to a ZITADEL account granted the IAM_LOGIN_CLIENT role; in
+// local Compose it's the PAT ZITADEL's FirstInstance.Org.LoginClient
+// bootstrap writes to the shared bootstrap volume for exactly this purpose.
+// Registration/password-reset/TOTP-enrollment calls use the broader
+// cfg.AdminPATPath token instead, since those exceed IAM_LOGIN_CLIENT's
+// scope. See internal/auth/loginui/README.md.
+func newLoginUIService(
+	cfg config.AuthConfig,
+	smtp config.SMTPConfig,
+	sessions *scs.SessionManager,
+	authService *bff.Service,
+	mailer *mail.Client,
+) (*loginui.Service, error) {
+	if authService == nil {
+		return nil, nil //nolint:nilnil // disabled auth is a valid state, not an error
+	}
+	loginToken, err := os.ReadFile(cfg.LoginClientPATPath)
+	if err != nil {
+		return nil, fmt.Errorf("read login client PAT: %w", err)
+	}
+	adminToken, err := os.ReadFile(cfg.AdminPATPath)
+	if err != nil {
+		return nil, fmt.Errorf("read admin PAT: %w", err)
+	}
+	return loginui.New(
+		cfg.CookieSecure,
+		authService.HTTPClient(),
+		authService.Issuer(),
+		loginui.StaticToken(strings.TrimSpace(string(loginToken))),
+		loginui.StaticToken(strings.TrimSpace(string(adminToken))),
+		loginui.NewSMTPMailer(mailer, smtp.From, smtp.FromName),
+		strings.TrimSuffix(cfg.PostLogoutRedirectURL, "/"),
+		sessions,
+		authService,
+	), nil
 }
 
 // withWebhooks routes the private /webhooks/ prefix to the Zitadel webhook
