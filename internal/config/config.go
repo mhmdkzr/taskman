@@ -27,6 +27,7 @@ type Config struct {
 	AuditLog    AuditLogConfig    `envPrefix:"AUDIT_LOG_"`
 	Notifier    notifier.Config   `envPrefix:"NOTIFIER_"`
 	TigerBeetle TigerBeetleConfig `envPrefix:"TIGERBEETLE_"`
+	RustFS      RustFSConfig      `envPrefix:"RUSTFS_"`
 	Zitadel     ZitadelConfig     `envPrefix:"ZITADEL_CLIENT_"`
 	Auth        AuthConfig        `envPrefix:"AUTH_"`
 	Webhooks    WebhooksConfig    `envPrefix:"WEBHOOKS_"`
@@ -56,6 +57,18 @@ type TemporalConfig struct {
 type TigerBeetleConfig struct {
 	Address   string `env:"ADDRESS"    envDefault:"127.0.0.1:3000"`
 	ClusterID uint64 `env:"CLUSTER_ID" envDefault:"0"`
+}
+
+// RustFSConfig configures the S3-compatible RustFS object storage client.
+// RustFS is S3-compatible and accessed via AWS SDK for Go v2 with path-style addressing.
+// See https://docs.rustfs.com/en/developer/sdk/go
+type RustFSConfig struct {
+	Endpoint     string `env:"ENDPOINT"       envDefault:"http://127.0.0.1:9000"`
+	Region       string `env:"REGION"         envDefault:"us-east-1"`
+	AccessKey    string `env:"ACCESS_KEY"     envDefault:"rustfsadmin"`
+	SecretKey    string `env:"SECRET_KEY"     envDefault:"rustfsadmin"`
+	Bucket       string `env:"BUCKET"         envDefault:"app"`
+	UsePathStyle bool   `env:"USE_PATH_STYLE" envDefault:"true"`
 }
 
 type ZitadelConfig struct {
@@ -138,6 +151,9 @@ func (cfg *Config) Validate() error {
 	if err := cfg.TigerBeetle.validate(); err != nil {
 		return fmt.Errorf("tigerbeetle: %w", err)
 	}
+	if err := cfg.RustFS.validate(); err != nil {
+		return fmt.Errorf("rustfs: %w", err)
+	}
 	if err := cfg.Zitadel.validate(); err != nil {
 		return fmt.Errorf("zitadel: %w", err)
 	}
@@ -212,6 +228,25 @@ func (c AuditLogConfig) validate() error {
 func (c TigerBeetleConfig) validate() error {
 	if c.Address == "" {
 		return fmt.Errorf("ADDRESS must not be empty")
+	}
+	return nil
+}
+
+func (c RustFSConfig) validate() error {
+	if c.Endpoint == "" {
+		return fmt.Errorf("ENDPOINT must not be empty")
+	}
+	if c.Region == "" {
+		return fmt.Errorf("REGION must not be empty")
+	}
+	if c.AccessKey == "" {
+		return fmt.Errorf("ACCESS_KEY must not be empty")
+	}
+	if c.SecretKey == "" {
+		return fmt.Errorf("SECRET_KEY must not be empty")
+	}
+	if c.Bucket == "" {
+		return fmt.Errorf("BUCKET must not be empty")
 	}
 	return nil
 }

@@ -9,9 +9,13 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/alexedwards/scs/postgresstore"
 	"github.com/alexedwards/scs/v2"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 	tigerbeetle "github.com/tigerbeetle/tigerbeetle-go"
@@ -118,6 +122,12 @@ func Start(ctx context.Context) error {
 	}
 	defer tb.Close()
 
+	s3Client, err := connectRustFS(ctx, cfg.RustFS)
+	if err != nil {
+		return err
+	}
+	slog.Info("rustfs connected", "endpoint", cfg.RustFS.Endpoint, "bucket", cfg.RustFS.Bucket)
+
 	zc, err := connectZitadel(ctx, cfg.Zitadel)
 	if err != nil {
 		return err
@@ -133,7 +143,11 @@ func Start(ctx context.Context) error {
 		return err
 	}
 
-	mailer, err := mail.NewClient(cfg.SMTP.Host, mail.WithPort(cfg.SMTP.Port), mail.WithTLSPolicy(mail.NoTLS))
+	mailer, err := mail.NewClient(
+		cfg.SMTP.Host,
+		mail.WithPort(cfg.SMTP.Port),
+		mail.WithTLSPolicy(mail.NoTLS),
+	)
 	if err != nil {
 		return fmt.Errorf("create mailer: %w", err)
 	}
@@ -155,6 +169,7 @@ func Start(ctx context.Context) error {
 			JS:          js,
 			Temporal:    t,
 			TigerBeetle: tb,
+			RustFS:      s3Client,
 			Zitadel:     zc,
 			Mailer:      mailer,
 			Sessions:    sessions,
@@ -204,7 +219,10 @@ func Start(ctx context.Context) error {
 	}
 
 	slog.Info("shutdown")
-	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cfg.Server.ShutdownTimeout)
+	shutdownCtx, cancel := context.WithTimeout(
+		context.WithoutCancel(ctx),
+		cfg.Server.ShutdownTimeout,
+	)
 	defer cancel()
 	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		return fmt.Errorf("shutdown http server: %w", err)
@@ -214,7 +232,10 @@ func Start(ctx context.Context) error {
 
 // newSessionManager builds the PostgreSQL-backed session manager shared by
 // the app and the BFF auth service's own transaction store.
-func newSessionManager(db *sql.DB, cfg config.AuthConfig) (*scs.SessionManager, *postgresstore.PostgresStore) {
+func newSessionManager(
+	db *sql.DB,
+	cfg config.AuthConfig,
+) (*scs.SessionManager, *postgresstore.PostgresStore) {
 	sessionStore := postgresstore.New(db)
 	sessions := scs.New()
 	sessions.Store = sessionStore
@@ -232,7 +253,10 @@ func newSessionManager(db *sql.DB, cfg config.AuthConfig) (*scs.SessionManager, 
 }
 
 // connectTemporal dials the Temporal frontend and verifies it is healthy.
-func connectTemporal(ctx context.Context, cfg config.TemporalConfig) (temporalclient.Client, error) {
+func connectTemporal(
+	ctx context.Context,
+	cfg config.TemporalConfig,
+) (temporalclient.Client, error) {
 	t, err := temporalclient.Dial(temporalclient.Options{
 		HostPort:  cfg.Host,
 		Namespace: cfg.Namespace,
@@ -259,6 +283,47 @@ func connectTigerBeetle(cfg config.TigerBeetleConfig) (tigerbeetle.Client, error
 		return nil, fmt.Errorf("check tigerbeetle health: %w", err)
 	}
 	return tb, nil
+}
+
+// connectRustFS builds an S3 client for the RustFS object storage server.
+// RustFS is S3-compatible (see https://docs.rustfs.com/en/developer/sdk/go)
+// and is accessed via the AWS SDK for Go v2 with path-style addressing and a
+// custom BaseEndpoint. It verifies connectivity with ListBuckets and ensures
+// the configured bucket exists (creating it if missing), mirroring the
+// TigerBeetle Nop / Temporal CheckHealth pattern.
+func connectRustFS(ctx context.Context, cfg config.RustFSConfig) (*s3.Client, error) {
+	awsCfg := aws.Config{
+		Region: cfg.Region,
+		Credentials: aws.NewCredentialsCache(
+			credentials.NewStaticCredentialsProvider(cfg.AccessKey, cfg.SecretKey, ""),
+		),
+	}
+	client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
+		o.BaseEndpoint = aws.String(cfg.Endpoint)
+		o.UsePathStyle = cfg.UsePathStyle
+	})
+
+	// Verify connectivity and ensure bucket exists with a bounded timeout.
+	hctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if _, err := client.ListBuckets(hctx, &s3.ListBucketsInput{}); err != nil {
+		return nil, fmt.Errorf("check rustfs health (ListBuckets): %w", err)
+	}
+
+	if _, err := client.HeadBucket(hctx, &s3.HeadBucketInput{Bucket: aws.String(cfg.Bucket)}); err != nil {
+		if _, cerr := client.CreateBucket(hctx, &s3.CreateBucketInput{Bucket: aws.String(cfg.Bucket)}); cerr != nil {
+			// If creation fails because it already exists (race), treat as success.
+			// Verify again with HeadBucket to confirm.
+			if _, herr := client.HeadBucket(hctx, &s3.HeadBucketInput{Bucket: aws.String(cfg.Bucket)}); herr != nil {
+				return nil, fmt.Errorf("ensure rustfs bucket %q: %w", cfg.Bucket, cerr)
+			}
+		} else {
+			slog.Info("rustfs bucket created", "bucket", cfg.Bucket)
+		}
+	}
+
+	return client, nil
 }
 
 // startHTTPServer starts the application HTTP server in the background,
