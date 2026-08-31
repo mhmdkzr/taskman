@@ -52,6 +52,7 @@ type ServerConfig struct {
 type TemporalConfig struct {
 	Host      string `env:"HOST"`
 	Namespace string `env:"NAMESPACE"`
+	TaskQueue string `env:"TASK_QUEUE"`
 }
 
 type TigerBeetleConfig struct {
@@ -214,6 +215,9 @@ func (c ServerConfig) validate() error {
 func (c TemporalConfig) validate() error {
 	if c.Host == "" {
 		return fmt.Errorf("HOST must not be empty")
+	}
+	if c.TaskQueue == "" {
+		return fmt.Errorf("TASK_QUEUE must not be empty")
 	}
 	return nil
 }

@@ -181,14 +181,14 @@ func Start(ctx context.Context) error {
 
 	m := metrics.New()
 
-	w := worker.New(t, app.TemporalTaskQueue, worker.Options{})
+	w := worker.New(t, cfg.Temporal.TaskQueue, worker.Options{})
 
 	register.RegisterRoutes(a, m)
 	authregister.RegisterRoutes(a, authService, loginUIService)
 	register.RegisterActivities(w, a)
 	register.RegisterWorkflows(w, a)
 	register.RegisterEvents(w, a)
-	slog.Info("temporal worker registered", "task_queue", app.TemporalTaskQueue)
+	slog.Info("temporal worker registered", "task_queue", cfg.Temporal.TaskQueue)
 
 	redactor, err := auditlog.NewWithRedactor(a.Deps.JS, auditlogCfg, auditlog.AuditEvent)
 	if err != nil {

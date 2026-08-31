@@ -37,6 +37,3 @@ type Deps struct {
 	Mailer      *mail.Client
 	Sessions    *scs.SessionManager
 }
-
-// TemporalTaskQueue is the default task queue name for all Temporal workflows.
-const TemporalTaskQueue = "app"

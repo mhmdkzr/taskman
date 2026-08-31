@@ -18,7 +18,7 @@ The `Config.Load()` method:
 |---|---|
 | `Config` | Top-level application configuration |
 | `ServerConfig` | HTTP server bind address and base path |
-| `TemporalConfig` | Temporal host and namespace |
+| `TemporalConfig` | Temporal host, namespace and task queue (`TEMPORAL_*`) |
 | `TigerBeetleConfig` | TigerBeetle address and cluster ID (`TIGERBEETLE_*`) |
 | `ZitadelConfig` | Zitadel client domain and insecure flag (`ZITADEL_CLIENT_*`) |
 | `SMTPConfig` | SMTP mailer host/port/credentials (`SMTP_*`, MailHog defaults) |
