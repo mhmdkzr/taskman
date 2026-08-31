@@ -167,6 +167,14 @@ All database access must be wrapped in private functions whose only job is to ta
 
 ---
 
+## Tasks (`.tasks/`)
+
+Some packages carry a `<package>/.tasks/` directory of tracked follow-up work (review findings, test gaps, doc drift, features). Each task is a Markdown file with YAML frontmatter (`urgency`/`importance`, `type`, `status`, `tags`, `depends_on`, `where`, `source`, `resolved`/`resolved_at`) plus a short prose body: what the task is, optionally how to do it, why it matters, and what "done" looks like (`## What`/`## How`/`## Why`/`## Done when`, plus `## Resolution` once resolved).
+
+Never hand-write or hand-edit a `.tasks/*.md` file. Use the `taskman` CLI at `scripts/taskman/` (build with `cd scripts/taskman && GOWORK=off go build -o taskman .`) for every operation — `taskman new`/`list`/`show`/`search`/`done`/`drop`/`validate`. See `scripts/taskman/README.md` for the full schema and usage.
+
+---
+
 ## Temporal Rules
 
 - When working with Temporal, remember that temporal works under the assumption that **workflows are deterministic and side-effect free, and activities are idempotent.** Make sure this is true, otherwise it is **considered a bug**.
