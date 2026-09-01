@@ -27,33 +27,45 @@ body {
   font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 a { color: var(--accent); text-decoration: none; }
-header {
+
+/* kanban board */
+.board {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  height: 100vh;
+  padding: 12px 16px;
+}
+.col {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  min-width: 0;
+}
+.col-head {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
+  justify-content: space-between;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border);
-  background: var(--bg2);
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  background: var(--bg3);
 }
-header h1 { font-size: 15px; margin: 0; font-weight: 600; }
-header .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--yellow); }
-header .dot.on { background: var(--green); }
-header .dot.off { background: var(--red); }
-header .status { color: var(--muted); font-size: 12px; }
-header .count { color: var(--muted); font-size: 12px; margin-left: auto; }
-.layout { display: grid; grid-template-columns: 340px 1fr; height: calc(100vh - 45px); }
-.panel { overflow-y: auto; padding: 12px; }
-.panel.left { border-right: 1px solid var(--border); background: var(--bg2); }
-.section-title {
-  font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
-  color: var(--muted); margin: 0 0 8px; font-weight: 600;
+.col-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; color: var(--muted); }
+.col-count {
+  font-size: 11px; font-family: var(--mono); color: var(--muted);
+  background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 0 6px;
 }
-.task { border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; background: var(--bg3); cursor: pointer; }
+.col-body { overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+
+.task {
+  border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;
+  background: var(--bg3); cursor: pointer;
+}
 .task:hover { border-color: var(--accent); }
-.task.active { border-color: var(--accent); }
+.task.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .task .row { display: flex; align-items: center; gap: 8px; }
 .task .title { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task .meta { color: var(--muted); font-size: 11px; margin-top: 4px; font-family: var(--mono); }
@@ -68,49 +80,72 @@ header .count { color: var(--muted); font-size: 12px; margin-left: auto; }
 .badge.completed { color: var(--purple); border-color: var(--purple); }
 .badge.reviewed { color: var(--green); border-color: var(--green); }
 .badge.failed { color: var(--red); border-color: var(--red); }
+.empty { color: var(--muted); padding: 16px; text-align: center; }
+
+/* detail drawer */
+.drawer {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: 520px;
+  max-width: 100vw;
+  background: var(--bg2);
+  border-left: 1px solid var(--border);
+  z-index: 20;
+  overflow-y: auto;
+  padding: 16px;
+  box-shadow: -8px 0 24px rgba(0,0,0,0.4);
+}
+.drawer .close {
+  position: absolute; top: 10px; right: 12px;
+  background: var(--bg3); color: var(--muted); border: 1px solid var(--border);
+  border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 12px;
+}
+.drawer .close:hover { color: var(--fg); border-color: var(--accent); }
 .detail { max-width: 900px; }
-.detail h2 { font-size: 16px; margin: 0 0 4px; }
+.detail h2 { font-size: 16px; margin: 0 0 4px; padding-right: 60px; }
 .detail .spec h3 { font-size: 12px; color: var(--muted); text-transform: uppercase; margin: 16px 0 4px; }
 .detail .spec p { margin: 0 0 8px; white-space: pre-wrap; }
 .detail .spec ul { margin: 0 0 8px; padding-left: 18px; }
-.empty { color: var(--muted); padding: 24px; text-align: center; }
-.diff { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin: 8px 0; }
-.diff .dfile { background: var(--bg3); padding: 6px 10px; font-family: var(--mono); font-size: 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; gap: 8px; }
-.diff .dstat { color: var(--muted); font-size: 11px; }
-.diff pre { margin: 0; padding: 10px; overflow-x: auto; font-family: var(--mono); font-size: 12px; line-height: 1.45; }
-.diff pre .add { background: rgba(78,195,124,0.12); }
-.diff pre .del { background: rgba(224,85,97,0.12); }
-.diff pre .hunk { color: var(--accent); }
-.log { font-family: var(--mono); font-size: 12px; }
-.log .entry { padding: 4px 6px; border-bottom: 1px solid rgba(35,43,58,0.5); white-space: pre-wrap; word-break: break-word; }
-.log .entry .t { color: var(--muted); margin-right: 8px; }
-.log .entry .s { color: var(--purple); margin-right: 8px; }
-.log .entry.phase { border-left: 2px solid var(--accent); }
-.log .entry.tool { border-left: 2px solid var(--yellow); }
-.log .entry.err { border-left: 2px solid var(--red); }
-.log .entry .in { color: var(--muted); }
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; height: 100%; }
+.section-title {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--muted); margin: 0 0 8px; font-weight: 600;
+}
+.session { margin-bottom: 16px; }
+.session-head {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--accent); font-weight: 600; margin-bottom: 8px;
+}
+.turn { border-left: 2px solid var(--border); padding: 0 0 8px 10px; margin-bottom: 10px; }
+.turn-head { color: var(--muted); font-size: 11px; font-weight: 600; margin-bottom: 4px; }
+.prompt {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
+  padding: 6px 8px; margin-bottom: 8px; white-space: pre-wrap; word-break: break-word;
+}
+.step { margin-bottom: 8px; }
+.reasoning { color: var(--muted); font-size: 12px; margin-bottom: 6px; white-space: pre-wrap; word-break: break-word; }
+.assistant { color: var(--fg); margin-bottom: 6px; white-space: pre-wrap; word-break: break-word; }
+.tool { border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px; overflow: hidden; }
+.tool-head {
+  display: flex; gap: 8px; align-items: center;
+  background: var(--bg3); padding: 4px 8px; font-family: var(--mono); font-size: 12px;
+}
+.tool-name { color: var(--yellow); }
+.tool-err { color: var(--red); font-size: 10px; text-transform: uppercase; }
+.tool pre {
+  margin: 0; padding: 6px 8px; overflow-x: auto;
+  font-family: var(--mono); font-size: 11px; line-height: 1.45; max-height: 240px;
+}
+.tool .err { color: var(--red); padding: 6px 8px; white-space: pre-wrap; word-break: break-word; }
 </style>
 </head>
-<body data-signals="{selected: ''}">
+<body data-signals="{selected: ''}" data-init="@get('/events', {openWhenHidden: true})">
 
-<header>
-  <span class="dot"></span>
-  <h1>taskman</h1>
-  <span class="status">live</span>
-</header>
+{{template "taskList" .}}
 
-<div class="layout" data-init="@get('/events', {openWhenHidden: true})">
-  <div class="panel left">
-    <div class="section-title">Tasks</div>
-    <div id="task-list">
-      {{template "taskList" .}}
-    </div>
-  </div>
-  <div class="panel">
-    <div id="detail" class="detail">
-      <div class="empty">Select a task to see its spec, live activity and diff.</div>
-    </div>
+<div class="drawer" data-show="$selected != ''">
+  <button class="close" data-on:click="$selected = ''">close</button>
+  <div id="detail" class="detail">
+    <div class="empty">Select a task.</div>
   </div>
 </div>
 

@@ -7,8 +7,6 @@ import (
 	"html/template"
 	"log/slog"
 	"net/http"
-	"slices"
-	"strings"
 	"uuid"
 
 	"github.com/mhmdkzr/taskman/internal/store"
@@ -21,9 +19,19 @@ var files embed.FS
 // templates is parsed once: index.html is the page shell, taskList and
 // taskDetail are fragments the server renders into /api/tasks and
 // /api/tasks/{id} (and which /events patches live).
-var templates = template.Must(template.New("index.html").ParseFS(files, "*.html"))
+var templates = template.Must(template.New("index.html").Funcs(template.FuncMap{
+	"shortID":   func(s fmt.Stringer) string { return shorten(s.String(), 13) },
+	"shortHash": func(s string) string { return shorten(s, 8) },
+}).ParseFS(files, "*.html"))
 
-// taskRow is one entry in the task list fragment: a task plus its live phase.
+// kanbanCol is one status column of the board: a heading plus its tasks.
+type kanbanCol struct {
+	Status string
+	Label  string
+	Tasks  []taskRow
+}
+
+// taskRow is one card in the board: a task plus its live phase.
 type taskRow struct {
 	task.Task
 
@@ -34,68 +42,68 @@ type taskRow struct {
 type taskDetailData struct {
 	Task     task.Task
 	Phase    string
-	Activity []activityEntry
-	Diff     []diffFile
+	Sessions []sessionActivity
 }
 
-// activityEntry is one turn of a session transcript, rendered in the detail.
-type activityEntry struct {
-	Turn   int
+// sessionActivity is the rendered transcript of one session (execution or
+// review), oldest turn first.
+type sessionActivity struct {
+	Label string // "execution" | "review"
+	Turns []activityTurn
+}
+
+// activityTurn is one turn of a session: its prompt and the steps that follow.
+type activityTurn struct {
+	Number int
 	Prompt string
-	Lines  []activityLine
+	Steps  []activityStep
 }
 
-// activityLine is one line of activity within a turn: a tool call, a tool
-// error, or an assistant text snippet.
-type activityLine struct {
-	Kind string // "tool" | "err" | "text"
-	Text string
+// activityStep is one tool-loop step within a turn.
+type activityStep struct {
+	Number    int
+	Reasoning string
+	Text      string
+	Tools     []activityTool
 }
 
-// diffFile is one file's change in a task's diff, rendered in the detail.
-type diffFile struct {
-	Name       string
-	ChangeType string
-	Additions  int
-	Deletions  int
-	Lines      []diffLine
-}
-
-// diffLine is one line of a unified diff patch with its render class.
-type diffLine struct {
-	Class string // "" | "hunk" | "add" | "del"
-	Text  string
+// activityTool is one tool call in a step with its result.
+type activityTool struct {
+	Name   string
+	Input  string
+	Output string
+	Error  string
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.taskRows(r)
+	cols, err := s.board(r)
 	if err != nil {
 		http.Error(w, "list tasks: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := templates.ExecuteTemplate(w, "index.html", map[string]any{"Tasks": rows}); err != nil {
+	if err := templates.ExecuteTemplate(w, "index.html", map[string]any{"Cols": cols}); err != nil {
 		slog.Error("web: index render", "error", err)
 	}
 }
 
-// handleTaskList serves the #task-list fragment, used both by the periodic
-// refresh and by the live /events stream.
+// handleTaskList serves the #task-list kanban fragment, used both by the
+// periodic refresh and by the live /events stream.
 func (s *Server) handleTaskList(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.taskRows(r)
+	cols, err := s.board(r)
 	if err != nil {
 		http.Error(w, "list tasks: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := templates.ExecuteTemplate(w, "taskList", map[string]any{"Tasks": rows}); err != nil {
+	if err := templates.ExecuteTemplate(w, "taskList", map[string]any{"Cols": cols}); err != nil {
 		slog.Error("web: task list render", "error", err)
 	}
 }
 
 // handleTaskDetail serves the #detail fragment for one task. The UI fetches
 // it when a task is selected and re-fetches it on an interval while selected,
-// so a running task's activity and diff stay live.
+// so a running task's activity stays live.
 func (s *Server) handleTaskDetail(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	row, err := s.taskDetail(r, id)
@@ -109,18 +117,40 @@ func (s *Server) handleTaskDetail(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// taskRows loads all tasks and merges each with its live phase (tracked from
-// agent.pipeline.phase events by the /events stream).
-func (s *Server) taskRows(r *http.Request) ([]taskRow, error) {
+// board loads all tasks and groups them into one kanban column per status, in
+// lifecycle order, each card carrying its live phase.
+func (s *Server) board(r *http.Request) ([]kanbanCol, error) {
 	tasks, err := task.ListTasks(r.Context(), s.store.RO(), "")
 	if err != nil {
 		return nil, fmt.Errorf("list tasks: %w", err)
 	}
-	rows := make([]taskRow, 0, len(tasks))
-	for _, t := range tasks {
-		rows = append(rows, taskRow{Task: t, Phase: s.phase(t.ID.String())})
+
+	order := []task.TaskStatus{
+		task.TaskStatusCreated,
+		task.TaskStatusStarted,
+		task.TaskStatusCompleted,
+		task.TaskStatusReviewed,
 	}
-	return rows, nil
+	labels := map[task.TaskStatus]string{
+		task.TaskStatusCreated:   "Created",
+		task.TaskStatusStarted:   "Started",
+		task.TaskStatusCompleted: "Completed",
+		task.TaskStatusReviewed:  "Reviewed",
+	}
+	buckets := make(map[task.TaskStatus][]taskRow, len(order))
+	for _, t := range tasks {
+		st := t.Status
+		if _, ok := labels[st]; !ok {
+			continue // defensive: unknown statuses are not rendered
+		}
+		buckets[st] = append(buckets[st], taskRow{Task: t, Phase: s.phase(t.ID.String())})
+	}
+
+	cols := make([]kanbanCol, 0, len(order))
+	for _, st := range order {
+		cols = append(cols, kanbanCol{Status: string(st), Label: labels[st], Tasks: buckets[st]})
+	}
+	return cols, nil
 }
 
 // taskDetail builds the detail fragment for one task.
@@ -132,8 +162,7 @@ func (s *Server) taskDetail(r *http.Request, id string) (*taskDetailData, error)
 	return &taskDetailData{
 		Task:     *t,
 		Phase:    s.phase(id),
-		Activity: s.renderActivity(r, t),
-		Diff:     s.renderDiff(id),
+		Sessions: s.renderSessions(r, t),
 	}, nil
 }
 
@@ -160,79 +189,62 @@ func (s *Server) getTask(r *http.Request, id string) (*task.Task, error) {
 	return t, nil
 }
 
-// renderActivity builds the structured activity for a task's execution and
-// review session transcripts, newest turn first.
-func (s *Server) renderActivity(r *http.Request, t *task.Task) []activityEntry {
-	var out []activityEntry
-	for _, sid := range []uuid.UUID{t.SessionID, t.ReviewSessionID} {
-		if sid == uuid.Nil() {
+// renderSessions renders the activity for a task's execution and review
+// session transcripts, each oldest turn first.
+func (s *Server) renderSessions(r *http.Request, t *task.Task) []sessionActivity {
+	sessions := []struct {
+		id    uuid.UUID
+		label string
+	}{
+		{t.SessionID, "execution"},
+		{t.ReviewSessionID, "review"},
+	}
+	var out []sessionActivity
+	for _, sess := range sessions {
+		if sess.id == uuid.Nil() {
 			continue
 		}
-		tr, err := store.GetSessionTranscript(r.Context(), s.store.RO(), sid.String())
+		tr, err := store.GetSessionTranscript(r.Context(), s.store.RO(), sess.id.String())
 		if err != nil {
 			continue
 		}
-		for i, turn := range slices.Backward(tr.Turns) {
-			_ = i
-			entry := activityEntry{Turn: turn.Turn.Number, Prompt: turn.Prompt.Text()}
-			for _, step := range turn.Steps {
-				for _, m := range step.Messages {
-					for _, p := range m.Parts {
-						switch p.Type {
-						case "tool-call":
-							entry.Lines = append(entry.Lines, activityLine{
-								Kind: "tool",
-								Text: shorten(p.ToolInput, 200),
-							})
-						case "tool-result":
-							if p.ToolError != "" {
-								entry.Lines = append(entry.Lines, activityLine{
-									Kind: "err",
-									Text: shorten(p.ToolError, 200),
-								})
-							}
-						case "text":
-							entry.Lines = append(entry.Lines, activityLine{
-								Kind: "text",
-								Text: shorten(p.Text, 300),
-							})
-						}
-					}
-				}
-			}
-			out = append(out, entry)
+		activity := sessionActivity{Label: sess.label}
+		for _, turn := range tr.Turns {
+			activity.Turns = append(activity.Turns, activityFromTurn(turn))
+		}
+		if len(activity.Turns) > 0 {
+			out = append(out, activity)
 		}
 	}
 	return out
 }
 
-// renderDiff builds the structured diff for a task.
-func (s *Server) renderDiff(taskID string) []diffFile {
-	d := s.diffFor(taskID)
-	if d == nil {
-		return nil
-	}
-	out := make([]diffFile, 0, len(d.Files))
-	for _, f := range d.Files {
-		file := diffFile{
-			Name:       f.Name,
-			ChangeType: f.ChangeType,
-			Additions:  f.Additions,
-			Deletions:  f.Deletions,
-		}
-		for line := range strings.SplitSeq(f.Patch, "\n") {
-			cls := ""
-			switch {
-			case strings.HasPrefix(line, "@@"):
-				cls = "hunk"
-			case strings.HasPrefix(line, "+"):
-				cls = "add"
-			case strings.HasPrefix(line, "-"):
-				cls = "del"
+// activityFromTurn flattens one transcript turn into renderable activity.
+func activityFromTurn(turn store.TurnTranscript) activityTurn {
+	out := activityTurn{Number: turn.Turn.Number, Prompt: turn.Prompt.Text()}
+	for _, step := range turn.Steps {
+		st := activityStep{Number: step.Step.Number}
+		// results are keyed by tool call id so a result lands on its call.
+		byCall := map[string]*activityTool{}
+		for _, m := range step.Messages {
+			for _, p := range m.Parts {
+				switch p.Type {
+				case "reasoning":
+					st.Reasoning += p.Text
+				case "text":
+					st.Text += p.Text
+				case "tool-call":
+					st.Tools = append(st.Tools, activityTool{Name: p.ToolName, Input: p.ToolInput})
+					byCall[p.ToolCallID] = &st.Tools[len(st.Tools)-1]
+				case "tool-result":
+					if tool, ok := byCall[p.ToolCallID]; ok {
+						tool.Output = p.ToolOutput
+						tool.Error = p.ToolError
+					}
+				}
 			}
-			file.Lines = append(file.Lines, diffLine{Class: cls, Text: line})
 		}
-		out = append(out, file)
+		out.Steps = append(out.Steps, st)
 	}
 	return out
 }

@@ -3,38 +3,8 @@
   <h2>{{.Task.Title}} <span class="badge {{.Task.Status}}">{{.Task.Status}}</span></h2>
   <div style="font-family:var(--mono);font-size:12px;color:var(--muted)">{{.Task.ID}}</div>
   {{if .Phase}}<div class="section-title" style="margin-top:12px">Phase</div><p style="margin:4px 0">{{.Phase}}</p>{{end}}
-  <div class="grid">
-    <div>
-      <div class="section-title" style="margin-top:12px">Activity</div>
-      {{if .Activity}}
-      <div class="log">
-        {{range .Activity}}
-        <div class="turn"><span class="t">turn {{.Turn}}</span> {{.Prompt}}</div>
-        {{range .Lines}}
-        <div class="entry {{.Kind}}">{{.Text}}</div>
-        {{end}}
-        {{end}}
-      </div>
-      {{else}}
-      <div class="empty">no activity yet</div>
-      {{end}}
-    </div>
-    <div>
-      <div class="section-title" style="margin-top:12px">Diff</div>
-      {{if .Diff}}
-      {{range .Diff}}
-      <div class="diff">
-        <div class="dfile"><span>{{.Name}} ({{.ChangeType}})</span><span class="dstat">+{{.Additions}}/-{{.Deletions}}</span></div>
-        <pre>{{range .Lines}}<span class="{{.Class}}">{{.Text}}</span>
-{{end}}</pre>
-      </div>
-      {{end}}
-      {{else}}
-      <div class="empty">no changes yet</div>
-      {{end}}
-    </div>
-  </div>
-  <div class="section-title" style="margin-top:16px">Spec</div>
+
+  <div class="section-title" style="margin-top:12px">Spec</div>
   <div class="spec">
     <h3>What</h3><p>{{.Task.What}}</p>
     <h3>Why</h3><p>{{.Task.Why}}</p>
@@ -42,4 +12,34 @@
     {{if .Task.CommitMessage}}<h3>Commit</h3><p>{{.Task.CommitType}}: {{.Task.CommitMessage}}</p>{{end}}
     {{if .Task.CommitHash}}<h3>Commit hash</h3><p style="font-family:var(--mono);font-size:12px">{{.Task.CommitHash}}</p>{{end}}
   </div>
+
+  <div class="section-title" style="margin-top:16px">Activity</div>
+  {{range .Sessions}}
+  <div class="session">
+    <div class="session-head">{{.Label}}</div>
+    {{range .Turns}}
+    <div class="turn">
+      <div class="turn-head">Turn {{.Number}}</div>
+      <div class="prompt">{{.Prompt}}</div>
+      {{range .Steps}}
+      <div class="step">
+        {{if .Reasoning}}<div class="reasoning">{{.Reasoning}}</div>{{end}}
+        {{if .Text}}<div class="assistant">{{.Text}}</div>{{end}}
+        {{range .Tools}}
+        <div class="tool">
+          <div class="tool-head"><span class="tool-name">{{.Name}}</span>{{if .Error}} <span class="tool-err">error</span>{{end}}</div>
+          {{if .Input}}<pre class="tool-in">{{.Input}}</pre>{{end}}
+          {{if .Error}}<div class="err">{{.Error}}</div>{{else if .Output}}<pre class="tool-out">{{.Output}}</pre>{{end}}
+        </div>
+        {{end}}
+      </div>
+      {{end}}
+    </div>
+    {{else}}
+    <div class="empty">no turns yet</div>
+    {{end}}
+  </div>
+  {{else}}
+  <div class="empty">no activity yet</div>
+  {{end}}
 </div>{{end}}

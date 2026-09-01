@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"uuid"
 
 	"github.com/mhmdkzr/taskman/internal/events"
 	"github.com/mhmdkzr/taskman/internal/publisher"
@@ -36,7 +37,7 @@ func newTestServer(t *testing.T) (*Server, *store.Store, publisher.Publisher) {
 	if err != nil {
 		t.Fatalf("connect publisher: %v", err)
 	}
-	return &Server{store: st, pub: pub, phases: map[string]string{}, diffs: map[string]events.PipelineDiff{}}, st, pub
+	return &Server{store: st, pub: pub, phases: map[string]string{}}, st, pub
 }
 
 func insertTestTask(t *testing.T, db *sql.DB) task.Task {
@@ -79,7 +80,7 @@ func TestIndexRendersTaskList(t *testing.T) {
 		t.Fatalf("GET / = %d, want 200", rec.Code)
 	}
 	body := rec.Body.String()
-	for _, want := range []string{"Fix nil pointer", "data-signals", "datastar.js", "id=\"task-list\""} {
+	for _, want := range []string{"Fix nil pointer", "data-signals", "datastar.js", "id=\"task-list\"", "Created", "Started", "Completed", "Reviewed"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("index missing %q", want)
 		}
@@ -101,8 +102,8 @@ func TestNoCommandRoutes(t *testing.T) {
 	}
 }
 
-// TestTaskListFragmentRendersTasks verifies /api/tasks returns the task list
-// fragment with the inserted task.
+// TestTaskListFragmentRendersTasks verifies /api/tasks returns the kanban
+// fragment with the inserted task grouped under its status column.
 func TestTaskListFragmentRendersTasks(t *testing.T) {
 	srv, st, _ := newTestServer(t)
 	insertTestTask(t, st.RW())
@@ -113,8 +114,19 @@ func TestTaskListFragmentRendersTasks(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("GET /api/tasks = %d, want 200", rec.Code)
 	}
-	if !strings.Contains(rec.Body.String(), "Fix nil pointer") {
-		t.Errorf("task list fragment missing task:\n%s", rec.Body.String())
+	body := rec.Body.String()
+	for _, want := range []string{"Fix nil pointer", "Created", "Started", "Completed", "Reviewed"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("task list fragment missing %q", want)
+		}
+	}
+	// The created task must be in the Created column: the "Created" heading
+	// comes before the task title in the fragment.
+	if !strings.Contains(body, "Created") || !strings.Contains(body, "Fix nil pointer") {
+		t.Fatalf("task list fragment malformed:\n%s", body)
+	}
+	if idx := strings.Index(body, "Created"); idx < 0 || strings.Index(body, "Fix nil pointer") < idx {
+		t.Errorf("task title should follow the Created column heading:\n%s", body)
 	}
 }
 
@@ -135,6 +147,82 @@ func TestTaskDetailFragment(t *testing.T) {
 		if !strings.Contains(body, want) {
 			t.Errorf("detail fragment missing %q", want)
 		}
+	}
+}
+
+// TestTaskDetailRendersAgentMessages verifies the activity rendering shows the
+// agent's reasoning, tool calls/results and assistant text from the session
+// transcript.
+func TestTaskDetailRendersAgentMessages(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+
+	// Build a task with a real execution session carrying one turn with a
+	// reasoning + tool-call step and a final text step.
+	sessionID, err := store.NewSessionID()
+	if err != nil {
+		t.Fatalf("NewSessionID: %v", err)
+	}
+	callID := "call_01"
+	if err := store.SaveRun(context.Background(), st.RW(), sessionID, store.Run{
+		Model:           "test-model",
+		ReasoningEffort: "medium",
+		MaxSteps:        100,
+		SystemPrompt:    "You are an agent.",
+		Prompt:          "Fix the nil pointer.",
+		Messages: []store.Message{
+			{
+				Role: "assistant", Number: 1, FinishReason: "tool-calls",
+				Parts: []store.Part{
+					{Type: "reasoning", Text: "I'll guard the client."},
+					{
+						Type:       "tool-call",
+						ToolCallID: callID,
+						ToolName:   "edit",
+						ToolInput:  `{"path":"send.go","old":"","new":"x"}`,
+					},
+				},
+			},
+			{
+				Role: "tool", Number: 1,
+				Parts: []store.Part{{
+					Type: "tool-result", ToolCallID: callID, ToolName: "edit",
+					ToolOutput: `{"bytes_written":1}`,
+				}},
+			},
+			{
+				Role: "assistant", Number: 2, FinishReason: "stop",
+				Parts: []store.Part{{Type: "text", Text: "Done — added the nil check."}},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("SaveRun: %v", err)
+	}
+	sid, err := uuid.Parse(sessionID)
+	if err != nil {
+		t.Fatalf("parse session id: %v", err)
+	}
+
+	tk := insertTestTask(t, st.RW())
+	if _, err := st.RW().Exec(
+		`UPDATE tasks SET session_id = ? WHERE id = ?`, sid.String(), tk.ID.String(),
+	); err != nil {
+		t.Fatalf("link session: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/tasks/"+tk.ID.String(), nil)
+	rec := httptest.NewRecorder()
+	srv.routesHandler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /api/tasks/{id} = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{"execution", "Turn 1", "I&#39;ll guard the client.", "edit", "Done — added the nil check."} {
+		if !strings.Contains(body, want) {
+			t.Errorf("detail activity missing %q", want)
+		}
+	}
+	if !strings.Contains(body, `&#34;bytes_written&#34;:1`) {
+		t.Errorf("detail activity missing tool result output")
 	}
 }
 

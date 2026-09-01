@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/starfederation/datastar-go/datastar"
-
-	"github.com/mhmdkzr/taskman/internal/events"
 )
 
 // eventsKeepAlive is how often the stream re-renders the task list even when
@@ -76,16 +74,16 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// patchTaskList re-renders the #task-list fragment from the store and patches
-// it into the DOM.
+// patchTaskList re-renders the #task-list kanban fragment from the store and
+// patches it into the DOM.
 func (s *Server) patchTaskList(sse *datastar.ServerSentEventGenerator, r *http.Request) error {
-	rows, err := s.taskRows(r)
+	cols, err := s.board(r)
 	if err != nil {
 		slog.Error("web: task list render", "error", err)
 		return fmt.Errorf("task rows: %w", err)
 	}
 	var buf bytes.Buffer
-	if err := templates.ExecuteTemplate(&buf, "taskList", map[string]any{"Tasks": rows}); err != nil {
+	if err := templates.ExecuteTemplate(&buf, "taskList", map[string]any{"Cols": cols}); err != nil {
 		slog.Error("web: task list render", "error", err)
 		return fmt.Errorf("render task list: %w", err)
 	}
@@ -97,25 +95,19 @@ func (s *Server) patchTaskList(sse *datastar.ServerSentEventGenerator, r *http.R
 }
 
 // handleEvent records the transient live state an event carries so the
-// fragments can render it: pipeline phases and the unified diff.
+// fragments can render it: the current pipeline phase per task.
 func (s *Server) handleEvent(m sseMsg) {
-	switch m.subject {
-	case "agent.pipeline.phase":
-		var ev struct {
-			TaskID string `json:"task_id"`
-			Phase  string `json:"phase"`
-		}
-		if err := json.Unmarshal(m.data, &ev); err != nil || ev.TaskID == "" {
-			return
-		}
-		s.setPhase(ev.TaskID, ev.Phase)
-	case "agent.pipeline.diff":
-		var ev events.PipelineDiff
-		if err := json.Unmarshal(m.data, &ev); err != nil || ev.TaskID == "" {
-			return
-		}
-		s.setDiff(ev.TaskID, ev)
+	if m.subject != "agent.pipeline.phase" {
+		return
 	}
+	var ev struct {
+		TaskID string `json:"task_id"`
+		Phase  string `json:"phase"`
+	}
+	if err := json.Unmarshal(m.data, &ev); err != nil || ev.TaskID == "" {
+		return
+	}
+	s.setPhase(ev.TaskID, ev.Phase)
 }
 
 // sseMsg is one bus message ready to be handled by the live stream.
