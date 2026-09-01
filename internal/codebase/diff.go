@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-git/go-git/v5"
-	"github.com/sergi/go-diff/diffmatchpatch"
+	"github.com/pmezard/go-difflib/difflib"
 )
 
 type Diff struct {
@@ -24,6 +24,10 @@ const (
 	ChangeTypeAdded    ChangeType = "A"
 	ChangeTypeDeleted  ChangeType = "D"
 )
+
+// unifiedDiffContextLines is the number of unchanged lines shown around each
+// hunk, matching `git diff`'s own default.
+const unifiedDiffContextLines = 3
 
 func (r Repository) Diff() ([]Diff, error) {
 	head, err := r.r.Head()
@@ -49,7 +53,6 @@ func (r Repository) Diff() ([]Diff, error) {
 		return nil, fmt.Errorf("status: %w", err)
 	}
 
-	dmp := diffmatchpatch.New()
 	var results []Diff
 
 	for path, fs := range status {
@@ -81,24 +84,18 @@ func (r Repository) Diff() ([]Diff, error) {
 			ct = ChangeTypeDeleted
 		}
 
-		diffs := dmp.DiffMain(oldContent, newContent, true)
-		diffs = dmp.DiffCleanupSemantic(diffs)
-		patches := dmp.PatchMake(diffs)
-		patchText := dmp.PatchToText(patches)
-
-		var additions, deletions int
-		for _, d := range diffs {
-			n := strings.Count(d.Text, "\n")
-			if len(d.Text) > 0 && !strings.HasSuffix(d.Text, "\n") {
-				n++
-			}
-			switch d.Type {
-			case diffmatchpatch.DiffInsert:
-				additions += n
-			case diffmatchpatch.DiffDelete:
-				deletions += n
-			}
+		patchText, err := difflib.GetUnifiedDiffString(difflib.UnifiedDiff{
+			A:        difflib.SplitLines(oldContent),
+			B:        difflib.SplitLines(newContent),
+			FromFile: "a/" + path,
+			ToFile:   "b/" + path,
+			Context:  unifiedDiffContextLines,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("diff %s: %w", path, err)
 		}
+
+		additions, deletions := countUnifiedDiffLines(patchText)
 
 		results = append(results, Diff{
 			Name:       path,
@@ -110,4 +107,22 @@ func (r Repository) Diff() ([]Diff, error) {
 	}
 
 	return results, nil
+}
+
+// countUnifiedDiffLines counts added/removed content lines in a unified diff
+// produced by difflib.GetUnifiedDiffString, ignoring the "--- a/..."/"+++
+// b/..." file headers those lines' own "-"/"+" prefixes would otherwise be
+// mistaken for.
+func countUnifiedDiffLines(patch string) (int, int) {
+	var additions, deletions int
+	for line := range strings.SplitSeq(patch, "\n") {
+		switch {
+		case strings.HasPrefix(line, "+++") || strings.HasPrefix(line, "---"):
+		case strings.HasPrefix(line, "+"):
+			additions++
+		case strings.HasPrefix(line, "-"):
+			deletions++
+		}
+	}
+	return additions, deletions
 }
