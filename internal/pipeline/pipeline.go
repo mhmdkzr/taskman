@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"strings"
+	"time"
 	"uuid"
 
 	"github.com/zendev-sh/goai"
@@ -17,6 +18,7 @@ import (
 	"github.com/mhmdkzr/taskman/internal/agent"
 	"github.com/mhmdkzr/taskman/internal/codebase"
 	"github.com/mhmdkzr/taskman/internal/config"
+	"github.com/mhmdkzr/taskman/internal/events"
 	"github.com/mhmdkzr/taskman/internal/prompts"
 	"github.com/mhmdkzr/taskman/internal/publisher"
 	"github.com/mhmdkzr/taskman/internal/store"
@@ -24,6 +26,20 @@ import (
 	codebasetools "github.com/mhmdkzr/taskman/internal/tools/codebase"
 	"github.com/mhmdkzr/taskman/internal/usage"
 )
+
+// publishPipelineEvent is the pipeline's own best-effort publish, matching
+// Session.publish's convention (see internal/agent/session.go): a stalled or
+// absent bus must never fail or block a task run, so any publish error is
+// discarded here rather than propagated. It publishes on a context derived
+// from ctx but not cancelled by it, so a failure event caused by ctx itself
+// being cancelled still gets a chance to go out.
+func (cfg Config) publishPipelineEvent(ctx context.Context, e publisher.Event[any]) {
+	pubCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if err := cfg.Publisher.Publish(pubCtx, e); err != nil {
+		slog.Warn("pipeline: publish event failed", "subject", e.Subject(), "error", err)
+	}
+}
 
 // Config holds the dependencies and settings RunTask needs, shared across
 // every task it runs.
@@ -50,11 +66,11 @@ type Config struct {
 	MaxFixupRounds int
 }
 
-func (c Config) normalize() Config {
-	if c.MaxFixupRounds <= 0 {
-		c.MaxFixupRounds = 3
+func (cfg Config) normalize() Config {
+	if cfg.MaxFixupRounds <= 0 {
+		cfg.MaxFixupRounds = 3
 	}
-	return c
+	return cfg
 }
 
 // Result is the outcome of a successful RunTask.
@@ -95,9 +111,34 @@ type commitProposal struct {
 // the worktree is removed on success; on any error it's left in place for
 // inspection. RunTask never merges the task's branch into anything — that's
 // left for a human (or a separate step) to decide.
-func RunTask(ctx context.Context, cfg Config, t task.Task) (*Result, error) {
+func RunTask(ctx context.Context, cfg Config, t task.Task) (result *Result, err error) {
 	cfg = cfg.normalize()
+	phase := "clone"
+	defer func() {
+		if err != nil {
+			cfg.publishPipelineEvent(ctx, events.PipelineTaskFailed{
+				TaskID:    t.ID.String(),
+				Phase:     phase,
+				Error:     err.Error(),
+				Timestamp: time.Now().UTC(),
+			})
+			return
+		}
+		cfg.publishPipelineEvent(ctx, events.PipelineTaskFinished{
+			TaskID:     t.ID.String(),
+			CommitHash: result.CommitHash,
+			Timestamp:  time.Now().UTC(),
+		})
+	}()
+	publishPhase := func(p string) {
+		phase = p
+		cfg.publishPipelineEvent(
+			ctx,
+			events.PipelinePhase{TaskID: t.ID.String(), Phase: p, Timestamp: time.Now().UTC()},
+		)
+	}
 
+	publishPhase("clone")
 	dir := filepath.Join(cfg.WorkDir, t.ID.String())
 	branch := "task/" + t.ID.String()
 	repo, err := codebase.Clone(cfg.SourceDir, dir, codebase.CloneOptions{Branch: branch})
@@ -105,6 +146,7 @@ func RunTask(ctx context.Context, cfg Config, t task.Task) (*Result, error) {
 		return nil, fmt.Errorf("clone worktree: %w", err)
 	}
 
+	publishPhase("execution")
 	execOpts, execTools, runner, err := buildExecutorOptions(cfg, dir)
 	if err != nil {
 		return nil, fmt.Errorf("build executor options: %w", err)
@@ -139,6 +181,7 @@ func RunTask(ctx context.Context, cfg Config, t task.Task) (*Result, error) {
 		return nil, fmt.Errorf("complete task: %w", err)
 	}
 
+	publishPhase("review")
 	reviewOpts, reviewTools, err := buildReviewerOptions(cfg, repo, dir)
 	if err != nil {
 		return nil, fmt.Errorf("build reviewer options: %w", err)
@@ -162,6 +205,7 @@ func RunTask(ctx context.Context, cfg Config, t task.Task) (*Result, error) {
 		return nil, err
 	}
 
+	publishPhase("commit")
 	finalMessage, commitAgentUsage, err := runCommitAgent(ctx, cfg, repo, t)
 	if err != nil {
 		return nil, err
@@ -172,6 +216,7 @@ func RunTask(ctx context.Context, cfg Config, t task.Task) (*Result, error) {
 		return nil, fmt.Errorf("commit: %w", err)
 	}
 
+	publishPhase("land")
 	// The clone is disposable and gets removed below on success — the
 	// commit above only really exists once it's fetched back into the
 	// source repository. Do this before anything else that could remove the
@@ -197,6 +242,7 @@ func RunTask(ctx context.Context, cfg Config, t task.Task) (*Result, error) {
 		return nil, fmt.Errorf("review task: %w", err)
 	}
 
+	publishPhase("cleanup")
 	if err := repo.Remove(); err != nil {
 		slog.Warn(
 			"pipeline: failed to remove task worktree",
