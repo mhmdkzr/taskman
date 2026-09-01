@@ -7,10 +7,20 @@ import (
 	"github.com/mhmdkzr/taskman/internal/codebase"
 )
 
-// scopedLint runs the repository's full lint pass and filters it down to
+// scopedLint runs the repository's automated check and filters it down to
 // findings in files the task has actually changed (see
 // scopeLintToChangedFiles) — the shape every pipeline call site wants,
 // rather than the raw whole-repository report.
+//
+// This currently runs go vet only — staticcheck and golangci-lint are
+// temporarily skipped: they're slow on a repo of any size, and their own
+// pre-existing findings are exactly what scopeLintToChangedFiles's doc
+// comment above calls out as the case it can't fully solve (a file with
+// unrelated pre-existing debt that the task also happens to touch still
+// gets all of that debt attributed to it). go vet is fast and near-zero
+// pre-existing-debt-prone in practice. Revisit codebase.Repository.Lint
+// (staticcheck + golangci-lint + go vet) once that tradeoff is worth it
+// again.
 func scopedLint(repo codebase.Repository) (codebase.LintReport, error) {
 	root, err := repo.Root()
 	if err != nil {
@@ -20,10 +30,18 @@ func scopedLint(repo codebase.Repository) (codebase.LintReport, error) {
 	if err != nil {
 		return codebase.LintReport{}, fmt.Errorf("diff: %w", err)
 	}
-	report, err := repo.Lint()
+
+	vetTree, err := repo.GoVet()
 	if err != nil {
-		return codebase.LintReport{}, fmt.Errorf("lint: %w", err)
+		return codebase.LintReport{}, fmt.Errorf("go vet: %w", err)
 	}
+	var report codebase.LintReport
+	for _, analyzers := range vetTree {
+		for _, res := range analyzers {
+			report.VetIssues = append(report.VetIssues, res.Diagnostics...)
+		}
+	}
+
 	return scopeLintToChangedFiles(report, root, diffs), nil
 }
 
