@@ -2,6 +2,7 @@ package codebase
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -72,7 +73,7 @@ func (r Repository) Commit(msg CommitMessage, sig AuthorSignature, paths ...stri
 		}
 	}
 
-	author := &object.Signature{Name: sig.Name, Email: sig.Email}
+	author := &object.Signature{Name: sig.Name, Email: sig.Email, When: time.Now()}
 	if cfg, err := r.r.Config(); err == nil && cfg != nil {
 		if cfg.User.Name != "" {
 			author.Name = cfg.User.Name
