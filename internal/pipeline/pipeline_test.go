@@ -90,6 +90,19 @@ func TestFormatDiffsIncludesEachFile(t *testing.T) {
 	}
 }
 
+func TestFormatDiffsTruncatesLargeOutput(t *testing.T) {
+	huge := strings.Repeat("x", maxDiffChars*2)
+	diffs := []codebase.Diff{{Name: "big.go", ChangeType: codebase.ChangeTypeModified, Patch: huge}}
+
+	got := formatDiffs(diffs)
+	if len(got) > maxDiffChars+200 {
+		t.Errorf("formatDiffs length = %d, want capped near %d", len(got), maxDiffChars)
+	}
+	if !strings.Contains(got, "truncated") {
+		t.Error("formatDiffs should note truncation for a diff this large")
+	}
+}
+
 func TestReviewInputPromptIncludesTaskDiffAndLint(t *testing.T) {
 	tk := testTask()
 	diffs := []codebase.Diff{{Name: "a.go", ChangeType: codebase.ChangeTypeModified, Additions: 1, Patch: "@@ ... @@"}}

@@ -7,6 +7,25 @@ import (
 	"testing"
 )
 
+func TestLintReportStringTruncatesLargeOutput(t *testing.T) {
+	var issues []VetDiagnostic
+	for i := range 2000 {
+		issues = append(issues, VetDiagnostic{
+			Posn:    Position{File: "big.go", Line: i, Column: 1},
+			Message: "some finding that repeats many times over",
+		})
+	}
+	report := LintReport{VetIssues: issues}
+
+	out := report.String()
+	if len(out) > maxLintReportChars+100 {
+		t.Errorf("String() length = %d, want capped near %d", len(out), maxLintReportChars)
+	}
+	if !strings.Contains(out, "truncated") {
+		t.Error("String() should note truncation for a report this large")
+	}
+}
+
 func TestLintClean(t *testing.T) {
 	repo := newGoRepo(t)
 

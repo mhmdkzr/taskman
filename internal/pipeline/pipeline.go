@@ -308,9 +308,9 @@ func runExecution(
 		if err := repo.Format(); err != nil {
 			return executionProposal{}, total, fmt.Errorf("format: %w", err)
 		}
-		report, err := repo.Lint()
+		report, err := scopedLint(repo)
 		if err != nil {
-			return executionProposal{}, total, fmt.Errorf("lint: %w", err)
+			return executionProposal{}, total, err
 		}
 		if report.Clean() {
 			return proposal, total, nil
@@ -345,9 +345,9 @@ func runReview(
 		if err != nil {
 			return reviewUsage, execFixupUsage, fmt.Errorf("diff: %w", err)
 		}
-		report, err := repo.Lint()
+		report, err := scopedLint(repo)
 		if err != nil {
-			return reviewUsage, execFixupUsage, fmt.Errorf("lint: %w", err)
+			return reviewUsage, execFixupUsage, err
 		}
 
 		verdict, res, _, err := agent.ContinueSessionObject[reviewVerdict](
@@ -492,6 +492,10 @@ func taskPrompt(t task.Task) string {
 }
 
 // formatDiffs renders a repository diff into plain text for an agent prompt.
+// maxDiffChars bounds formatDiffs' output so an unusually large change
+// cannot flood an agent's context window.
+const maxDiffChars = 40000
+
 func formatDiffs(diffs []codebase.Diff) string {
 	if len(diffs) == 0 {
 		return "(no changes)"
@@ -500,7 +504,11 @@ func formatDiffs(diffs []codebase.Diff) string {
 	for _, d := range diffs {
 		fmt.Fprintf(&b, "--- %s (%s, +%d/-%d) ---\n%s\n\n", d.Name, d.ChangeType, d.Additions, d.Deletions, d.Patch)
 	}
-	return strings.TrimRight(b.String(), "\n")
+	out := strings.TrimRight(b.String(), "\n")
+	if len(out) > maxDiffChars {
+		out = out[:maxDiffChars] + fmt.Sprintf("\n... (truncated to %d chars — the diff is larger than shown)", maxDiffChars)
+	}
+	return out
 }
 
 // reviewInputPrompt is the review agent's per-round input: the task spec,

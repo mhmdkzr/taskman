@@ -22,6 +22,11 @@ func (l LintReport) Clean() bool {
 	return len(l.VetIssues) == 0 && len(l.StaticcheckIssues) == 0 && len(l.LintIssues) == 0
 }
 
+// maxLintReportChars bounds String's output so a file with an unusually
+// large number of findings (or one very verbose message) cannot flood an
+// agent's context window.
+const maxLintReportChars = 20000
+
 // String renders the report as plain text suitable for feeding back to an
 // agent as its next turn's input.
 func (l LintReport) String() string {
@@ -49,7 +54,11 @@ func (l LintReport) String() string {
 			fmt.Fprintf(&b, "  %s:%d:%d: %s [%s]\n", i.Pos.Filename, i.Pos.Line, i.Pos.Column, i.Text, i.FromLinter)
 		}
 	}
-	return strings.TrimRight(b.String(), "\n")
+	out := strings.TrimRight(b.String(), "\n")
+	if len(out) > maxLintReportChars {
+		out = out[:maxLintReportChars] + fmt.Sprintf("\n... (truncated to %d chars)", maxLintReportChars)
+	}
+	return out
 }
 
 // Lint runs go vet, staticcheck, and golangci-lint and collects their
