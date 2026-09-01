@@ -1,9 +1,10 @@
 package codebase
 
 import (
-	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -102,14 +103,23 @@ func (p Position) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p.String())
 }
 
+// GoVet runs `go vet -json ./...` and returns its diagnostics. A non-empty
+// result is not itself a Go error — go vet exits non-zero whenever it finds
+// anything, so that exit status alone isn't distinguished from a real
+// invocation failure; only an empty, unparseable result is. Each JSON value
+// in the stream is pretty-printed across multiple lines, so this decodes
+// with a streaming json.Decoder rather than treating the output as
+// one-JSON-value-per-line.
 func (r Repository) GoVet() (VetTree, error) {
 	wt, err := r.r.Worktree()
 	if err != nil {
 		return nil, fmt.Errorf("worktree: %w", err)
 	}
 
+	var stderr bytes.Buffer
 	cmd := exec.Command("go", "vet", "-json", "./...")
 	cmd.Dir = wt.Filesystem.Root()
+	cmd.Stderr = &stderr
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("stdout pipe: %w", err)
@@ -119,31 +129,22 @@ func (r Repository) GoVet() (VetTree, error) {
 	}
 
 	tree := make(VetTree)
-	sc := bufio.NewScanner(stdout)
-	for sc.Scan() {
-		line := sc.Bytes()
-		if len(line) == 0 {
-			continue
-		}
+	dec := json.NewDecoder(stdout)
+	for dec.More() {
 		var pkg map[string]map[string]VetResult
-		if err := json.Unmarshal(line, &pkg); err != nil {
+		if err := dec.Decode(&pkg); err != nil {
 			return nil, fmt.Errorf("decode vet output: %w", err)
 		}
 		for pkgPath, analyzers := range pkg {
 			if _, ok := tree[pkgPath]; !ok {
 				tree[pkgPath] = make(map[string]VetResult)
 			}
-			for name, res := range analyzers {
-				tree[pkgPath][name] = res
-			}
+			maps.Copy(tree[pkgPath], analyzers)
 		}
 	}
-	if err := sc.Err(); err != nil {
-		return nil, fmt.Errorf("read vet output: %w", err)
-	}
 
-	if err := cmd.Wait(); err != nil {
-		return tree, fmt.Errorf("go vet: %w", err)
+	if err := cmd.Wait(); err != nil && len(tree) == 0 {
+		return nil, fmt.Errorf("go vet: %w: %s", err, stderr.String())
 	}
 	return tree, nil
 }

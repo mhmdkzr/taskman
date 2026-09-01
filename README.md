@@ -27,7 +27,7 @@ go run ./cmd/main
 
 | Path             | Purpose                                              |
 |------------------|------------------------------------------------------|
-| `cmd/`           | Entry points (server)                                |
+| `cmd/`           | Entry points (server, `taskman` CLI)                 |
 | `internal/`      | Domain logic grouped by module and slice             |
 | `pkg/`           | Shared libraries (NATS, logging, pagination)         |
 | `config/`        | Infrastructure configuration (NATS)                  |

@@ -64,6 +64,7 @@ func TestDefaultTools(t *testing.T) {
 	}
 	for _, want := range []string{
 		"grep", "glob", "read", "edit",
+		"go_build", "go_test",
 		"task_create", "task_search", "task_get", "task_edit",
 		"spawn_subagent", "subagent_result",
 	} {
@@ -73,6 +74,13 @@ func TestDefaultTools(t *testing.T) {
 	}
 	if names["telegram_send"] || names["telegram_read"] {
 		t.Errorf("unexpected credential-gated tools: %v", names)
+	}
+	// gofmt/goimports/go vet/staticcheck/golangci-lint are deterministic and
+	// run automatically as pipeline steps, not as agent-invoked tools.
+	for _, notWant := range []string{"go_vet", "go_fmt", "go_imports"} {
+		if names[notWant] {
+			t.Errorf("default tools should not include %q: %v", notWant, names)
+		}
 	}
 }
 

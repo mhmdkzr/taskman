@@ -8,8 +8,8 @@ import (
 )
 
 // Tools returns all registered tools bound to repo: the codebase tools
-// (read, edit, glob, grep — see internal/tools/codebase), plus the telegram
-// tools when tg carries credentials.
+// (read, edit, glob, grep, go_build, go_test — see internal/tools/codebase),
+// plus the telegram tools when tg carries credentials.
 func Tools(repo codebase.Repository, tg *telegram.Client) []goai.Tool {
 	out := codebasetools.Tools(repo)
 	if tg.Configured() {

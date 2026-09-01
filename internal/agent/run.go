@@ -18,6 +18,18 @@ func Run(ctx context.Context, opts Options, pub publisher.Publisher, prompt, ses
 	return s.Run(ctx, prompt)
 }
 
+// RunObject is Run's structured-output counterpart: it creates a fresh
+// session with no prior history and runs prompt through RunObject, returning
+// the parsed T alongside the usual Result.
+func RunObject[T any](ctx context.Context, opts Options, pub publisher.Publisher, prompt, sessionID string) (T, *Result, error) {
+	var zero T
+	s, err := NewSession(opts, pub, sessionID)
+	if err != nil {
+		return zero, nil, err
+	}
+	return runObjectOnSession[T](ctx, s, prompt)
+}
+
 // Stream starts a single prompt and returns an event stream. It creates a
 // fresh session (with a new session id) and no prior history. Consume the
 // stream's Events to completion, then check Err and call Result.

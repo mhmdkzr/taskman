@@ -8,7 +8,7 @@ Library API for running an LLM agent with tools, wrapping `github.com/zendev-sh/
 - `Session` — a multi-turn conversation with message history.
 - `Consumer` — runs scheduled `agent.run` messages as a durable JetStream consumer.
 - `PersistRun` / `ContinueSession` / `ForkRun` — persist runs into the shared SQLite store.
-- `DefaultTools` — the tool set for one Options.Codebase (read/edit/glob/grep, telegram, spawn) and sub-agent `Runner`.
+- `DefaultTools` — the tool set for one Options.Codebase (read/edit/glob/grep, go_build/go_test, the task backlog, telegram, spawn) and sub-agent `Runner`. gofmt/goimports/go vet/staticcheck/golangci-lint are deliberately not tools — they're deterministic and run automatically as pipeline steps instead (see `internal/codebase.Repository.Format`/`Lint`).
 
 ## How it's invoked
 

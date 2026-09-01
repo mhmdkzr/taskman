@@ -103,10 +103,10 @@ func optionsOutput(o Options) OptionsOutput {
 // bundles the messages it produced. Every message carries its own identity and
 // metadata.
 type RunOutput struct {
-	ID        string        `json:"ID"`
-	SessionID string        `json:"SessionID"`
-	Timestamp string        `json:"Timestamp"`
-	Options   OptionsOutput `json:"Options"`
+	ID        string           `json:"ID"`
+	SessionID string           `json:"SessionID"`
+	Timestamp string           `json:"Timestamp"`
+	Options   OptionsOutput    `json:"Options"`
 	Usage     usage.TokenUsage `json:"Usage,omitempty"`
 	Steps     []stepOutput     `json:"Steps,omitempty"`
 }
@@ -137,12 +137,12 @@ func NewRunOutput(sessionID string, o Options, tokenUsage usage.TokenUsage, mess
 // additionally carry the step's FinishReason and Usage, so no step-level
 // information is lost.
 type messageOutput struct {
-	Role            string         `json:"Role"`
-	Content         []partOutput   `json:"Content,omitempty"`
-	ID              string         `json:"ID,omitempty"`
-	Timestamp       string         `json:"Timestamp,omitempty"`
-	Number          int            `json:"Number,omitempty"`
-	FinishReason    string         `json:"FinishReason,omitempty"`
+	Role            string            `json:"Role"`
+	Content         []partOutput      `json:"Content,omitempty"`
+	ID              string            `json:"ID,omitempty"`
+	Timestamp       string            `json:"Timestamp,omitempty"`
+	Number          int               `json:"Number,omitempty"`
+	FinishReason    string            `json:"FinishReason,omitempty"`
 	Usage           *usage.TokenUsage `json:"Usage,omitempty"`
 	ProviderOptions map[string]any    `json:"ProviderOptions,omitempty"`
 }
@@ -286,14 +286,22 @@ func fromGoaiResult(r *goai.TextResult) *Result {
 	if r == nil {
 		return nil
 	}
-	res := &Result{
+	return &Result{
 		Text:         resultText(r),
 		Reasoning:    r.Reasoning,
 		Usage:        usageFromGoai(r.TotalUsage),
 		FinishReason: string(r.FinishReason),
 		Messages:     r.ResponseMessages,
+		Steps:        stepsFromGoai(r.Steps),
 	}
-	for _, st := range r.Steps {
+}
+
+// stepsFromGoai converts goai's per-step results into agent-owned Steps,
+// shared by fromGoaiResult (GenerateText) and fromGoaiObjectResult
+// (GenerateObject) — both produce the same goai.StepResult shape.
+func stepsFromGoai(steps []goai.StepResult) []Step {
+	out := make([]Step, 0, len(steps))
+	for _, st := range steps {
 		id, timestamp := newStepID()
 		step := Step{
 			ID:           id,
@@ -319,9 +327,9 @@ func fromGoaiResult(r *goai.TextResult) *Result {
 			}
 			step.ToolCalls = append(step.ToolCalls, call)
 		}
-		res.Steps = append(res.Steps, step)
+		out = append(out, step)
 	}
-	return res
+	return out
 }
 
 // resultText returns the answer text excluding reasoning. goai's

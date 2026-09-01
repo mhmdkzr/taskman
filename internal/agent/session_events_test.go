@@ -12,11 +12,14 @@ import (
 	"github.com/zendev-sh/goai/provider"
 )
 
-// fakeModel simulates a model that first requests one tool call, then answers.
+// fakeModel simulates a model that first requests one tool call, then
+// answers. finalText overrides the final step's text (e.g. to a JSON blob for
+// GenerateObject); empty uses "final answer".
 type fakeModel struct {
-	toolName string
-	toolArgs string
-	calls    int
+	toolName  string
+	toolArgs  string
+	finalText string
+	calls     int
 }
 
 func (f *fakeModel) ModelID() string { return "fake-model" }
@@ -32,8 +35,12 @@ func (f *fakeModel) DoGenerate(ctx context.Context, params provider.GeneratePara
 			Usage: provider.Usage{InputTokens: 10, OutputTokens: 5, TotalTokens: 15, ReasoningTokens: 2},
 		}, nil
 	}
+	text := f.finalText
+	if text == "" {
+		text = "final answer"
+	}
 	return &provider.GenerateResult{
-		Text:         "final answer",
+		Text:         text,
 		FinishReason: provider.FinishStop,
 		Usage:        provider.Usage{InputTokens: 20, OutputTokens: 5, TotalTokens: 25},
 	}, nil

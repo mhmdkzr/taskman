@@ -293,6 +293,12 @@ linters:
         # repeat the same Scan/Value/MarshalJSON/UnmarshalJSON boilerplate per type per
         # CLAUDE.md's type-safety convention — each is its own irreducible domain type,
         # not accidental copy-paste.
+      - linters:
+          - forbidigo
+        path: "cmd/taskman/.*\\.go"
+        # cmd/taskman is a CLI: printing to stdout is its actual output, not
+        # a substitute for structured logging the way it would be in a
+        # service. The repo-wide fmt.Print* ban doesn't apply here.
       - path: _test\.go
         linters:
           - bodyclose
