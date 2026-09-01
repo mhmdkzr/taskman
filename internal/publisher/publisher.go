@@ -59,6 +59,36 @@ func (p Publisher) PublishMsg(ctx context.Context, subject string, data []byte, 
 	return err
 }
 
+// PublishCore sends a raw payload on subject over core NATS — the message is
+// not stored in the TASKMAN stream and carries no dedup header, so it is a
+// transient one-shot (e.g. a command request). Use Publish for events that
+// should be durably recorded.
+func (p Publisher) PublishCore(subject string, data []byte) error {
+	if p.nc == nil {
+		return fmt.Errorf("publisher: no connection")
+	}
+	return p.nc.Publish(subject, data)
+}
+
+// SubscribeCore registers a transient core NATS subscription on subject,
+// delivering each message to handler. Unlike Subscribe it does not create a
+// durable JetStream consumer, so it is suitable for live, ephemeral feeds
+// (SSE streams) and request/command listening where a replay would be wrong.
+// The returned func unsubscribes; always call it when the subscription is no
+// longer needed. The handler runs on the connection's own goroutine.
+func (p Publisher) SubscribeCore(subject string, handler func(subject string, data []byte)) (func(), error) {
+	if p.nc == nil {
+		return nil, fmt.Errorf("publisher: no connection")
+	}
+	sub, err := p.nc.Subscribe(subject, func(m *nats.Msg) {
+		handler(m.Subject, m.Data)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("subscribe core %s: %w", subject, err)
+	}
+	return func() { _ = sub.Unsubscribe() }, nil
+}
+
 // Message is one JetStream message delivered to a Subscribe handler. Call Ack
 // once the message has been processed.
 type Message struct {

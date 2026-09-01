@@ -11,8 +11,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 	"uuid"
 
@@ -28,6 +30,7 @@ import (
 	"github.com/mhmdkzr/taskman/internal/store"
 	"github.com/mhmdkzr/taskman/internal/streams"
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/web"
 )
 
 func main() {
@@ -46,6 +49,8 @@ func main() {
 		err = cmdShow(os.Args[2:])
 	case "run":
 		err = cmdRun(os.Args[2:])
+	case "web", "-web":
+		err = cmdWeb(os.Args[2:])
 	case "reset":
 		err = cmdReset(os.Args[2:])
 	case "-h", "--help", "help":
@@ -72,6 +77,7 @@ Usage:
   taskman show <id>       print one task in full, as JSON
   taskman run <id> [<id> ...] [flags] run the pipeline for one or more tasks (concurrently)
   taskman reset <id>      return a stuck task to created so it can be re-run
+  taskman web [-addr] [flags] serve the read-only realtime dashboard (blocking)
 
 Run "taskman <command> -h" for a command's flags.
 `,
@@ -382,6 +388,90 @@ func cmdRun(args []string) error {
 		return fmt.Errorf("%d of %d task(s) failed", failures, len(tasks))
 	}
 	return nil
+}
+
+// cmdWeb serves the read-only realtime dashboard (see internal/web) and
+// blocks until interrupted. Commands posted to it (e.g. run tasks) are
+// executed through the pipeline, so it also needs a provider and a source
+// repository, like `run`.
+func cmdWeb(args []string) error {
+	fs := flag.NewFlagSet("web", flag.ExitOnError)
+	addr := fs.String("addr", "127.0.0.1:8080", "address to listen on")
+	sourceDir := fs.String("source", ".", "git repository to run tasks against")
+	workDir := fs.String(
+		"workdir",
+		"",
+		"parent directory for each task's isolated worktree (default: a fresh temp dir)",
+	)
+	maxFixupRounds := fs.Int(
+		"max-fixup-rounds",
+		0,
+		"cap on lint/review fixup rounds per phase (default: pipeline's own default)",
+	)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	agentCfg, err := loadAgentConfig()
+	if err != nil {
+		return fmt.Errorf("load agent config: %w", err)
+	}
+	if agentCfg.Provider.BaseURL == "" || agentCfg.Provider.APIKey == "" {
+		return fmt.Errorf(
+			"AGENT_PROVIDER_BASE_URL and AGENT_PROVIDER_API_KEY must be set to run tasks from the web UI",
+		)
+	}
+
+	st, err := store.Open(agentCfg.DBPath)
+	if err != nil {
+		return fmt.Errorf("open store: %w", err)
+	}
+	defer closeQuietly(st)
+	if err := store.Migrate(st.RW()); err != nil {
+		return fmt.Errorf("migrate store: %w", err)
+	}
+
+	source, err := filepath.Abs(*sourceDir)
+	if err != nil {
+		return fmt.Errorf("resolve source dir: %w", err)
+	}
+	work := *workDir
+	if work == "" {
+		work, err = os.MkdirTemp("", "taskman-web-")
+		if err != nil {
+			return fmt.Errorf("create work dir: %w", err)
+		}
+	}
+
+	pub, closeNATS := connectPublisher()
+	defer closeNATS()
+
+	pipeCfg := pipeline.Config{
+		Store:     st,
+		Publisher: pub,
+		Agent:     agentCfg,
+		SourceDir: source,
+		WorkDir:   work,
+		Author: codebase.AuthorSignature{
+			Name:  "taskman-pipeline",
+			Email: "pipeline@taskman.local",
+		},
+		MaxFixupRounds: *maxFixupRounds,
+	}
+
+	srv, err := web.New(web.Config{
+		Addr:     *addr,
+		Store:    st,
+		Pub:      pub,
+		Pipeline: pipeCfg,
+	})
+	if err != nil {
+		return fmt.Errorf("web: %w", err)
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return srv.Run(ctx)
 }
 
 // defaultNATSURL matches the URL docker compose exposes NATS on locally (see

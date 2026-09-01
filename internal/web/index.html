@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>taskman</title>
+<style>
+:root {
+  --bg: #0b0e14;
+  --bg2: #10151f;
+  --bg3: #161c28;
+  --border: #232b3a;
+  --fg: #d5dbe6;
+  --muted: #7b8698;
+  --accent: #5ea1ff;
+  --green: #4ec37c;
+  --red: #e05561;
+  --yellow: #d9a94e;
+  --purple: #b48add;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+a { color: var(--accent); text-decoration: none; }
+header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg2);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+header .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--yellow); }
+header .dot.on { background: var(--green); }
+header .dot.off { background: var(--red); }
+header .status { color: var(--muted); font-size: 12px; }
+header .actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.layout { display: grid; grid-template-columns: 340px 1fr; height: calc(100vh - 45px); }
+.panel { overflow-y: auto; padding: 12px; }
+.panel.left { border-right: 1px solid var(--border); background: var(--bg2); }
+.section-title {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--muted); margin: 0 0 8px; font-weight: 600;
+}
+.task { border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; background: var(--bg3); cursor: pointer; }
+.task:hover { border-color: var(--accent); }
+.task.active { border-color: var(--accent); }
+.task .row { display: flex; align-items: center; gap: 8px; }
+.task .title { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task .meta { color: var(--muted); font-size: 11px; margin-top: 4px; font-family: var(--mono); }
+.task .phase { color: var(--accent); font-size: 11px; margin-top: 4px; }
+.task input[type=checkbox] { accent-color: var(--accent); }
+.badge {
+  display: inline-block; padding: 1px 7px; border-radius: 10px;
+  font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+  background: var(--bg3); border: 1px solid var(--border); color: var(--muted);
+}
+.badge.created { color: var(--muted); }
+.badge.started { color: var(--yellow); border-color: var(--yellow); }
+.badge.completed { color: var(--purple); border-color: var(--purple); }
+.badge.reviewed { color: var(--green); border-color: var(--green); }
+.badge.failed { color: var(--red); border-color: var(--red); }
+.detail { max-width: 900px; }
+.detail h2 { font-size: 16px; margin: 0 0 4px; }
+.detail .spec { color: var(--fg); }
+.detail .spec h3 { font-size: 12px; color: var(--muted); text-transform: uppercase; margin: 16px 0 4px; }
+.detail .spec p { margin: 0 0 8px; white-space: pre-wrap; }
+.detail .spec ul { margin: 0 0 8px; padding-left: 18px; }
+.empty { color: var(--muted); padding: 24px; text-align: center; }
+.diff { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin: 8px 0; }
+.diff .dfile { background: var(--bg3); padding: 6px 10px; font-family: var(--mono); font-size: 12px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; gap: 8px; }
+.diff .dstat { color: var(--muted); font-size: 11px; }
+.diff pre { margin: 0; padding: 10px; overflow-x: auto; font-family: var(--mono); font-size: 12px; line-height: 1.45; }
+.diff pre .add { background: rgba(78,195,124,0.12); }
+.diff pre .del { background: rgba(224,85,97,0.12); }
+.diff pre .hunk { color: var(--accent); }
+.log { font-family: var(--mono); font-size: 12px; }
+.log .entry { padding: 4px 6px; border-bottom: 1px solid rgba(35,43,58,0.5); white-space: pre-wrap; word-break: break-word; }
+.log .entry .t { color: var(--muted); margin-right: 8px; }
+.log .entry .s { color: var(--purple); margin-right: 8px; }
+.log .entry.phase { border-left: 2px solid var(--accent); }
+.log .entry.tool { border-left: 2px solid var(--yellow); }
+.log .entry.err { border-left: 2px solid var(--red); }
+.log .entry .in { color: var(--muted); }
+button {
+  background: var(--bg3); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 6px; padding: 5px 12px; font-size: 12px; cursor: pointer;
+}
+button:hover { border-color: var(--accent); }
+button:disabled { opacity: 0.5; cursor: default; }
+button.run { background: var(--accent); color: #08121f; border-color: var(--accent); font-weight: 600; }
+button.run:disabled { background: var(--bg3); color: var(--muted); border-color: var(--border); }
+.sessions { margin-top: 16px; }
+.sessions .session { border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; background: var(--bg3); }
+.sessions .session .row { display: flex; gap: 8px; font-family: var(--mono); font-size: 12px; }
+.sessions .session .sid { color: var(--accent); }
+.sessions .session .meta { color: var(--muted); }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; height: 100%; }
+</style>
+</head>
+<body>
+<header>
+  <span class="dot" id="conn"></span>
+  <h1>taskman</h1>
+  <span class="status" id="status">connecting…</span>
+  <div class="actions">
+    <span id="count" class="status"></span>
+    <button class="run" id="run-selected" disabled>Run selected</button>
+  </div>
+</header>
+<div class="layout">
+  <div class="panel left">
+    <div class="section-title">Tasks</div>
+    <div id="tasks">
+      {{range .Tasks}}
+      <div class="task" data-id="{{.ID}}">
+        <div class="row">
+          <input type="checkbox" class="pick" value="{{.ID}}">
+          <span class="badge {{.Status}}">{{.Status}}</span>
+          <span class="title">{{.Title}}</span>
+        </div>
+        <div class="meta">{{.ID}} · {{.TaskType}}<br>{{.CommitHash}}</div>
+        <div class="phase"></div>
+      </div>
+      {{end}}
+    </div>
+  </div>
+  <div class="panel">
+    <div id="detail" class="detail"></div>
+  </div>
+</div>
+
+<script>
+const fmtTime = (iso) => {
+  const d = new Date(iso);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+};
+const tasksEl = document.getElementById('tasks');
+const detailEl = document.getElementById('detail');
+const connDot = document.getElementById('conn');
+const statusEl = document.getElementById('status');
+const countEl = document.getElementById('count');
+const runBtn = document.getElementById('run-selected');
+
+// state: task id -> {phase, diff, logs[]}
+const state = new Map();
+let selected = null;
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s ?? '';
+  return d.innerHTML;
+}
+function log(s, cls, body) {
+  if (!state.has(s)) state.set(s, { phase: '', diff: '', logs: [] });
+  state.get(s).logs.push({ t: Date.now(), cls, body });
+}
+function renderTask(id) {
+  const el = tasksEl.querySelector(`.task[data-id="${id}"]`);
+  if (!el) return;
+  const st = state.get(id);
+  const phase = el.querySelector('.phase');
+  if (st && st.phase) phase.textContent = st.phase;
+  const badge = el.querySelector('.badge');
+  if (st && st.status) { badge.className = 'badge ' + st.status; badge.textContent = st.status; }
+  if (id === selected) renderDetail(id);
+}
+function renderLogs(id) {
+  const st = state.get(id);
+  if (!st || !st.logs.length) return '<div class="empty">no activity yet</div>';
+  return '<div class="log">' + st.logs.slice(-200).map(e =>
+    `<div class="entry ${e.cls}"><span class="t">${fmtTime(new Date(e.t))}</span><span class="s">${e.cls}</span>${e.body}</div>`
+  ).join('') + '</div>';
+}
+function renderDiff(diff) {
+  if (!diff || !diff.files || !diff.files.length) return '<div class="empty">no changes yet</div>';
+  return '<div class="section-title">Diff</div>' + diff.files.map(f => {
+    const stats = `+${f.additions}/-${f.deletions}`;
+    const html = esc(f.patch).split('\n').map(line => {
+      let cls = '';
+      if (line.startsWith('@@')) cls = 'hunk';
+      else if (line.startsWith('+')) cls = 'add';
+      else if (line.startsWith('-')) cls = 'del';
+      return `<span class="${cls}">${line}</span>`;
+    }).join('\n');
+    return `<div class="diff"><div class="dfile"><span>${esc(f.name)} <span class="dstat">(${esc(f.change_type)})</span></span><span class="dstat">${stats}</span></div><pre>${html}</pre></div>`;
+  }).join('');
+}
+function renderDetail(id) {
+  const st = state.get(id);
+  const card = tasksEl.querySelector(`.task[data-id="${id}"]`);
+  const title = card ? card.querySelector('.title').textContent : id;
+  const status = st && st.status ? st.status : '';
+  const phase = st && st.phase ? `<div class="section-title" style="margin-top:12px">Phase</div><p style="margin:4px 0">${esc(phase)}</p>` : '';
+  detailEl.innerHTML = `
+    <h2>${esc(title)} <span class="badge ${status}">${status}</span></h2>
+    <div style="font-family:var(--mono);font-size:12px;color:var(--muted)">${esc(id)}</div>
+    <div class="grid">
+      <div>
+        ${phase}
+        <div class="section-title" style="margin-top:12px">Activity</div>
+        ${renderLogs(id)}
+      </div>
+      <div>${renderDiff(st && st.diff)}</div>
+    </div>`;
+}
+
+// ── overview (initial load) ────────────────────────────────────────────────
+async function loadOverview() {
+  const r = await fetch('/api/overview');
+  if (!r.ok) return;
+  const ov = await r.json();
+  countEl.textContent = `${ov.tasks.length} task(s)`;
+  for (const t of ov.tasks) {
+    if (!state.has(t.id)) state.set(t.id, { phase: '', diff: '', logs: [] });
+    state.get(t.id).status = t.status;
+    state.get(t.id).commit = t.commit_hash;
+    renderTask(t.id);
+  }
+  updateRunBtn();
+}
+
+// ── SSE ────────────────────────────────────────────────────────────────────
+function connect() {
+  const es = new EventSource('/events');
+  es.onopen = () => { connDot.className = 'dot on'; statusEl.textContent = 'live'; };
+  es.onerror = () => { connDot.className = 'dot off'; statusEl.textContent = 'reconnecting…'; };
+  es.onmessage = (e) => {
+    let m;
+    try { m = JSON.parse(e.data); } catch { return; }
+    const subject = m.subject || '';
+    const p = m.payload || {};
+    if (subject === 'agent.pipeline.phase') {
+      log(p.task_id, 'phase', esc(`phase → ${esc(p.phase)} @ ${fmtTime(p.timestamp)}`));
+      if (state.has(p.task_id)) state.get(p.task_id).phase = p.phase;
+      renderTask(p.task_id);
+    } else if (subject === 'agent.pipeline.diff') {
+      if (state.has(p.task_id)) state.get(p.task_id).diff = p;
+      log(p.task_id, 'diff', esc(`diff updated (+files) @ ${fmtTime(p.timestamp)}`));
+      renderTask(p.task_id);
+    } else if (subject === 'agent.pipeline.task.finished') {
+      if (state.has(p.task_id)) { state.get(p.task_id).status = 'reviewed'; state.get(p.task_id).commit = p.commit_hash; }
+      log(p.task_id, 'done', esc(`finished ${esc(p.commit_hash)}`));
+      renderTask(p.task_id);
+    } else if (subject === 'agent.pipeline.task.failed') {
+      if (state.has(p.task_id)) { state.get(p.task_id).status = 'failed'; state.get(p.task_id).phase = `failed: ${p.phase}`; }
+      log(p.task_id, 'err', esc(`failed in ${esc(p.phase)}: ${esc(p.error)}`));
+      renderTask(p.task_id);
+    } else if (subject === 'agent.tool.started') {
+      log(p.session_id, 'tool', esc(`${esc(p.name)} @ step ${p.step}`));
+    } else if (subject === 'agent.tool.finished') {
+      const head = `${p.name} (${p.duration})`;
+      const out = (p.output || p.error || '').toString();
+      const body = esc(head) + (out ? ' — ' + esc(out.slice(0, 400)) : '');
+      log(p.session_id, 'tool', body);
+    } else if (subject === 'agent.turn.started') {
+      log(p.session_id, 'turn', esc('→ ' + (p.prompt || '').slice(0, 120)));
+    } else if (subject === 'agent.turn.finished') {
+      log(p.session_id, 'turn', esc((p.text || '').slice(0, 160)));
+    } else if (subject === 'agent.generation.finished') {
+      log(p.session_id, 'gen', esc(`steps=${p.total_steps} reason=${esc(p.finish_reason)}`));
+    } else if (subject === 'taskman.command.run') {
+      log('', 'cmd', esc(`run requested for ${(p.task_ids || []).join(', ')}`));
+    }
+  };
+  return es;
+}
+
+function selectedIds() {
+  return [...tasksEl.querySelectorAll('.pick:checked')].map(c => c.value);
+}
+function updateRunBtn() {
+  runBtn.disabled = selectedIds().length === 0;
+}
+async function runSelected() {
+  const ids = selectedIds();
+  runBtn.disabled = true;
+  const r = await fetch('/api/commands', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ task_ids: ids }),
+  });
+  if (!r.ok) statusEl.textContent = 'command failed: ' + (await r.text());
+  else statusEl.textContent = 'run requested';
+  setTimeout(updateRunBtn, 1500);
+}
+
+tasksEl.addEventListener('change', updateRunBtn);
+runBtn.addEventListener('click', runSelected);
+tasksEl.addEventListener('click', (e) => {
+  const card = e.target.closest('.task');
+  if (!card || e.target.classList.contains('pick')) return;
+  tasksEl.querySelectorAll('.task').forEach(t => t.classList.remove('active'));
+  card.classList.add('active');
+  selected = card.dataset.id;
+  renderDetail(selected);
+});
+
+loadOverview();
+const es = connect();
+</script>
+</body>
+</html>

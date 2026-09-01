@@ -39,3 +39,26 @@ type PipelineTaskFailed struct {
 func (PipelineTaskFailed) Subject() string { return "agent.pipeline.task.failed" }
 
 func (e PipelineTaskFailed) MsgID() string { return eventID(e) }
+
+// DiffFile is one file's change in a task's unified diff, as shown to the
+// agents (see internal/codebase.Diff).
+type DiffFile struct {
+	Name       string `json:"name"`
+	ChangeType string `json:"change_type"`
+	Additions  int    `json:"additions"`
+	Deletions  int    `json:"deletions"`
+	Patch      string `json:"patch"`
+}
+
+// PipelineDiff is published when the pipeline has the task's current unified
+// diff, so a read-only UI can show it live. It is published at the start of
+// review and whenever a fixup round changes the work.
+type PipelineDiff struct {
+	TaskID    string     `json:"task_id"`
+	Files     []DiffFile `json:"files"`
+	Timestamp time.Time  `json:"timestamp"`
+}
+
+func (PipelineDiff) Subject() string { return "agent.pipeline.diff" }
+
+func (e PipelineDiff) MsgID() string { return eventID(e) }

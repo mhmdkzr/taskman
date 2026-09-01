@@ -422,6 +422,21 @@ func runExecution(
 	}
 }
 
+// diffEventFiles converts a codebase diff into the event wire shape.
+func diffEventFiles(diffs []codebase.Diff) []events.DiffFile {
+	out := make([]events.DiffFile, 0, len(diffs))
+	for _, d := range diffs {
+		out = append(out, events.DiffFile{
+			Name:       d.Name,
+			ChangeType: string(d.ChangeType),
+			Additions:  d.Additions,
+			Deletions:  d.Deletions,
+			Patch:      d.Patch,
+		})
+	}
+	return out
+}
+
 // runReview drives the review agent against the executor's work, looping
 // fixups back through the execution session on request-changes, up to
 // cfg.MaxFixupRounds rounds. It returns the reviewer's own usage and the
@@ -442,6 +457,11 @@ func runReview(
 		if err != nil {
 			return reviewUsage, execFixupUsage, fmt.Errorf("diff: %w", err)
 		}
+		cfg.publishPipelineEvent(ctx, events.PipelineDiff{
+			TaskID:    t.ID.String(),
+			Files:     diffEventFiles(diffs),
+			Timestamp: time.Now().UTC(),
+		})
 		report, err := scopedLint(repo)
 		if err != nil {
 			return reviewUsage, execFixupUsage, err
