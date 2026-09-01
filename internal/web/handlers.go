@@ -59,6 +59,9 @@ func (s *Server) handleOverview(w http.ResponseWriter, r *http.Request) {
 		jsonresp.WriteHTTPError(w, http.StatusInternalServerError, fmt.Errorf("list tasks: %w", err))
 		return
 	}
+	if tasks == nil {
+		tasks = []task.Task{}
+	}
 	sessions, err := store.ListSessions(r.Context(), s.store.RO())
 	if err != nil {
 		jsonresp.WriteHTTPError(w, http.StatusInternalServerError, fmt.Errorf("list sessions: %w", err))
