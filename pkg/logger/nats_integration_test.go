@@ -11,8 +11,8 @@ import (
 
 	"github.com/nats-io/nats.go"
 
-	"github.com/mhmdkzr/app/pkg/natsembed"
-	"github.com/mhmdkzr/app/pkg/testenv"
+	"github.com/mhmdkzr/taskman/pkg/natsembed"
+	"github.com/mhmdkzr/taskman/pkg/testenv"
 )
 
 type decodedLogMessage struct {
@@ -125,16 +125,14 @@ func TestNATSHandler_DoesNotPublishBelowWarn_Integration(t *testing.T) {
 }
 
 // TestNATSHandler_RedactsSensitiveAttributes_Integration pins the redaction
-// contract added for bugs.md finding #13: NATSHandler applies the same
-// sensitive-key redaction pkg/middleware/auditlog applies to audit events
-// (auditlog.IsSensitiveKey) to every Warn/Error attribute before publishing.
-// This test logs an Error whose attributes include keys auditlog already
-// treats as sensitive elsewhere in this codebase (e.g. "password",
-// "api_key") with real-looking secret values, and checks what actually
-// reaches a subscriber on the NATS error subject.
+// contract added for bugs.md finding #13: NATSHandler applies sensitive-key
+// redaction (IsSensitiveKey) to every Warn/Error attribute before publishing.
+// This test logs an Error whose attributes include sensitive keys (e.g.
+// "password", "api_key") with real-looking secret values, and checks what
+// actually reaches a subscriber on the NATS error subject.
 //
-// Both probe keys are redacted to the auditlog marker before publishing,
-// so the raw secret values never reach the wire and the test passes.
+// Both probe keys are redacted to the Marker before publishing, so the raw
+// secret values never reach the wire and the test passes.
 func TestNATSHandler_RedactsSensitiveAttributes_Integration(t *testing.T) {
 	testenv.SkipIfDBTestsDisabled(t)
 	t.Parallel()
@@ -190,8 +188,7 @@ func TestNATSHandler_RedactsSensitiveAttributes_Integration(t *testing.T) {
 			t.Fatalf(
 				"NATSHandler published the raw secret value for attribute %q "+
 					"(%q) to the NATS error subject, unredacted — Warn/Error attributes "+
-					"forwarded to Telegram must be redacted the same way audit-log events "+
-					"already are (bugs.md finding #13)",
+					"forwarded to Telegram must be redacted (bugs.md finding #13)",
 				key, got,
 			)
 		}

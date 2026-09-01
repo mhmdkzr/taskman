@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/mhmdkzr/app/pkg/middleware"
+	"github.com/mhmdkzr/taskman/pkg/middleware"
 )
 
 // New returns a middleware that applies a timeout to requests.

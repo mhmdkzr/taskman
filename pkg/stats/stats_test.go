@@ -9,7 +9,7 @@ import (
 
 	"github.com/coder/clistat"
 
-	"github.com/mhmdkzr/app/internal/app"
+	"github.com/mhmdkzr/taskman/internal/app"
 )
 
 func assertNonNegativeUsed(t *testing.T, name string, r *clistat.Result) {

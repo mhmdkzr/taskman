@@ -5,8 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/mhmdkzr/app/internal/app"
-	"github.com/mhmdkzr/app/internal/config"
+	"github.com/mhmdkzr/taskman/internal/app"
+	"github.com/mhmdkzr/taskman/internal/config"
 )
 
 func TestJoinBasePath(t *testing.T) {

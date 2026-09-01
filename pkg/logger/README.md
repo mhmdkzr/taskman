@@ -1,8 +1,7 @@
 # `pkg/logger`
 
-Application-wide structured logging via `slog`, with text or JSON output, an
-optional NATS handler that publishes warn/error logs for remote aggregation,
-and a Temporal SDK log adapter.
+Application-wide structured logging via `slog`, with text or JSON output and an
+optional NATS handler that publishes warn/error logs for remote aggregation.
 
 ## API
 
@@ -13,10 +12,6 @@ and a Temporal SDK log adapter.
   rejects invalid values.
 - `NewNATSHandler(wrapped slog.Handler, nc *nats.Conn) *NATSHandler` — wraps a
   base handler; usable directly if needed.
-- `NewTemporalLogger(base *slog.Logger) temporallog.Logger` — adapts the app's
-  slog logger for the Temporal SDK. It preserves slog formatting but promotes
-  Temporal messages starting with `Task processing failed with ` from info to
-  error level.
 
 ## NATS behavior
 
@@ -34,8 +29,7 @@ level-specific subjects:
 Attributes include grouped keys (flattened with dot notation), source location
 (`source.file`, `source.line`, optional `function`), and errors serialized by
 their message string. Sensitive attribute keys are redacted via
-`libs/middleware/auditlog.IsSensitiveKey` and replaced with the redaction
-marker before publishing.
+`IsSensitiveKey` and replaced with the `Marker` before publishing.
 
 Failures inside the handler itself (marshal, publish) never
 break logging: they are logged at Error level through the wrapped handler.

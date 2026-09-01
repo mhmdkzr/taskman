@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/mhmdkzr/app/internal/process"
+	"github.com/mhmdkzr/taskman/internal/process"
 )
 
 func main() {

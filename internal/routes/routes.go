@@ -6,7 +6,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/mhmdkzr/app/internal/app"
+	"github.com/mhmdkzr/taskman/internal/app"
 )
 
 // Route describes a single HTTP route with its method, path, and handler.

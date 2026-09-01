@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/mhmdkzr/app/internal/app"
-	"github.com/mhmdkzr/app/internal/routes"
+	"github.com/mhmdkzr/taskman/internal/app"
+	"github.com/mhmdkzr/taskman/internal/routes"
 )
 
 func TestHandle_AllNilDeps_ReturnsDegraded(t *testing.T) {
@@ -31,13 +31,8 @@ func TestHandle_AllNilDeps_ReturnsDegraded(t *testing.T) {
 	}
 
 	allFailing := []*CheckResult{
-		resp.Checks.Database,
 		resp.Checks.NATS,
 		resp.Checks.JetStream,
-		resp.Checks.Temporal,
-		resp.Checks.TigerBeetle,
-		resp.Checks.Zitadel,
-		resp.Checks.Mailer,
 	}
 	for i, r := range allFailing {
 		if r == nil {

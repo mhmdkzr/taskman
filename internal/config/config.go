@@ -4,42 +4,31 @@ package config
 import (
 	"fmt"
 	"log/slog"
-	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/joho/godotenv"
 
-	"github.com/mhmdkzr/app/pkg/logger"
-	"github.com/mhmdkzr/app/pkg/notifier"
-	"github.com/mhmdkzr/app/pkg/pg"
+	"github.com/mhmdkzr/taskman/pkg/logger"
 )
+
+// DefaultDBPath is where the agent's SQLite store lives when AGENT_DB_PATH is
+// not set. The leading ~ is expanded to the user's home directory at load time.
+const DefaultDBPath = "~/.taskman/taskman.db"
 
 // Config is the top-level application configuration loaded from environment variables.
 type Config struct {
-	NATS        NATSConfig        `envPrefix:"NATS_"`
-	Server      ServerConfig      `envPrefix:"SERVER_"`
-	Logger      logger.Config     `envPrefix:"LOGGER_"`
-	Database    pg.Config         `envPrefix:"POSTGRES_"`
-	Temporal    TemporalConfig    `envPrefix:"TEMPORAL_"`
-	AuditLog    AuditLogConfig    `envPrefix:"AUDIT_LOG_"`
-	Notifier    notifier.Config   `envPrefix:"NOTIFIER_"`
-	TigerBeetle TigerBeetleConfig `envPrefix:"TIGERBEETLE_"`
-	RustFS      RustFSConfig      `envPrefix:"RUSTFS_"`
-	Zitadel     ZitadelConfig     `envPrefix:"ZITADEL_CLIENT_"`
-	Auth        AuthConfig        `envPrefix:"AUTH_"`
-	Webhooks    WebhooksConfig    `envPrefix:"WEBHOOKS_"`
-	SMTP        SMTPConfig        `envPrefix:"SMTP_"`
+	NATS   NATSConfig    `envPrefix:"NATS_"`
+	Server ServerConfig  `envPrefix:"SERVER_"`
+	Logger logger.Config `envPrefix:"LOGGER_"`
+	Agent  AgentConfig   `envPrefix:"AGENT_"`
 }
 
 type NATSConfig struct {
 	URL string `env:"URL"`
-}
-
-type AuditLogConfig struct {
-	Timeout time.Duration `env:"TIMEOUT"`
 }
 
 type ServerConfig struct {
@@ -49,64 +38,28 @@ type ServerConfig struct {
 	ShutdownTimeout time.Duration `env:"SHUTDOWN_TIMEOUT"`
 }
 
-type TemporalConfig struct {
-	Host      string `env:"HOST"`
-	Namespace string `env:"NAMESPACE"`
-	TaskQueue string `env:"TASK_QUEUE"`
+// AgentConfig configures the agent runtime: provider credentials, the SQLite
+// store path and the telegram tool credentials. Only the provider credentials
+// are required; the rest fall back to defaults.
+type AgentConfig struct {
+	Provider        ProviderConfig `envPrefix:"PROVIDER_"`
+	DBPath          string         `env:"DB_PATH" envDefault:"~/.taskman/taskman.db"`
+	Model           string         `env:"MODEL" envDefault:"deepseek-v4-flash"`
+	ReasoningEffort string         `env:"REASONING_EFFORT" envDefault:"medium"`
+	MaxSteps        int            `env:"MAX_STEPS" envDefault:"100"`
+	Telegram        Telegram       `envPrefix:"TELEGRAM_"`
 }
 
-type TigerBeetleConfig struct {
-	Address   string `env:"ADDRESS"    envDefault:"127.0.0.1:3000"`
-	ClusterID uint64 `env:"CLUSTER_ID" envDefault:"0"`
+// ProviderConfig holds the LLM provider credentials.
+type ProviderConfig struct {
+	BaseURL string `env:"BASE_URL"`
+	APIKey  string `env:"API_KEY"`
 }
 
-// RustFSConfig configures the S3-compatible RustFS object storage client.
-// RustFS is S3-compatible and accessed via AWS SDK for Go v2 with path-style addressing.
-// See https://docs.rustfs.com/en/developer/sdk/go
-type RustFSConfig struct {
-	Endpoint     string `env:"ENDPOINT"       envDefault:"http://127.0.0.1:9000"`
-	Region       string `env:"REGION"         envDefault:"us-east-1"`
-	AccessKey    string `env:"ACCESS_KEY"     envDefault:"rustfsadmin"`
-	SecretKey    string `env:"SECRET_KEY"     envDefault:"rustfsadmin"`
-	Bucket       string `env:"BUCKET"         envDefault:"app"`
-	UsePathStyle bool   `env:"USE_PATH_STYLE" envDefault:"true"`
-}
-
-type ZitadelConfig struct {
-	Domain       string `env:"DOMAIN"        envDefault:"127.0.0.1:8080"`
-	InstanceHost string `env:"INSTANCE_HOST" envDefault:""`
-	Insecure     bool   `env:"INSECURE"      envDefault:"true"`
-}
-
-// AuthConfig configures the server-side OIDC client and its persistent browser sessions.
-type AuthConfig struct {
-	Enabled               bool          `env:"ENABLED"                  envDefault:"false"`
-	Issuer                string        `env:"ISSUER"                   envDefault:""`
-	InternalAddress       string        `env:"INTERNAL_ADDRESS"         envDefault:""`
-	ClientID              string        `env:"CLIENT_ID"                envDefault:""`
-	ClientSecret          string        `env:"CLIENT_SECRET"            envDefault:""`
-	RedirectURL           string        `env:"REDIRECT_URL"             envDefault:""`
-	PostLogoutRedirectURL string        `env:"POST_LOGOUT_REDIRECT_URL" envDefault:""`
-	LoginClientPATPath    string        `env:"LOGIN_CLIENT_PAT_PATH"    envDefault:""`
-	AdminPATPath          string        `env:"ADMIN_PAT_PATH"           envDefault:""`
-	SessionLifetime       time.Duration `env:"SESSION_LIFETIME"         envDefault:"24h"`
-	SessionIdleTimeout    time.Duration `env:"SESSION_IDLE_TIMEOUT"     envDefault:"8h"`
-	RefreshLeeway         time.Duration `env:"REFRESH_LEEWAY"           envDefault:"1m"`
-	CookieSecure          bool          `env:"COOKIE_SECURE"            envDefault:"true"`
-}
-
-// WebhooksConfig configures the listener that is reachable only from the private network.
-type WebhooksConfig struct {
-	ZitadelPathSecret string `env:"ZITADEL_PATH_SECRET" envDefault:""`
-}
-
-type SMTPConfig struct {
-	Host     string `env:"HOST"      envDefault:"127.0.0.1"`
-	Port     int    `env:"PORT"      envDefault:"1025"`
-	From     string `env:"FROM"      envDefault:"noreply@example.com"`
-	FromName string `env:"FROM_NAME" envDefault:"App"`
-	Username string `env:"USERNAME"`
-	Password string `env:"PASSWORD"`
+// Telegram holds the credentials of the telegram_send / telegram_read tools.
+type Telegram struct {
+	APIKey    string `env:"API_KEY" envDefault:""`
+	ChannelID string `env:"CHANNEL_ID" envDefault:""`
 }
 
 // Load reads environment variables into cfg, first loading .env if SKIP_ENV_AUTO_LOAD is not set.
@@ -137,65 +90,37 @@ func (cfg *Config) Validate() error {
 	if err := cfg.Logger.Validate(); err != nil {
 		return fmt.Errorf("logger: %w", err)
 	}
-	if err := cfg.Database.Validate(); err != nil {
-		return fmt.Errorf("database: %w", err)
-	}
-	if err := cfg.Temporal.validate(); err != nil {
-		return fmt.Errorf("temporal: %w", err)
-	}
-	if err := cfg.AuditLog.validate(); err != nil {
-		return fmt.Errorf("audit_log: %w", err)
-	}
-	if err := cfg.Notifier.Validate(); err != nil {
-		return fmt.Errorf("notifier: %w", err)
-	}
-	if err := cfg.TigerBeetle.validate(); err != nil {
-		return fmt.Errorf("tigerbeetle: %w", err)
-	}
-	if err := cfg.RustFS.validate(); err != nil {
-		return fmt.Errorf("rustfs: %w", err)
-	}
-	if err := cfg.Zitadel.validate(); err != nil {
-		return fmt.Errorf("zitadel: %w", err)
-	}
-	if err := cfg.Auth.validate(); err != nil {
-		return fmt.Errorf("auth: %w", err)
-	}
-	if err := cfg.Webhooks.validate(); err != nil {
-		return fmt.Errorf("webhooks: %w", err)
-	}
-	if err := cfg.SMTP.validate(); err != nil {
-		return fmt.Errorf("smtp: %w", err)
+	if err := cfg.Agent.validate(); err != nil {
+		return fmt.Errorf("agent: %w", err)
 	}
 	return nil
 }
 
-func (c AuthConfig) validate() error {
-	if !c.Enabled {
-		return nil
+// AgentOptions returns the normalized agent configuration: defaults applied and
+// any leading ~ in the DB path expanded to the user's home directory.
+func (cfg *Config) AgentOptions() (AgentConfig, error) {
+	a := cfg.Agent
+	if a.DBPath == "" {
+		a.DBPath = DefaultDBPath
 	}
-	for name, value := range map[string]string{
-		"ISSUER": c.Issuer, "CLIENT_ID": c.ClientID, "CLIENT_SECRET": c.ClientSecret,
-		"REDIRECT_URL": c.RedirectURL, "POST_LOGOUT_REDIRECT_URL": c.PostLogoutRedirectURL,
-		"LOGIN_CLIENT_PAT_PATH": c.LoginClientPATPath, "ADMIN_PAT_PATH": c.AdminPATPath,
-	} {
-		if value == "" {
-			return fmt.Errorf("%s must not be empty when ENABLED", name)
-		}
+	dbPath, err := ExpandHome(a.DBPath)
+	if err != nil {
+		return AgentConfig{}, err
 	}
-	if c.SessionLifetime <= 0 || c.SessionIdleTimeout <= 0 || c.RefreshLeeway < 0 {
-		return fmt.Errorf("session durations must be positive (refresh leeway may be zero)")
-	}
-	if c.InternalAddress != "" {
-		if _, _, err := net.SplitHostPort(c.InternalAddress); err != nil {
-			return fmt.Errorf("INTERNAL_ADDRESS must be host:port when ENABLED: %w", err)
-		}
-	}
-	return nil
+	a.DBPath = dbPath
+	return a, nil
 }
 
-func (c WebhooksConfig) validate() error {
-	return nil
+// ExpandHome replaces a leading ~ with the user's home directory.
+func ExpandHome(path string) (string, error) {
+	if !strings.HasPrefix(path, "~") {
+		return path, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("expand home dir: %w", err)
+	}
+	return filepath.Join(home, strings.TrimPrefix(path, "~/")), nil
 }
 
 func (c NATSConfig) validate() error {
@@ -212,68 +137,12 @@ func (c ServerConfig) validate() error {
 	return nil
 }
 
-func (c TemporalConfig) validate() error {
-	if c.Host == "" {
-		return fmt.Errorf("HOST must not be empty")
+func (c AgentConfig) validate() error {
+	if c.Provider.BaseURL == "" {
+		return fmt.Errorf("PROVIDER_BASE_URL must not be empty")
 	}
-	if c.TaskQueue == "" {
-		return fmt.Errorf("TASK_QUEUE must not be empty")
-	}
-	return nil
-}
-
-func (c AuditLogConfig) validate() error {
-	if c.Timeout <= 0 {
-		return fmt.Errorf("TIMEOUT must be positive")
-	}
-	return nil
-}
-
-func (c TigerBeetleConfig) validate() error {
-	if c.Address == "" {
-		return fmt.Errorf("ADDRESS must not be empty")
-	}
-	return nil
-}
-
-func (c RustFSConfig) validate() error {
-	if c.Endpoint == "" {
-		return fmt.Errorf("ENDPOINT must not be empty")
-	}
-	if c.Region == "" {
-		return fmt.Errorf("REGION must not be empty")
-	}
-	if c.AccessKey == "" {
-		return fmt.Errorf("ACCESS_KEY must not be empty")
-	}
-	if c.SecretKey == "" {
-		return fmt.Errorf("SECRET_KEY must not be empty")
-	}
-	if c.Bucket == "" {
-		return fmt.Errorf("BUCKET must not be empty")
-	}
-	return nil
-}
-
-func (c ZitadelConfig) validate() error {
-	if c.Domain == "" {
-		return fmt.Errorf("DOMAIN must not be empty")
-	}
-	return nil
-}
-
-func (c SMTPConfig) validate() error {
-	if c.Host == "" {
-		return fmt.Errorf("HOST must not be empty")
-	}
-	if c.Port < 1 || c.Port > 65535 {
-		return fmt.Errorf("PORT %d is outside range [1, 65535]", c.Port)
-	}
-	if c.From == "" {
-		return fmt.Errorf("FROM must not be empty")
-	}
-	if !strings.Contains(c.From, "@") {
-		return fmt.Errorf("FROM %q must contain @", c.From)
+	if c.Provider.APIKey == "" {
+		return fmt.Errorf("PROVIDER_API_KEY must not be empty")
 	}
 	return nil
 }

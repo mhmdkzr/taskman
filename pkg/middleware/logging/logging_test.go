@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/mhmdkzr/app/pkg/middleware"
+	"github.com/mhmdkzr/taskman/pkg/middleware"
 )
 
 func TestLogging_InfoLevelFor2xx(t *testing.T) {

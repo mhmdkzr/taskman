@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/mhmdkzr/app/internal/app"
-	"github.com/mhmdkzr/app/internal/routes"
+	"github.com/mhmdkzr/taskman/internal/app"
+	"github.com/mhmdkzr/taskman/internal/routes"
 )
 
 func TestHandle_ReturnsOK(t *testing.T) {

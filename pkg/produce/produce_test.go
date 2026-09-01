@@ -9,7 +9,7 @@ import (
 
 	"github.com/nats-io/nats.go/jetstream"
 
-	"github.com/mhmdkzr/app/pkg/natsembed"
+	"github.com/mhmdkzr/taskman/pkg/natsembed"
 )
 
 type eventProduceValid struct {

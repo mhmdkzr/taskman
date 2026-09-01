@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/mhmdkzr/app/pkg/middleware"
+	"github.com/mhmdkzr/taskman/pkg/middleware"
 )
 
 // defaultTrustedCIDRs contains the default trusted CIDR ranges.

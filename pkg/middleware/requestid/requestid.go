@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/mhmdkzr/app/pkg/jsonresp"
-	"github.com/mhmdkzr/app/pkg/middleware"
+	"github.com/mhmdkzr/taskman/pkg/jsonresp"
+	"github.com/mhmdkzr/taskman/pkg/middleware"
 )
 
 var errMissingRequestID = errors.New("X-Request-ID header is required")

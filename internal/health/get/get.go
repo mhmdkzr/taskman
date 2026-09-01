@@ -1,6 +1,6 @@
 package get
 
-import "github.com/mhmdkzr/app/pkg/githash"
+import "github.com/mhmdkzr/taskman/pkg/githash"
 
 // Response is the health check result.
 type Response struct {

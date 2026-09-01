@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
-
-	"github.com/mhmdkzr/app/pkg/middleware/auditlog"
 )
 
 const (
@@ -199,8 +197,8 @@ func addAttr(dst map[string]json.RawMessage, key string, value slog.Value) {
 		return
 	}
 
-	if auditlog.IsSensitiveKey(leafKey(key)) {
-		raw, err := json.Marshal(auditlog.Marker)
+	if IsSensitiveKey(leafKey(key)) {
+		raw, err := json.Marshal(Marker)
 		if err != nil {
 			return
 		}

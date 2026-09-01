@@ -3,17 +3,7 @@
 ### Backend
 
 - Go
-- PostgreSQL
 - NATS (with JetStream)
-- Temporal
-- Zitadel
-- TigerBeetle
-
-### Frontend
-
-- **Svelte 5** — component framework
-- **Tailwind CSS v4** — utility-first CSS
-- **shadcn-svelte** — component library / registry (Rhea style), configured in `frontend/components.json`
 
 ---
 
@@ -21,30 +11,29 @@
 
 Most product behavior is organized as vertical slices under `internal/<module>/<feature>/...`.
 Each slice is a Go package focused on one feature or workflow. It should keep its HTTP,
-domain, persistence, Temporal, event, and documentation code close together unless the repo
-already has a more specific package pattern for that module.
+domain, event, and documentation code close together unless the repo already has a more
+specific package pattern for that module.
 
 ## Modules
 
 Related slices are grouped into modules, which are domain bounded contexts.
 
 Module-level shared types normally live in `internal/<module>/types.go`. Domain newtypes
-usually implement `Scan`/`Value` for database, `MarshalJSON`/`UnmarshalJSON` for serialization, and `String` for display. 
+usually implement `MarshalJSON`/`UnmarshalJSON` for serialization and `String` for display.
 
 Shared runtime dependencies live in `internal/app`. `app.App` contains `Deps`, `Cfg`,
-and `Mux`; `Deps` contains runtime dependencies including PostgreSQL, NATS, JetStream, Temporal, TigerBeetle and Zitadel.
+and `Mux`; `Deps` contains runtime dependencies including NATS and JetStream.
 
 Supporting packages live in `pkg/`.
 
 ## Registration Pattern
 
-Registration usually follows a three-layer delegation pattern:
+Registration usually follows a two-layer delegation pattern:
 
-1. **Slice-level**: A slice exposes registration helpers such as `RegisterWorkflows(w worker.Worker, a app.App)` and `RegisterActivities(w worker.Worker, a app.App)`. Slices put these helpers in `register.go`.
-2. **Module-level** (`internal/<module>/register/`): Aggregation packages expose `RegisterRoutes`, `RegisterWorkflows`, and/or `RegisterActivities`, each delegating to constituent slices.
-3. **Root-level** (`internal/register/`): Top-level aggregation is split across `routes.go`, `workflows.go`, and `activities.go`. 
+1. **Module-level** (`internal/<module>/register/`): Aggregation packages expose `RegisterRoutes`, delegating to constituent slices.
+2. **Root-level** (`internal/register/`): Top-level aggregation lives in `routes.go`.
 
-`internal/process/start.go` calls `RegisterRoutes`, `RegisterActivities`, and `RegisterWorkflows`.
+`internal/process/start.go` calls `RegisterRoutes`.
 
 ## HTTP Conventions
 
@@ -54,7 +43,7 @@ Registration usually follows a three-layer delegation pattern:
 - Query slices should normally use `GET`.
 - Command slices should normally use `POST`, `PUT`, or `DELETE` and expose HTTP action routes whose last path segment is the action when the resource is not fully described by the method alone.
 - Handlers should parse path/query/body input into typed `Request` values via a `requestFromHTTP(r *http.Request)` function, then call a business logic function, write success with `jsonresp.WriteJSON`, and write errors with `jsonresp.WriteHTTPError`.
-- Handlers should map domain, validation, and Temporal errors to appropriate HTTP status codes via a local `httpStatusForError(err) int` function.
+- Handlers should map domain and validation errors to appropriate HTTP status codes via a local `httpStatusForError(err) int` function.
 
 ## NATS JetStream
 
@@ -62,6 +51,21 @@ Registration usually follows a three-layer delegation pattern:
 - Subject names follow a dot-separated hierarchical convention.
 - Event types implement `MsgID() string` for idempotent publishing via the generic `produce.Produce[Event interface{ MsgID() string }](ctx, js, subject, event)` helper.
 - Consumption uses `jetstream.Consumer` directly via `js.CreateOrUpdateConsumer` and `consumer.Consume` with manual NAK/ACK handling.
+
+## Agent runtime
+
+The application runs an LLM agent runtime alongside the HTTP server (wired in `internal/process/start.go`). Key packages:
+
+- `internal/agent` — wraps `github.com/zendev-sh/goai` behind agent-owned types; sessions, run/persist/fork, the scheduled-run `Consumer`, and the default tool set + sub-agent `Runner`.
+- `internal/events` — every bus message type; each implements `Subject()` and `MsgID()` (deterministic content hash). New event types must implement both.
+- `internal/publisher` — sole gateway to the bus; publishes with a `Nats-Msg-Id` dedup header for exactly-once delivery. Owns the `SCION` stream (`agent.>`, `scheduler.>`, MemoryStorage, 24h dedup window) via `CreateStreams`.
+- `internal/scheduler` — durable one-time/recurring message delivery backed by SQLite rows.
+- `internal/server` — assembles store + scheduler + consumer and answers `run`/`ping` request/reply on `protocol.Subject` (`taskman.request`), one request at a time.
+- `internal/protocol` — dependency-free client/server wire contract.
+- `internal/store` — SQLite (pure-Go `modernc.org/sqlite`), RW/RO handles, sessions as a shared message chain, fork-by-reference, schema in `migrations/schema.sql` applied idempotently (no numbering; change in place).
+- `internal/tools` — only `bash`, `files`, `spawn`, and `telegram` are registered, plus `schedule` (the `agent.run` wire contract only — no scheduling tools). `internal/tools/tools_test.go` asserts the exact tool count.
+
+Config comes from `AGENT_*` env vars (`config.AgentConfig`): `AGENT_PROVIDER_BASE_URL`, `AGENT_PROVIDER_API_KEY` (required), `AGENT_DB_PATH` (default `~/.taskman/taskman.db`), `AGENT_MODEL`, `AGENT_REASONING_EFFORT`, `AGENT_MAX_STEPS`, and optional `AGENT_TELEGRAM_API_KEY`/`AGENT_TELEGRAM_CHANNEL_ID` for the telegram tool. There is no config file; the old `pkg/notifier` is gone.
 
 ## Pagination
 
@@ -72,7 +76,7 @@ Registration usually follows a three-layer delegation pattern:
 
 ## Required Slice Documentation
 
-New slices must include a `README.md` file which explains what the slice is, what functionality it provides, how it behaves, and how it is invoked. When touching an existing slice, update its README if present; if the slice lacks one and the change is material, add it. For public API slices, document the HTTP route and include `curl` examples. For Temporal-backed slices, include Temporal CLI examples.
+New slices must include a `README.md` file which explains what the slice is, what functionality it provides, how it behaves, and how it is invoked. When touching an existing slice, update its README if present; if the slice lacks one and the change is material, add it. For public API slices, document the HTTP route and include `curl` examples.
 
 ---
 
@@ -91,17 +95,9 @@ New slices must include a `README.md` file which explains what the slice is, wha
 - If you change `[file].go`, and `[file]_test.go` or other related test files are present, keep them in sync with the behavior you changed.
 - If you need to use NATS in a test, use `pkg/natsembed` when an in-process NATS server is enough.
 - For e2e tests that run from `testing.T`, prefer `t.Context()` over `context.Background()` so request cancellation is tied to test lifecycle.
-- For testing DB-backed slices, we use a temporary PostgreSQL database via `pkg/testdb` and Testcontainers pattern for PostgreSQL-backed tests:
-  - start `postgres.Run(...)` with a disposable container image
-  - register cleanup with `testcontainers.CleanupContainer`
-  - use the container connection string with `sslmode=disable`
-  - run migrations, then reopen/ping the database before seeding fixtures
 - Do NOT use mocks, unless you have checked with user and got a validation for your usecase.
 - Tests can load .env files if they need their values (see `pkg/testenv`).
-- Test files follow a `_test.go` / `_integration_test.go` split:
-  - Pure unit tests live in `_test.go` files and run under plain `go test ./...`.
-  - Integration tests (including DB-backed tests) live in `_integration_test.go` files (e.g. `repo_integration_test.go` for repository tests) and are gated with `testenv.SkipIfDBTestsDisabled` (or the network/e2e equivalents).
-  - Tests that are primarily about database behavior must be named with a `TestDB` prefix so they can be run selectively via `go test -run '^TestDB'` (see `make test-db`). Since `TestDB` implies integration, do not also append `_Integration` to their names. 
+- Integration tests live in `_integration_test.go` files and are gated with `testenv.SkipIfE2ETestsDisabled` (or the network equivalents).
 
 ---
 
@@ -111,16 +107,6 @@ New slices must include a `README.md` file which explains what the slice is, wha
 - Use `go vet`, and try to build the code so we can catch any compile-time errors. Do not store build artifacts; send them to `/dev/null` when building binaries.
 - Use `make lint` for running linters and `make fmt` for formatting.
 - For doc-only changes, Go validation is not required.
-
----
-
-## Database
-
-- You should not write to database directly unless you have a good reason to do so, in that case, **confirm with user**. Use the system endpoints instead, keep direct db access read-only and for debugging when API wouldn't be enough.
-
-### Repository Pattern
-
-All database access must be wrapped in private functions whose only job is to take a `*sql.DB` (or `*sql.Tx`) and interact with the database. They would all be in `repo.go` files, and their tests in `repo_integration_test.go` files.
 
 ---
 
@@ -149,7 +135,7 @@ All database access must be wrapped in private functions whose only job is to ta
 - Use current Go syntax and features already supported by this repo's workspace Go version.
 - Detect important and critical decision points. When you find a decision point in front of you which you can't know what to do based on your context, **confirm your decisions with user** before taking actions. For simple decisions or decisions that can be made with current context, you don't need to do this.
 - Avoid premature abstractions. Don't add a level of indirection unless it actually helps and the indirection is worth the cost of it. Do not use helper functions that don't help reduce complexity and are better inlined.
-- Any duration crossing a wire or storage boundary (PostgreSQL `bigint` columns, JSON API fields, Temporal activity/workflow inputs) uses **raw nanoseconds**, matching Go's `time.Duration` (already an `int64` nanosecond count) exactly — no unit conversion at any layer. Domain code keeps using `time.Duration` natively.
+- Any duration crossing a wire or storage boundary (JSON API fields) uses **raw nanoseconds**, matching Go's `time.Duration` (already an `int64` nanosecond count) exactly — no unit conversion at any layer. Domain code keeps using `time.Duration` natively.
 
 ---
 
@@ -158,10 +144,7 @@ All database access must be wrapped in private functions whose only job is to ta
 - available cli tools:
   - `rg`
   - `jq`
-  - `psql` (available through postgres docker container, not on the host)
   - `nats`
-  - `temporal`
-  - `workflowcheck`
 - To see project structure, run `tree`.
 - Do not modify `go.mod` file directly. Use `go` commands for it, e.g., use `go get` instead of adding dependencies manually.
 
@@ -172,14 +155,6 @@ All database access must be wrapped in private functions whose only job is to ta
 Some packages carry a `<package>/.tasks/` directory of tracked follow-up work (review findings, test gaps, doc drift, features). Each task is a Markdown file with YAML frontmatter (`urgency`/`importance`, `type`, `status`, `tags`, `depends_on`, `where`, `source`, `resolved`/`resolved_at`) plus a short prose body: what the task is, optionally how to do it, why it matters, and what "done" looks like (`## What`/`## How`/`## Why`/`## Done when`, plus `## Resolution` once resolved).
 
 Never hand-write or hand-edit a `.tasks/*.md` file. Use the `taskman` CLI at `scripts/taskman/` (build with `cd scripts/taskman && GOWORK=off go build -o taskman .`) for every operation — `taskman new`/`list`/`show`/`search`/`done`/`drop`/`validate`. See `scripts/taskman/README.md` for the full schema and usage.
-
----
-
-## Temporal Rules
-
-- When working with Temporal, remember that temporal works under the assumption that **workflows are deterministic and side-effect free, and activities are idempotent.** Make sure this is true, otherwise it is **considered a bug**.
-- Workflows should validate inputs at the start, returning `temporal.NewNonRetryableApplicationError(err.Error(), "ValidationError", nil)` for invalid inputs.
-- Every activity's registered name is a `const` (e.g. `ActivityName`) declared exactly once, in that activity slice's own `activity.go`. Anywhere else in the codebase that needs the name must import and reference that const, never re-declare a local const with the same string, hardcode the literal, or compose it at runtime (e.g. `prefix + ".suffix"`). 
 
 ---
 

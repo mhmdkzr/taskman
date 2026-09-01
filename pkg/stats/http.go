@@ -3,9 +3,9 @@ package stats
 import (
 	"net/http"
 
-	"github.com/mhmdkzr/app/internal/app"
-	"github.com/mhmdkzr/app/internal/routes"
-	"github.com/mhmdkzr/app/pkg/jsonresp"
+	"github.com/mhmdkzr/taskman/internal/app"
+	"github.com/mhmdkzr/taskman/internal/routes"
+	"github.com/mhmdkzr/taskman/pkg/jsonresp"
 )
 
 // readStats is a seam over Read so tests can exercise the handler's error path

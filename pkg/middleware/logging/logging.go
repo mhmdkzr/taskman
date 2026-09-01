@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/mhmdkzr/app/pkg/middleware"
+	"github.com/mhmdkzr/taskman/pkg/middleware"
 )
 
 const (

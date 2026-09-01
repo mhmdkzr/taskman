@@ -3,9 +3,9 @@ package ready
 import (
 	"net/http"
 
-	"github.com/mhmdkzr/app/internal/app"
-	"github.com/mhmdkzr/app/internal/routes"
-	"github.com/mhmdkzr/app/pkg/jsonresp"
+	"github.com/mhmdkzr/taskman/internal/app"
+	"github.com/mhmdkzr/taskman/internal/routes"
+	"github.com/mhmdkzr/taskman/pkg/jsonresp"
 )
 
 // Handler serves the readiness check endpoint.

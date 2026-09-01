@@ -1,11 +1,10 @@
 package migrations
 
-import "embed"
+import _ "embed"
 
-//go:embed *.sql
-var migrationsFS embed.FS
+//go:embed schema.sql
+var schemaSQL string
 
-// GetMigrationsFS returns the embedded filesystem for SQL migrations.
-func GetMigrationsFS() embed.FS {
-	return migrationsFS
+func GetSchemaSQL() string {
+	return schemaSQL
 }

@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/mhmdkzr/app/pkg/jsonresp"
-	"github.com/mhmdkzr/app/pkg/middleware"
+	"github.com/mhmdkzr/taskman/pkg/jsonresp"
+	"github.com/mhmdkzr/taskman/pkg/middleware"
 )
 
 var errInternalServerError = errors.New("internal server error")

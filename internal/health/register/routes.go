@@ -2,10 +2,10 @@
 package register
 
 import (
-	"github.com/mhmdkzr/app/internal/app"
-	"github.com/mhmdkzr/app/internal/health/get"
-	"github.com/mhmdkzr/app/internal/health/ready"
-	"github.com/mhmdkzr/app/internal/routes"
+	"github.com/mhmdkzr/taskman/internal/app"
+	"github.com/mhmdkzr/taskman/internal/health/get"
+	"github.com/mhmdkzr/taskman/internal/health/ready"
+	"github.com/mhmdkzr/taskman/internal/routes"
 )
 
 func RegisterRoutes(a app.App) {

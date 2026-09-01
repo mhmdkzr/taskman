@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mhmdkzr/app/pkg/natsembed"
+	"github.com/mhmdkzr/taskman/pkg/natsembed"
 )
 
 func TestInit_ReturnsFormatError(t *testing.T) {
@@ -82,21 +82,5 @@ func TestNATSHandler_Handle(t *testing.T) {
 	}
 	if !strings.Contains(string(msg.Data), "warn message") {
 		t.Fatalf("unexpected log payload: %s", string(msg.Data))
-	}
-}
-
-func TestTemporalLogger_PromotesTaskFailureInfoToError(t *testing.T) {
-	var out strings.Builder
-	base := slog.New(slog.NewTextHandler(&out, &slog.HandlerOptions{Level: slog.LevelDebug}))
-
-	logger := NewTemporalLogger(base)
-	logger.Info("Task processing failed with error", "Error", errors.New("boom"))
-
-	got := out.String()
-	if !strings.Contains(got, "level=ERROR") {
-		t.Fatalf("expected error level, got log output: %s", got)
-	}
-	if !strings.Contains(got, "Task processing failed with error") {
-		t.Fatalf("expected task failure message, got log output: %s", got)
 	}
 }

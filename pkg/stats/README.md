@@ -22,11 +22,10 @@ CPU, memory, and disk usage via `coder/clistat` and exposes it over HTTP.
 
 ## Usage
 
-Registered at startup by `internal/register/routes.go` via
-`stats.RegisterRoutes(a)`:
+`stats.RegisterRoutes(a)` wires the handler to `GET /stats`:
 
 ```bash
-curl http://127.0.0.1:8090/stats
+curl http://127.0.0.1:8080/stats
 ```
 
 Each `clistat.Result` serializes as `{"total": ..., "unit": "...", "used": ...}`;

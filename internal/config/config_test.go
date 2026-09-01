@@ -2,39 +2,20 @@ package config
 
 import "testing"
 
-func TestAuthConfigValidate(t *testing.T) {
-	t.Parallel()
-
-	valid := AuthConfig{
-		Enabled:               true,
-		Issuer:                "https://id.example",
-		ClientID:              "client",
-		ClientSecret:          "secret",
-		RedirectURL:           "https://app.example/auth/callback",
-		PostLogoutRedirectURL: "https://app.example/",
-		LoginClientPATPath:    "/zitadel/bootstrap/login-client.pat",
-		AdminPATPath:          "/zitadel/bootstrap/admin-provisioner.pat",
-		SessionLifetime:       1,
-		SessionIdleTimeout:    1,
-	}
-	if err := valid.validate(); err != nil {
+func TestNATSConfigValidate(t *testing.T) {
+	if err := (NATSConfig{URL: "nats://127.0.0.1:4222"}).validate(); err != nil {
 		t.Fatalf("validate valid config: %v", err)
 	}
-
-	valid.Issuer = ""
-	if err := valid.validate(); err == nil {
-		t.Fatal("validate config with missing issuer succeeded")
+	if err := (NATSConfig{URL: ""}).validate(); err == nil {
+		t.Fatal("validate config with missing URL succeeded")
 	}
-	valid.Issuer = "https://id.example"
+}
 
-	valid.LoginClientPATPath = ""
-	if err := valid.validate(); err == nil {
-		t.Fatal("validate config with missing login client PAT path succeeded")
+func TestServerConfigValidate(t *testing.T) {
+	if err := (ServerConfig{BindAddr: "127.0.0.1:8080"}).validate(); err != nil {
+		t.Fatalf("validate valid config: %v", err)
 	}
-	valid.LoginClientPATPath = "/zitadel/bootstrap/login-client.pat"
-
-	valid.AdminPATPath = ""
-	if err := valid.validate(); err == nil {
-		t.Fatal("validate config with missing admin PAT path succeeded")
+	if err := (ServerConfig{BindAddr: ""}).validate(); err == nil {
+		t.Fatal("validate config with missing BIND_ADDR succeeded")
 	}
 }
