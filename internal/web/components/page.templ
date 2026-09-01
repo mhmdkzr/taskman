@@ -1,0 +1,28 @@
+package components
+
+templ Page(cols []KanbanCol) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8" />
+			<meta name="viewport" content="width=device-width, initial-scale=1" />
+			<title>taskman</title>
+			@templ.Raw("<style>" + pageStyles() + "</style>")
+		</head>
+		<body
+			data-signals="{selected: ''}"
+			data-init="@get('/events', {openWhenHidden: true})"
+		>
+			@Board(cols)
+
+			<div class="drawer" data-show="$selected != ''">
+				<button class="close" data-on:click="$selected = ''">close</button>
+				<div id="detail" class="detail">
+					<div class="empty">Select a task.</div>
+				</div>
+			</div>
+
+			<script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.3/bundles/datastar.js"></script>
+		</body>
+	</html>
+}

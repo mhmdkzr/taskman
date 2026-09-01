@@ -216,12 +216,12 @@ func TestTaskDetailRendersAgentMessages(t *testing.T) {
 		t.Fatalf("GET /api/tasks/{id} = %d, want 200", rec.Code)
 	}
 	body := rec.Body.String()
-	for _, want := range []string{"execution", "I&#39;ll guard the client.", "edit", "Done — added the nil check."} {
+	for _, want := range []string{"execution", "I'll guard the client.", "Edit", "Done — added the nil check."} {
 		if !strings.Contains(body, want) {
 			t.Errorf("detail activity missing %q", want)
 		}
 	}
-	if !strings.Contains(body, `&#34;bytes_written&#34;:1`) {
+	if !strings.Contains(body, `bytes_written`) {
 		t.Errorf("detail activity missing tool result output")
 	}
 }

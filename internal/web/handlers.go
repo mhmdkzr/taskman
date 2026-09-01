@@ -1,91 +1,16 @@
 package web
 
 import (
-	"embed"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"log/slog"
 	"net/http"
 	"uuid"
 
 	"github.com/mhmdkzr/taskman/internal/store"
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/web/components"
 )
-
-//go:embed index.html task_list.html task_detail.html
-var files embed.FS
-
-// templates is parsed once: index.html is the page shell, taskList and
-// taskDetail are fragments the server renders into /api/tasks and
-// /api/tasks/{id} (and which /events patches live).
-var templates = template.Must(template.New("index.html").Funcs(template.FuncMap{
-	"shortID":   func(s fmt.Stringer) string { return shorten(s.String(), 13) },
-	"shortHash": func(s string) string { return shorten(s, 8) },
-	// display returns the live pipeline phase when a task is running,
-	// otherwise its stored status — so the badge and the phase line agree.
-	"display": func(status any, phase string) string {
-		if phase != "" {
-			return phase
-		}
-		if s, ok := status.(fmt.Stringer); ok {
-			return s.String()
-		}
-		if s, ok := status.(string); ok {
-			return s
-		}
-		return fmt.Sprint(status)
-	},
-}).ParseFS(files, "*.html"))
-
-// kanbanCol is one status column of the board: a heading plus its tasks.
-type kanbanCol struct {
-	Status string
-	Label  string
-	Tasks  []taskRow
-}
-
-// taskRow is one card in the board: a task plus its live phase.
-type taskRow struct {
-	task.Task
-
-	Phase string
-}
-
-// taskDetailData renders the detail fragment for one task.
-type taskDetailData struct {
-	Task     task.Task
-	Phase    string
-	Sessions []sessionActivity
-}
-
-// sessionActivity is the rendered transcript of one session (execution or
-// review), oldest turn first.
-type sessionActivity struct {
-	Label string // "execution" | "review"
-	Turns []activityTurn
-}
-
-// activityTurn is one turn of a session: its prompt and the steps that follow.
-type activityTurn struct {
-	Prompt string
-	Steps  []activityStep
-}
-
-// activityStep is one tool-loop step within a turn.
-type activityStep struct {
-	Reasoning string
-	Text      string
-	Tools     []activityTool
-}
-
-// activityTool is one tool call in a step with its result.
-type activityTool struct {
-	Name   string
-	Input  string
-	Output string
-	Error  string
-}
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	cols, err := s.board(r)
@@ -94,7 +19,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := templates.ExecuteTemplate(w, "index.html", map[string]any{"Cols": cols}); err != nil {
+	if err := components.Page(cols).Render(r.Context(), w); err != nil {
 		slog.Error("web: index render", "error", err)
 	}
 }
@@ -108,7 +33,7 @@ func (s *Server) handleTaskList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := templates.ExecuteTemplate(w, "taskList", map[string]any{"Cols": cols}); err != nil {
+	if err := components.Board(cols).Render(r.Context(), w); err != nil {
 		slog.Error("web: task list render", "error", err)
 	}
 }
@@ -124,14 +49,14 @@ func (s *Server) handleTaskDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := templates.ExecuteTemplate(w, "taskDetail", row); err != nil {
+	if err := components.TaskDrawer(row).Render(r.Context(), w); err != nil {
 		slog.Error("web: task detail render", "error", err)
 	}
 }
 
 // board loads all tasks and groups them into one kanban column per status, in
 // lifecycle order, each card carrying its live phase.
-func (s *Server) board(r *http.Request) ([]kanbanCol, error) {
+func (s *Server) board(r *http.Request) ([]components.KanbanCol, error) {
 	tasks, err := task.ListTasks(r.Context(), s.store.RO(), "")
 	if err != nil {
 		return nil, fmt.Errorf("list tasks: %w", err)
@@ -149,29 +74,29 @@ func (s *Server) board(r *http.Request) ([]kanbanCol, error) {
 		task.TaskStatusCompleted: "Completed",
 		task.TaskStatusReviewed:  "Reviewed",
 	}
-	buckets := make(map[task.TaskStatus][]taskRow, len(order))
+	buckets := make(map[task.TaskStatus][]components.TaskRow, len(order))
 	for _, t := range tasks {
 		st := t.Status
 		if _, ok := labels[st]; !ok {
 			continue // defensive: unknown statuses are not rendered
 		}
-		buckets[st] = append(buckets[st], taskRow{Task: t, Phase: s.phase(t.ID.String())})
+		buckets[st] = append(buckets[st], components.TaskRow{Task: t, Phase: s.phase(t.ID.String())})
 	}
 
-	cols := make([]kanbanCol, 0, len(order))
+	cols := make([]components.KanbanCol, 0, len(order))
 	for _, st := range order {
-		cols = append(cols, kanbanCol{Status: string(st), Label: labels[st], Tasks: buckets[st]})
+		cols = append(cols, components.KanbanCol{Status: string(st), Label: labels[st], Tasks: buckets[st]})
 	}
 	return cols, nil
 }
 
-// taskDetail builds the detail fragment for one task.
-func (s *Server) taskDetail(r *http.Request, id string) (*taskDetailData, error) {
+// taskDetail builds the detail drawer's data for one task.
+func (s *Server) taskDetail(r *http.Request, id string) (components.TaskDetail, error) {
 	t, err := s.getTask(r, id)
 	if err != nil {
-		return nil, err
+		return components.TaskDetail{}, err
 	}
-	return &taskDetailData{
+	return components.TaskDetail{
 		Task:     *t,
 		Phase:    s.phase(id),
 		Sessions: s.renderSessions(r, t),
@@ -203,7 +128,7 @@ func (s *Server) getTask(r *http.Request, id string) (*task.Task, error) {
 
 // renderSessions renders the activity for a task's execution and review
 // session transcripts, each oldest turn first.
-func (s *Server) renderSessions(r *http.Request, t *task.Task) []sessionActivity {
+func (s *Server) renderSessions(r *http.Request, t *task.Task) []components.SessionActivity {
 	sessions := []struct {
 		id    uuid.UUID
 		label string
@@ -211,7 +136,7 @@ func (s *Server) renderSessions(r *http.Request, t *task.Task) []sessionActivity
 		{t.SessionID, "execution"},
 		{t.ReviewSessionID, "review"},
 	}
-	var out []sessionActivity
+	var out []components.SessionActivity
 	for _, sess := range sessions {
 		if sess.id == uuid.Nil() {
 			continue
@@ -220,7 +145,7 @@ func (s *Server) renderSessions(r *http.Request, t *task.Task) []sessionActivity
 		if err != nil {
 			continue
 		}
-		activity := sessionActivity{Label: sess.label}
+		activity := components.SessionActivity{Label: sess.label}
 		for _, turn := range tr.Turns {
 			activity.Turns = append(activity.Turns, activityFromTurn(turn))
 		}
@@ -232,12 +157,12 @@ func (s *Server) renderSessions(r *http.Request, t *task.Task) []sessionActivity
 }
 
 // activityFromTurn flattens one transcript turn into renderable activity.
-func activityFromTurn(turn store.TurnTranscript) activityTurn {
-	out := activityTurn{Prompt: turn.Prompt.Text()}
+func activityFromTurn(turn store.TurnTranscript) components.ActivityTurn {
+	out := components.ActivityTurn{Prompt: turn.Prompt.Text()}
 	for _, step := range turn.Steps {
-		st := activityStep{}
+		st := components.ActivityStep{}
 		// results are keyed by tool call id so a result lands on its call.
-		byCall := map[string]*activityTool{}
+		byCall := map[string]*components.ActivityTool{}
 		for _, m := range step.Messages {
 			for _, p := range m.Parts {
 				switch p.Type {
@@ -246,7 +171,7 @@ func activityFromTurn(turn store.TurnTranscript) activityTurn {
 				case "text":
 					st.Text += p.Text
 				case "tool-call":
-					st.Tools = append(st.Tools, activityTool{Name: p.ToolName, Input: p.ToolInput})
+					st.Tools = append(st.Tools, components.ActivityTool{Name: p.ToolName, Input: p.ToolInput})
 					byCall[p.ToolCallID] = &st.Tools[len(st.Tools)-1]
 				case "tool-result":
 					if tool, ok := byCall[p.ToolCallID]; ok {
@@ -259,12 +184,4 @@ func activityFromTurn(turn store.TurnTranscript) activityTurn {
 		out.Steps = append(out.Steps, st)
 	}
 	return out
-}
-
-// shorten truncates s to at most n runes.
-func shorten(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "…"
 }

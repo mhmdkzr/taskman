@@ -1,0 +1,51 @@
+package components
+
+templ Board(cols []KanbanCol) {
+	<div id="task-list" class="board">
+		for _, col := range cols {
+			@BoardCol(col)
+		}
+	</div>
+}
+
+templ BoardCol(col KanbanCol) {
+	<div class="col">
+		<div class="col-head">
+			<span class="col-title">{ col.Label }</span>
+			<span class="col-count">{ len(col.Tasks) }</span>
+		</div>
+		<div class="col-body">
+			if len(col.Tasks) == 0 {
+				<div class="empty">—</div>
+			} else {
+				for _, t := range col.Tasks {
+					@TaskCard(t)
+				}
+			}
+		</div>
+	</div>
+}
+
+templ TaskCard(t TaskRow) {
+	<div
+		class="task"
+		data-class:active={ "$selected == '" + t.ID.String() + "'" }
+		data-on:click={ "$selected = '" + t.ID.String() + "'; @get('/api/tasks/" + t.ID.String() + "')" }
+	>
+		<div class="row">
+			<span class={ "badge ", displayStatus(string(t.Status), t.Phase) }>
+				{ displayStatus(string(t.Status), t.Phase) }
+			</span>
+			<span class="title">{ t.Title }</span>
+		</div>
+		<div class="meta">
+			{ t.TaskType } · { shortID(t.ID.String()) }
+			if t.CommitHash != "" {
+				· { shortHash(t.CommitHash) }
+			}
+		</div>
+		if t.Phase != "" {
+			<div class="phase">{ t.Phase }</div>
+		}
+	</div>
+}

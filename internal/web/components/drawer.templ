@@ -1,0 +1,43 @@
+package components
+
+templ TaskDrawer(d TaskDetail) {
+	<div
+		id="detail"
+		class="detail"
+		data-on-interval__duration.3s={ "$selected && @get('/api/tasks/' + $selected)" }
+	>
+		<h2>
+			{ d.Task.Title }
+			<span class={ "badge ", displayStatus(string(d.Task.Status), d.Phase) }>
+				{ displayStatus(string(d.Task.Status), d.Phase) }
+			</span>
+		</h2>
+		<div class="mono muted">{ d.Task.ID.String() }</div>
+		if d.Phase != "" {
+			<div class="section-title">Phase</div>
+			<p>{ d.Phase }</p>
+		}
+		<div class="section-title">Spec</div>
+		<div class="spec">
+			<h3>What</h3>
+			<p>@Markdown(d.Task.What)
+</p>
+			<h3>Why</h3>
+			<p>@Markdown(d.Task.Why)
+</p>
+			<h3>How</h3>
+			<p>@Markdown(d.Task.How)
+</p>
+			if d.Task.CommitMessage != "" {
+				<h3>Commit</h3>
+				<p>{ d.Task.CommitType }: { d.Task.CommitMessage }</p>
+			}
+			if d.Task.CommitHash != "" {
+				<h3>Commit hash</h3>
+				<p class="mono muted">{ d.Task.CommitHash }</p>
+			}
+		</div>
+		<div class="section-title">Activity</div>
+		@Activity(d.Sessions)
+	</div>
+}

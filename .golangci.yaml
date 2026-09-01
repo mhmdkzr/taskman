@@ -277,6 +277,13 @@ linters:
         # error type) as an unchecked error. The bool is always checked at
         # call sites; this is a false positive on every use, not a real issue.
       - linters:
+          - godoclint
+        path: "internal/web/components/.*\\.go"
+        # templ-generated *_templ.go files carry a "// Code generated" header
+        # that godoclint reads as a package godoc, so it thinks the package
+        # has more than one doc comment. The real package doc lives in
+        # doc.go; this is a false positive from the generated files.
+      - linters:
           - canonicalheader
         text: "TRON-PRO-API-KEY"
       - linters:

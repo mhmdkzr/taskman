@@ -3,6 +3,8 @@ module github.com/mhmdkzr/taskman
 go 1.27.0
 
 require (
+	github.com/a-h/templ v0.3.1020
+	github.com/alecthomas/chroma/v2 v2.2.0
 	github.com/caarlos0/env/v11 v11.4.1
 	github.com/coder/clistat v1.2.1
 	github.com/go-git/go-git/v5 v5.19.2
@@ -13,6 +15,8 @@ require (
 	github.com/nats-io/nats.go v1.52.0
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
 	github.com/starfederation/datastar-go v1.2.2
+	github.com/yuin/goldmark v1.8.5
+	github.com/yuin/goldmark-highlighting/v2 v2.0.0-20230729083705-37449abec8cc
 	github.com/zendev-sh/goai v0.9.4
 	golang.org/x/mod v0.40.0
 	golang.org/x/tools v0.49.0
@@ -32,6 +36,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect
 	github.com/cyphar/filepath-securejoin v0.6.1 // indirect
+	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/elastic/go-sysinfo v1.15.1 // indirect
 	github.com/elastic/go-windows v1.0.0 // indirect

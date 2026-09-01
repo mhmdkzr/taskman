@@ -1,0 +1,49 @@
+package components
+
+templ Activity(sessions []SessionActivity) {
+	if len(sessions) == 0 {
+		<div class="empty">no activity yet</div>
+	} else {
+		for _, sess := range sessions {
+			<div class="session">
+				<div class="session-head">{ sess.Label }</div>
+				if len(sess.Turns) == 0 {
+					<div class="empty">no turns yet</div>
+				} else {
+					for _, turn := range sess.Turns {
+						@TurnView(turn)
+					}
+				}
+			</div>
+		}
+	}
+}
+
+templ TurnView(turn ActivityTurn) {
+	<div class="turn">
+		<div class="prompt">
+			@Markdown(turn.Prompt)
+		</div>
+		for _, step := range turn.Steps {
+			@StepView(step)
+		}
+	</div>
+}
+
+templ StepView(step ActivityStep) {
+	<div class="step">
+		if step.Reasoning != "" {
+			<div class="reasoning">
+				@Markdown(step.Reasoning)
+			</div>
+		}
+		if step.Text != "" {
+			<div class="assistant">
+				@Markdown(step.Text)
+			</div>
+		}
+		for _, tool := range step.Tools {
+			@ToolBody(tool)
+		}
+	</div>
+}

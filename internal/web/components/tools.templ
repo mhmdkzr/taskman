@@ -1,0 +1,98 @@
+package components
+
+templ ToolBody(tool ActivityTool) {
+	<div class={ "tool ", tool.Name }>
+		<div class="tool-head">
+			<span class="tool-name">{ toolTitle(tool.Name) }</span>
+			if tool.Error != "" {
+				<span class="tool-err">error</span>
+			}
+		</div>
+		switch tool.Name {
+			case "edit":
+				@ToolEdit(parseEdit(tool.Input), tool)
+			case "read":
+				@ToolRead(parseRead(tool.Input), tool)
+			case "glob":
+				@ToolGlob(parseGlob(tool.Input), tool)
+			case "grep":
+				@ToolGrep(parseGrep(tool.Input), tool)
+			case "go_test":
+				@ToolGoTest(tool)
+			case "go_build":
+				@ToolGoBuild(tool)
+			default:
+				@ToolGeneric(tool)
+		}
+	</div>
+}
+
+templ ToolEdit(args editArgs, tool ActivityTool) {
+	<div class="tool-edit">
+		if args.Path != "" {
+			<div class="tool-path">{ args.Path }</div>
+		}
+if args.Old == "" {
+			<div class="tool-note">create/append</div>
+		} else {
+			<div class="tool-diff">@templ.Raw(renderDiff(unifiedDiff(args.Old, args.New)))</div>
+		}
+		@ToolResult(tool)
+	</div>
+}
+
+templ ToolRead(args readArgs, tool ActivityTool) {
+	<div class="tool-read">
+		if args.Path != "" {
+			<div class="tool-path">{ args.Path }</div>
+		}
+		@ToolResult(tool)
+	</div>
+}
+
+templ ToolGlob(args globArgs, tool ActivityTool) {
+	<div class="tool-glob">
+		if args.Pattern != "" {
+			<div class="tool-path">pattern: { args.Pattern }</div>
+		}
+		@ToolResult(tool)
+	</div>
+}
+
+templ ToolGrep(args grepArgs, tool ActivityTool) {
+	<div class="tool-grep">
+		if args.Pattern != "" {
+			<div class="tool-path">pattern: { args.Pattern }</div>
+		}
+		@ToolResult(tool)
+	</div>
+}
+
+templ ToolGoTest(tool ActivityTool) {
+	@ToolResult(tool)
+}
+
+templ ToolGoBuild(tool ActivityTool) {
+	@ToolResult(tool)
+}
+
+// ToolGeneric falls back to showing the raw input/output for tools without a
+// dedicated renderer.
+templ ToolGeneric(tool ActivityTool) {
+	if tool.Input != "" {
+		<pre class="tool-in">{ tool.Input }</pre>
+	}
+	@ToolResult(tool)
+}
+
+// ToolResult shows the tool's output or error. Output is rendered as markdown
+// so test/build logs and file reads get syntax highlighting.
+templ ToolResult(tool ActivityTool) {
+	if tool.Error != "" {
+		<div class="err">{ tool.Error }</div>
+	} else if tool.Output != "" {
+		<div class="tool-out">
+			@Markdown(tool.Output)
+		</div>
+	}
+}

@@ -1,7 +1,6 @@
 package web
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -9,6 +8,8 @@ import (
 	"time"
 
 	"github.com/starfederation/datastar-go/datastar"
+
+	"github.com/mhmdkzr/taskman/internal/web/components"
 )
 
 // eventsKeepAlive is how often the stream re-renders the task list even when
@@ -75,19 +76,15 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 // patchTaskList re-renders the #task-list kanban fragment from the store and
-// patches it into the DOM.
+// patches it into the DOM. The board is a templ component, so it is patched
+// via the SDK's templ integration.
 func (s *Server) patchTaskList(sse *datastar.ServerSentEventGenerator, r *http.Request) error {
 	cols, err := s.board(r)
 	if err != nil {
 		slog.Error("web: task list render", "error", err)
 		return fmt.Errorf("task rows: %w", err)
 	}
-	var buf bytes.Buffer
-	if err := templates.ExecuteTemplate(&buf, "taskList", map[string]any{"Cols": cols}); err != nil {
-		slog.Error("web: task list render", "error", err)
-		return fmt.Errorf("render task list: %w", err)
-	}
-	if err := sse.PatchElements(buf.String()); err != nil {
+	if err := sse.PatchElementTempl(components.Board(cols)); err != nil {
 		slog.Error("web: patch task list", "error", err)
 		return fmt.Errorf("patch task list: %w", err)
 	}
