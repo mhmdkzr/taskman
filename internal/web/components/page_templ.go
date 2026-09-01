@@ -5,10 +5,8 @@ package components
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 
-import (
-	"github.com/a-h/templ"
-	templruntime "github.com/a-h/templ/runtime"
-)
+import "github.com/a-h/templ"
+import templruntime "github.com/a-h/templ/runtime"
 
 func Page(cols []KanbanCol) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -47,7 +45,7 @@ func Page(cols []KanbanCol) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"drawer\" data-show=\"$selected != ''\"><button class=\"close\" data-on:click=\"$selected = ''\">close</button><div id=\"detail\" class=\"detail\"><div class=\"empty\">Select a task.</div></div></div><script type=\"module\" src=\"https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.3/bundles/datastar.js\"></script></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"backdrop\" data-show=\"$selected != ''\" data-on:click=\"$selected = ''\"></div><div class=\"drawer\" data-show=\"$selected != ''\"><button class=\"close\" data-on:click=\"$selected = ''\">close</button><div id=\"detail\" class=\"detail\"><div class=\"empty\">Select a task.</div></div></div><script type=\"module\" src=\"https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.3/bundles/datastar.js\"></script></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

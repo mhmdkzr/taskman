@@ -15,6 +15,12 @@ templ Page(cols []KanbanCol) {
 		>
 			@Board(cols)
 
+			<div
+				class="backdrop"
+				data-show="$selected != ''"
+				data-on:click="$selected = ''"
+			></div>
+
 			<div class="drawer" data-show="$selected != ''">
 				<button class="close" data-on:click="$selected = ''">close</button>
 				<div id="detail" class="detail">
