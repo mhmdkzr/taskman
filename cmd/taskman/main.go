@@ -13,16 +13,20 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 	"uuid"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/joho/godotenv"
+	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 
 	"github.com/mhmdkzr/taskman/internal/codebase"
 	"github.com/mhmdkzr/taskman/internal/config"
 	"github.com/mhmdkzr/taskman/internal/pipeline"
 	"github.com/mhmdkzr/taskman/internal/publisher"
 	"github.com/mhmdkzr/taskman/internal/store"
+	"github.com/mhmdkzr/taskman/internal/streams"
 	"github.com/mhmdkzr/taskman/internal/task"
 )
 
@@ -295,9 +299,12 @@ func cmdRun(args []string) error {
 		}
 	}
 
+	pub, closeNATS := connectPublisher()
+	defer closeNATS()
+
 	cfg := pipeline.Config{
 		Store:     st,
-		Publisher: publisher.Publisher{},
+		Publisher: pub,
 		Agent:     agentCfg,
 		SourceDir: source,
 		WorkDir:   work,
@@ -318,6 +325,46 @@ func cmdRun(args []string) error {
 	fmt.Printf("execution session: %s\n", result.ExecutionSessionID)
 	fmt.Printf("review session:    %s\n", result.ReviewSessionID)
 	return nil
+}
+
+// defaultNATSURL matches the URL docker compose exposes NATS on locally (see
+// .env.example); NATS_URL overrides it.
+const defaultNATSURL = "nats://127.0.0.1:4222"
+
+// connectPublisher best-effort connects to NATS and ensures the agent/
+// scheduler event streams exist, returning a live Publisher on success. NATS
+// is optional for `run`: on any failure to connect, init JetStream, or
+// create streams, it reports why to stderr and returns a zero-value
+// Publisher instead — every Publish call through that is a no-op (see
+// Session.publish's best-effort error handling), so the task still runs,
+// just without live event visibility. The returned func closes the
+// connection, if one was made; always defer it.
+func connectPublisher() (publisher.Publisher, func()) {
+	natsURL := os.Getenv("NATS_URL")
+	if natsURL == "" {
+		natsURL = defaultNATSURL
+	}
+
+	nc, err := nats.Connect(natsURL, nats.Timeout(2*time.Second))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "taskman: NATS not reachable at %s, continuing without live events: %v\n", natsURL, err)
+		return publisher.Publisher{}, func() {}
+	}
+
+	js, err := jetstream.New(nc)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "taskman: jetstream init failed, continuing without live events: %v\n", err)
+		nc.Close()
+		return publisher.Publisher{}, func() {}
+	}
+	if err := streams.CreateStreams(context.Background(), js); err != nil {
+		fmt.Fprintf(os.Stderr, "taskman: create streams failed, continuing without live events: %v\n", err)
+		nc.Close()
+		return publisher.Publisher{}, func() {}
+	}
+
+	fmt.Printf("connected to NATS at %s (publishing agent.>/scheduler.> events)\n", natsURL)
+	return publisher.NewPublisher(nc), nc.Close
 }
 
 // envConfig mirrors config.Config's Agent field so AgentConfig's env tags
