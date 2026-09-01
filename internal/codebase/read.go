@@ -4,12 +4,11 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"strings"
 )
 
 const (
 	defaultReadLimit = 2000
-	maxScannerBuffer  = 1024 * 1024
+	maxScannerBuffer = 1024 * 1024
 )
 
 // Read returns a file's content, one line per element, starting at offset
@@ -63,14 +62,4 @@ func readLines(path string) ([]string, error) {
 		return nil, err
 	}
 	return lines, nil
-}
-
-// joinLines is a small helper for tool wrappers that want the read.go
-// convention of "\n... (truncated; continue reading with offset=N)".
-func joinLines(lines []string, truncated bool, nextOffset int) string {
-	out := strings.Join(lines, "\n")
-	if truncated {
-		out += fmt.Sprintf("\n... (truncated; continue reading with offset=%d)", nextOffset)
-	}
-	return out
 }

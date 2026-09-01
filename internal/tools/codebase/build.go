@@ -6,8 +6,9 @@ import (
 	"os"
 	"strings"
 
-	cb "github.com/mhmdkzr/taskman/internal/codebase"
 	"github.com/zendev-sh/goai"
+
+	cb "github.com/mhmdkzr/taskman/internal/codebase"
 )
 
 // GoBuildTool returns the go_build tool bound to repo. The build's output

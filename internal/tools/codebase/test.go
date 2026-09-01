@@ -6,8 +6,9 @@ import (
 	"strings"
 	"time"
 
-	cb "github.com/mhmdkzr/taskman/internal/codebase"
 	"github.com/zendev-sh/goai"
+
+	cb "github.com/mhmdkzr/taskman/internal/codebase"
 )
 
 // maxTestOutputChars bounds go_test's returned output so a runaway or very
@@ -15,7 +16,7 @@ import (
 const maxTestOutputChars = 20000
 
 type testInput struct {
-	Run     *string `json:"run,omitempty" jsonschema:"description=Regexp matching test names to run (-run). Omit to run everything."`
+	Run     *string `json:"run,omitempty"             jsonschema:"description=Regexp matching test names to run (-run). Omit to run everything."`
 	Timeout *int    `json:"timeout_seconds,omitempty" jsonschema:"description=Test binary timeout in seconds (default the go tool's own default, 10 minutes)."`
 }
 

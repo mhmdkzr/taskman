@@ -6,8 +6,9 @@
 package codebase
 
 import (
-	cb "github.com/mhmdkzr/taskman/internal/codebase"
 	"github.com/zendev-sh/goai"
+
+	cb "github.com/mhmdkzr/taskman/internal/codebase"
 )
 
 // Tools returns the full read+write tool set (read, edit, glob, grep, plus

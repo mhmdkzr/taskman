@@ -5,20 +5,22 @@ import (
 	"fmt"
 	"strings"
 
-	cb "github.com/mhmdkzr/taskman/internal/codebase"
 	"github.com/zendev-sh/goai"
+
+	cb "github.com/mhmdkzr/taskman/internal/codebase"
 )
 
 type grepInput struct {
-	Pattern string  `json:"pattern" jsonschema:"description=Regular expression to search for."`
-	Path    *string `json:"path,omitempty" jsonschema:"description=File or directory to search, relative to the repository root (default .)."`
+	Pattern string  `json:"pattern"           jsonschema:"description=Regular expression to search for."`
+	Path    *string `json:"path,omitempty"    jsonschema:"description=File or directory to search, relative to the repository root (default .)."`
 	Include *string `json:"include,omitempty" jsonschema:"description=Glob pattern (supports **) that matching file paths must satisfy."`
-	Limit   *int    `json:"limit,omitempty" jsonschema:"description=Maximum number of matches to return (default 100)."`
+	Limit   *int    `json:"limit,omitempty"   jsonschema:"description=Maximum number of matches to return (default 100)."`
 }
 
 // GrepTool returns the grep tool bound to repo.
 func GrepTool(repo cb.Repository) goai.Tool {
-	return goai.NewTool("grep",
+	return goai.NewTool(
+		"grep",
 		"Search files for lines matching a regular expression. Returns file:line:content matches. Searches a directory (default .) or a single file.",
 		func(ctx context.Context, in grepInput) (string, error) {
 			path := ""
@@ -49,5 +51,6 @@ func GrepTool(repo cb.Repository) goai.Tool {
 				out += fmt.Sprintf("\n... (truncated; %d matches shown)", len(matches))
 			}
 			return out, nil
-		})
+		},
+	)
 }
