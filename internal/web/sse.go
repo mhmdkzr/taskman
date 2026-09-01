@@ -1,32 +1,28 @@
 package web
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/starfederation/datastar-go/datastar"
+
+	"github.com/mhmdkzr/taskman/internal/events"
 )
 
-// sseKeepAlive is how often the SSE stream sends a comment line to keep the
-// connection alive through proxies that idle-close.
-const sseKeepAlive = 20 * time.Second
+// eventsKeepAlive is how often the stream re-renders the task list even when
+// the bus is quiet, so CLI-driven changes (add/rm) still show up and the
+// connection stays alive.
+const eventsKeepAlive = 5 * time.Second
 
-// handleEvents streams live bus events to a browser over Server-Sent Events.
-// Each event is a JSON envelope {"subject": "...", "payload": {...}} where
-// payload is the event's own JSON. Subscriptions are transient core NATS
-// subscriptions created per connection and torn down when the client leaves.
+// handleEvents is the live Datastar SSE stream. It subscribes to the bus and,
+// for every task-relevant event, re-renders the #task-list fragment and
+// patches it into the DOM. The task list is the single live-updating region;
+// the detail pane is fetched on demand via /api/tasks/{id}.
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-
 	ctx := r.Context()
 	msgs := make(chan sseMsg, 256)
 	var unsubs []func()
@@ -53,16 +49,14 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	// Flush the response headers right away so the browser opens the stream
-	// immediately instead of waiting for the first keepalive tick (which can
-	// take 20s). Without this the EventSource sits in "connecting" and some
-	// clients time out as stalled and reconnect in a loop.
-	if _, err := fmt.Fprint(w, ": connected\n\n"); err != nil {
+	sse := datastar.NewSSE(w, r)
+
+	// Patch the connection indicator immediately, then keep the list fresh.
+	if err := s.patchTaskList(sse, r); err != nil {
 		return
 	}
-	flusher.Flush()
 
-	ticker := time.NewTicker(sseKeepAlive)
+	ticker := time.NewTicker(eventsKeepAlive)
 	defer ticker.Stop()
 
 	for {
@@ -70,27 +64,61 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if _, err := fmt.Fprint(w, ": keepalive\n\n"); err != nil {
+			if err := s.patchTaskList(sse, r); err != nil {
 				return
 			}
-			flusher.Flush()
 		case m := <-msgs:
-			envelope, err := json.Marshal(struct {
-				Subject string          `json:"subject"`
-				Payload json.RawMessage `json:"payload"`
-			}{Subject: m.subject, Payload: m.data})
-			if err != nil {
-				continue
-			}
-			if _, err := fmt.Fprintf(w, "data: %s\n\n", envelope); err != nil {
+			s.handleEvent(m)
+			if err := s.patchTaskList(sse, r); err != nil {
 				return
 			}
-			flusher.Flush()
 		}
 	}
 }
 
-// sseMsg is one bus message ready to forward to an SSE client.
+// patchTaskList re-renders the #task-list fragment from the store and patches
+// it into the DOM.
+func (s *Server) patchTaskList(sse *datastar.ServerSentEventGenerator, r *http.Request) error {
+	rows, err := s.taskRows(r)
+	if err != nil {
+		slog.Error("web: task list render", "error", err)
+		return fmt.Errorf("task rows: %w", err)
+	}
+	var buf bytes.Buffer
+	if err := templates.ExecuteTemplate(&buf, "taskList", map[string]any{"Tasks": rows}); err != nil {
+		slog.Error("web: task list render", "error", err)
+		return fmt.Errorf("render task list: %w", err)
+	}
+	if err := sse.PatchElements(buf.String()); err != nil {
+		slog.Error("web: patch task list", "error", err)
+		return fmt.Errorf("patch task list: %w", err)
+	}
+	return nil
+}
+
+// handleEvent records the transient live state an event carries so the
+// fragments can render it: pipeline phases and the unified diff.
+func (s *Server) handleEvent(m sseMsg) {
+	switch m.subject {
+	case "agent.pipeline.phase":
+		var ev struct {
+			TaskID string `json:"task_id"`
+			Phase  string `json:"phase"`
+		}
+		if err := json.Unmarshal(m.data, &ev); err != nil || ev.TaskID == "" {
+			return
+		}
+		s.setPhase(ev.TaskID, ev.Phase)
+	case "agent.pipeline.diff":
+		var ev events.PipelineDiff
+		if err := json.Unmarshal(m.data, &ev); err != nil || ev.TaskID == "" {
+			return
+		}
+		s.setDiff(ev.TaskID, ev)
+	}
+}
+
+// sseMsg is one bus message ready to be handled by the live stream.
 type sseMsg struct {
 	subject string
 	data    []byte

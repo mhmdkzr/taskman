@@ -845,6 +845,10 @@ func partsText(parts []Part) string {
 	return b.String()
 }
 
+// Text returns the message's plain text: the concatenation of its text parts.
+// It is the read-side view of a message for transcripts and activity feeds.
+func (m Message) Text() string { return partsText(m.Parts) }
+
 func newIDWithTime() (id string, timestamp string) {
 	u, err := uuid.NewV7()
 	if err != nil {

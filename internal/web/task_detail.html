@@ -1,0 +1,45 @@
+{{define "taskDetail"}}<div id="detail" class="detail"
+     data-on-interval__duration.3s="$selected && @get('/api/tasks/' + $selected)">
+  <h2>{{.Task.Title}} <span class="badge {{.Task.Status}}">{{.Task.Status}}</span></h2>
+  <div style="font-family:var(--mono);font-size:12px;color:var(--muted)">{{.Task.ID}}</div>
+  {{if .Phase}}<div class="section-title" style="margin-top:12px">Phase</div><p style="margin:4px 0">{{.Phase}}</p>{{end}}
+  <div class="grid">
+    <div>
+      <div class="section-title" style="margin-top:12px">Activity</div>
+      {{if .Activity}}
+      <div class="log">
+        {{range .Activity}}
+        <div class="turn"><span class="t">turn {{.Turn}}</span> {{.Prompt}}</div>
+        {{range .Lines}}
+        <div class="entry {{.Kind}}">{{.Text}}</div>
+        {{end}}
+        {{end}}
+      </div>
+      {{else}}
+      <div class="empty">no activity yet</div>
+      {{end}}
+    </div>
+    <div>
+      <div class="section-title" style="margin-top:12px">Diff</div>
+      {{if .Diff}}
+      {{range .Diff}}
+      <div class="diff">
+        <div class="dfile"><span>{{.Name}} ({{.ChangeType}})</span><span class="dstat">+{{.Additions}}/-{{.Deletions}}</span></div>
+        <pre>{{range .Lines}}<span class="{{.Class}}">{{.Text}}</span>
+{{end}}</pre>
+      </div>
+      {{end}}
+      {{else}}
+      <div class="empty">no changes yet</div>
+      {{end}}
+    </div>
+  </div>
+  <div class="section-title" style="margin-top:16px">Spec</div>
+  <div class="spec">
+    <h3>What</h3><p>{{.Task.What}}</p>
+    <h3>Why</h3><p>{{.Task.Why}}</p>
+    <h3>How</h3><p>{{.Task.How}}</p>
+    {{if .Task.CommitMessage}}<h3>Commit</h3><p>{{.Task.CommitType}}: {{.Task.CommitMessage}}</p>{{end}}
+    {{if .Task.CommitHash}}<h3>Commit hash</h3><p style="font-family:var(--mono);font-size:12px">{{.Task.CommitHash}}</p>{{end}}
+  </div>
+</div>{{end}}

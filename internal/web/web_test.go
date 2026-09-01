@@ -3,7 +3,6 @@ package web
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -37,7 +36,7 @@ func newTestServer(t *testing.T) (*Server, *store.Store, publisher.Publisher) {
 	if err != nil {
 		t.Fatalf("connect publisher: %v", err)
 	}
-	return &Server{store: st, pub: pub}, st, pub
+	return &Server{store: st, pub: pub, phases: map[string]string{}, diffs: map[string]events.PipelineDiff{}}, st, pub
 }
 
 func insertTestTask(t *testing.T, db *sql.DB) task.Task {
@@ -61,16 +60,6 @@ func insertTestTask(t *testing.T, db *sql.DB) task.Task {
 	return tk
 }
 
-func get(t *testing.T, srv *Server, path string) *httptest.ResponseRecorder {
-	t.Helper()
-	req := httptest.NewRequest(http.MethodGet, path, nil)
-	rec := httptest.NewRecorder()
-	srv.routesHandler().ServeHTTP(rec, req)
-	return rec
-}
-
-// routesHandler wraps the server's routes in a bare mux for tests, since the
-// real app mux applies BasePath centrally.
 func (s *Server) routesHandler() http.Handler {
 	mux := http.NewServeMux()
 	for _, r := range s.Routes() {
@@ -79,42 +68,29 @@ func (s *Server) routesHandler() http.Handler {
 	return mux
 }
 
-func TestIndexRendersTasks(t *testing.T) {
+func TestIndexRendersTaskList(t *testing.T) {
 	srv, st, _ := newTestServer(t)
 	insertTestTask(t, st.RW())
 
-	rec := get(t, srv, "/")
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	srv.routesHandler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("GET / = %d, want 200", rec.Code)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "Fix nil pointer") {
-		t.Errorf("index does not render task title:\n%s", body)
+	for _, want := range []string{"Fix nil pointer", "data-signals", "datastar.js", "id=\"task-list\""} {
+		if !strings.Contains(body, want) {
+			t.Errorf("index missing %q", want)
+		}
 	}
 	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/html") {
-		t.Errorf("index is not HTML content type: %s", ct)
-	}
-}
-
-func TestOverviewReturnsTasks(t *testing.T) {
-	srv, st, _ := newTestServer(t)
-	tk := insertTestTask(t, st.RW())
-
-	rec := get(t, srv, "/api/overview")
-	if rec.Code != http.StatusOK {
-		t.Fatalf("GET /api/overview = %d, want 200", rec.Code)
-	}
-	var ov overview
-	if err := json.Unmarshal(rec.Body.Bytes(), &ov); err != nil {
-		t.Fatalf("decode overview: %v", err)
-	}
-	if len(ov.Tasks) != 1 || ov.Tasks[0].ID != tk.ID {
-		t.Errorf("overview tasks = %+v, want the inserted task", ov.Tasks)
+		t.Errorf("index content type = %q, want text/html", ct)
 	}
 }
 
 // TestNoCommandRoutes verifies the dashboard is read-only: there is no route
-// to trigger a run from the browser.
+// that would trigger a run from the browser.
 func TestNoCommandRoutes(t *testing.T) {
 	srv, _, _ := newTestServer(t)
 	req := httptest.NewRequest(http.MethodPost, "/api/commands", strings.NewReader(`{"task_ids":["abc"]}`))
@@ -125,9 +101,47 @@ func TestNoCommandRoutes(t *testing.T) {
 	}
 }
 
-// TestEventsStreamsLiveEvents verifies /events is an SSE stream that forwards
-// a published pipeline event to the client.
-func TestEventsStreamsLiveEvents(t *testing.T) {
+// TestTaskListFragmentRendersTasks verifies /api/tasks returns the task list
+// fragment with the inserted task.
+func TestTaskListFragmentRendersTasks(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	insertTestTask(t, st.RW())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/tasks", nil)
+	rec := httptest.NewRecorder()
+	srv.routesHandler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /api/tasks = %d, want 200", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "Fix nil pointer") {
+		t.Errorf("task list fragment missing task:\n%s", rec.Body.String())
+	}
+}
+
+// TestTaskDetailFragment verifies /api/tasks/{id} renders the detail fragment
+// for a task.
+func TestTaskDetailFragment(t *testing.T) {
+	srv, st, _ := newTestServer(t)
+	tk := insertTestTask(t, st.RW())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/tasks/"+tk.ID.String(), nil)
+	rec := httptest.NewRecorder()
+	srv.routesHandler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /api/tasks/{id} = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{"id=\"detail\"", "Fix nil pointer", "Guard against a nil client"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("detail fragment missing %q", want)
+		}
+	}
+}
+
+// TestEventsStreamPatchesLiveEvents verifies /events is a Datastar SSE stream:
+// it emits a datastar-patch-elements event carrying the task list after a
+// pipeline phase is published.
+func TestEventsStreamPatchesLiveEvents(t *testing.T) {
 	srv, _, pub := newTestServer(t)
 
 	req := httptest.NewRequest(http.MethodGet, "/events", nil)
@@ -141,8 +155,7 @@ func TestEventsStreamsLiveEvents(t *testing.T) {
 		srv.routesHandler().ServeHTTP(rec, req)
 	}()
 
-	// Give the handler time to subscribe, then publish an event.
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(150 * time.Millisecond)
 	_ = pub.Publish(context.Background(), events.PipelinePhase{
 		TaskID: "abc", Phase: "execution", Timestamp: time.Now().UTC(),
 	})
@@ -151,13 +164,10 @@ func TestEventsStreamsLiveEvents(t *testing.T) {
 	for {
 		select {
 		case <-deadline:
-			t.Fatal("event not received on SSE stream")
+			t.Fatal("no datastar patch received on SSE stream")
 		default:
 			body := rec.Body.String()
-			if strings.Contains(body, "agent.pipeline.phase") {
-				if !strings.Contains(body, "execution") {
-					t.Errorf("SSE payload missing phase value: %s", body)
-				}
+			if strings.Contains(body, "datastar-patch-elements") {
 				cancel()
 				return
 			}

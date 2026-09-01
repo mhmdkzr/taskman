@@ -1,0 +1,15 @@
+{{define "taskList"}}<div id="task-list">
+  {{range .Tasks}}
+  <div class="task" data-class:active="$selected == '{{.ID}}'"
+       data-on:click="$selected = '{{.ID}}'; @get('/api/tasks/{{.ID}}')">
+    <div class="row">
+      <span class="badge {{.Status}}">{{.Status}}</span>
+      <span class="title">{{.Title}}</span>
+    </div>
+    <div class="meta">{{.ID}} · {{.TaskType}}<br>{{.CommitHash}}</div>
+    <div class="phase">{{.Phase}}</div>
+  </div>
+  {{else}}
+  <div class="empty">no tasks</div>
+  {{end}}
+</div>{{end}}
