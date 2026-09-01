@@ -58,7 +58,6 @@ header .actions { margin-left: auto; display: flex; gap: 8px; align-items: cente
 .task .title { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .task .meta { color: var(--muted); font-size: 11px; margin-top: 4px; font-family: var(--mono); }
 .task .phase { color: var(--accent); font-size: 11px; margin-top: 4px; }
-.task input[type=checkbox] { accent-color: var(--accent); }
 .badge {
   display: inline-block; padding: 1px 7px; border-radius: 10px;
   font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
@@ -97,8 +96,6 @@ button {
 }
 button:hover { border-color: var(--accent); }
 button:disabled { opacity: 0.5; cursor: default; }
-button.run { background: var(--accent); color: #08121f; border-color: var(--accent); font-weight: 600; }
-button.run:disabled { background: var(--bg3); color: var(--muted); border-color: var(--border); }
 .sessions { margin-top: 16px; }
 .sessions .session { border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; background: var(--bg3); }
 .sessions .session .row { display: flex; gap: 8px; font-family: var(--mono); font-size: 12px; }
@@ -114,7 +111,6 @@ button.run:disabled { background: var(--bg3); color: var(--muted); border-color:
   <span class="status" id="status">connecting…</span>
   <div class="actions">
     <span id="count" class="status"></span>
-    <button class="run" id="run-selected" disabled>Run selected</button>
   </div>
 </header>
 <div class="layout">
@@ -124,7 +120,6 @@ button.run:disabled { background: var(--bg3); color: var(--muted); border-color:
       {{range .Tasks}}
       <div class="task" data-id="{{.ID}}">
         <div class="row">
-          <input type="checkbox" class="pick" value="{{.ID}}">
           <span class="badge {{.Status}}">{{.Status}}</span>
           <span class="title">{{.Title}}</span>
         </div>
@@ -149,7 +144,6 @@ const detailEl = document.getElementById('detail');
 const connDot = document.getElementById('conn');
 const statusEl = document.getElementById('status');
 const countEl = document.getElementById('count');
-const runBtn = document.getElementById('run-selected');
 
 // state: task id -> {phase, diff, logs[]}
 const state = new Map();
@@ -226,7 +220,6 @@ async function loadOverview() {
     state.get(t.id).commit = t.commit_hash;
     renderTask(t.id);
   }
-  updateRunBtn();
 }
 
 // ── SSE ────────────────────────────────────────────────────────────────────
@@ -268,37 +261,14 @@ function connect() {
       log(p.session_id, 'turn', esc((p.text || '').slice(0, 160)));
     } else if (subject === 'agent.generation.finished') {
       log(p.session_id, 'gen', esc(`steps=${p.total_steps} reason=${esc(p.finish_reason)}`));
-    } else if (subject === 'taskman.command.run') {
-      log('', 'cmd', esc(`run requested for ${(p.task_ids || []).join(', ')}`));
     }
   };
   return es;
 }
 
-function selectedIds() {
-  return [...tasksEl.querySelectorAll('.pick:checked')].map(c => c.value);
-}
-function updateRunBtn() {
-  runBtn.disabled = selectedIds().length === 0;
-}
-async function runSelected() {
-  const ids = selectedIds();
-  runBtn.disabled = true;
-  const r = await fetch('/api/commands', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ task_ids: ids }),
-  });
-  if (!r.ok) statusEl.textContent = 'command failed: ' + (await r.text());
-  else statusEl.textContent = 'run requested';
-  setTimeout(updateRunBtn, 1500);
-}
-
-tasksEl.addEventListener('change', updateRunBtn);
-runBtn.addEventListener('click', runSelected);
 tasksEl.addEventListener('click', (e) => {
   const card = e.target.closest('.task');
-  if (!card || e.target.classList.contains('pick')) return;
+  if (!card) return;
   tasksEl.querySelectorAll('.task').forEach(t => t.classList.remove('active'));
   card.classList.add('active');
   selected = card.dataset.id;

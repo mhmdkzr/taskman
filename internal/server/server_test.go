@@ -112,13 +112,22 @@ func newTestServer(t *testing.T) (*Server, *testClient) {
 		t.Fatalf("ConnectOn: %v", err)
 	}
 
+	st, err := store.Open(filepath.Join(t.TempDir(), "taskman.db"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { st.Close() })
+	if err := store.Migrate(st.RW()); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
 	opts := agent.Options{
-		Config: config.AgentConfig{DBPath: filepath.Join(t.TempDir(), "taskman.db")},
+		Config: config.AgentConfig{DBPath: ""},
 		Model:  "fake-model",
 	}
 	opts.SetModelForTesting(&fakeModel{})
 
-	srv, err := New(opts, pub)
+	srv, err := New(opts, pub, st)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

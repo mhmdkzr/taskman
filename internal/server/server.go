@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/mhmdkzr/taskman/internal/agent"
-	"github.com/mhmdkzr/taskman/internal/config"
 	"github.com/mhmdkzr/taskman/internal/protocol"
 	"github.com/mhmdkzr/taskman/internal/publisher"
 	"github.com/mhmdkzr/taskman/internal/scheduler"
@@ -43,36 +42,23 @@ type Server struct {
 	started  time.Time
 }
 
-// New assembles the server runtime: the store, the durable scheduler, the
-// shared tool set (and sub-agent runner), and the scheduled-run consumer. opts
-// carries the provider config and defaults; pub carries the NATS connection
-// the server replies on (pub.Conn()).
-func New(opts agent.Options, pub publisher.Publisher) (*Server, error) {
+// New assembles the server runtime from the shared store and publisher: the
+// durable scheduler, the shared tool set (and sub-agent runner), and the
+// scheduled-run consumer. opts carries the provider config and defaults; pub
+// carries the NATS connection the server replies on (pub.Conn()). st is the
+// process-wide store — the server shares it (read/write) rather than owning a
+// private copy, so Close does not close it.
+func New(opts agent.Options, pub publisher.Publisher, st *store.Store) (*Server, error) {
 	if pub.Conn() == nil {
 		return nil, errors.New("server: publisher has no NATS connection")
 	}
-	if opts.Config.DBPath == "" {
-		opts.Config.DBPath = config.DefaultDBPath
-	}
-	dbPath, err := config.ExpandHome(opts.Config.DBPath)
-	if err != nil {
-		return nil, fmt.Errorf("server: db path: %w", err)
-	}
-	opts.Config.DBPath = dbPath
-
-	st, err := store.Open(dbPath)
-	if err != nil {
-		return nil, fmt.Errorf("server: open store: %w", err)
-	}
-	if err := store.Migrate(st.RW()); err != nil {
-		st.Close()
-		return nil, fmt.Errorf("server: migrate: %w", err)
+	if st == nil {
+		return nil, errors.New("server: store is required")
 	}
 
 	sched := scheduler.New(st.RW(), pub, 0)
 	tools, runner, err := agent.DefaultTools(st, pub, opts)
 	if err != nil {
-		st.Close()
 		return nil, fmt.Errorf("server: build tools: %w", err)
 	}
 	consumer := agent.NewConsumerWithTools(st, opts, pub, 1, tools, runner)
@@ -89,10 +75,11 @@ func New(opts agent.Options, pub publisher.Publisher) (*Server, error) {
 	}, nil
 }
 
-// Close releases the store. It does not close the NATS connection; the caller
-// owns that.
+// Close stops the runtime's background work. The store is shared with the
+// rest of the process (see New), so Close does not close it — the process
+// owns its lifecycle.
 func (s *Server) Close() error {
-	return s.st.Close()
+	return nil
 }
 
 // Run serves the server until ctx is cancelled: it starts the scheduler and

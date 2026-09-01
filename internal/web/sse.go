@@ -1,17 +1,11 @@
 package web
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
-	"uuid"
-
-	"github.com/mhmdkzr/taskman/internal/events"
-	"github.com/mhmdkzr/taskman/internal/pipeline"
-	"github.com/mhmdkzr/taskman/internal/task"
 )
 
 // sseKeepAlive is how often the SSE stream sends a comment line to keep the
@@ -36,8 +30,8 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	msgs := make(chan sseMsg, 256)
 	var unsubs []func()
-	for _, subject := range []string{"agent.>", "scheduler.>", events.CommandRunSubject} {
-		unsub, err := s.cfg.Pub.SubscribeCore(subject, func(subject string, data []byte) {
+	for _, subject := range []string{"agent.>", "scheduler.>"} {
+		unsub, err := s.pub.SubscribeCore(subject, func(subject string, data []byte) {
 			select {
 			case msgs <- sseMsg{subject: subject, data: data}:
 			default:
@@ -58,6 +52,15 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			u()
 		}
 	}()
+
+	// Flush the response headers right away so the browser opens the stream
+	// immediately instead of waiting for the first keepalive tick (which can
+	// take 20s). Without this the EventSource sits in "connecting" and some
+	// clients time out as stalled and reconnect in a loop.
+	if _, err := fmt.Fprint(w, ": connected\n\n"); err != nil {
+		return
+	}
+	flusher.Flush()
 
 	ticker := time.NewTicker(sseKeepAlive)
 	defer ticker.Stop()
@@ -91,49 +94,4 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 type sseMsg struct {
 	subject string
 	data    []byte
-}
-
-// serveCommands runs the command consumer until ctx is cancelled: it listens
-// for RunCommand requests on the core command subject and executes each task
-// through the pipeline. It returns a stop func that unsubscribes and blocks
-// until the consumer has shut down.
-func (s *Server) serveCommands(ctx context.Context) (func(), error) {
-	stop, err := s.cfg.Pub.SubscribeCore(events.CommandRunSubject, func(_ string, data []byte) {
-		var cmd events.RunCommand
-		if err := json.Unmarshal(data, &cmd); err != nil {
-			slog.Error("web: bad run command", "error", err)
-			return
-		}
-		for _, id := range cmd.TaskIDs {
-			go s.runCommandTask(ctx, id)
-		}
-	})
-	if err != nil {
-		return nil, fmt.Errorf("subscribe commands: %w", err)
-	}
-	return func() {
-		stop()
-	}, nil
-}
-
-// runCommandTask executes one task id from a RunCommand. Each command task
-// runs in its own goroutine and its own worktree (see pipeline.RunTask), so
-// concurrent commands run concurrently.
-func (s *Server) runCommandTask(ctx context.Context, rawID string) {
-	id, err := uuid.Parse(rawID)
-	if err != nil {
-		slog.Error("web: invalid task id in command", "id", rawID, "error", err)
-		return
-	}
-	t, err := task.GetTask(ctx, s.cfg.Store.RW(), id)
-	if err != nil {
-		slog.Error("web: get task for command", "task_id", id, "error", err)
-		return
-	}
-	start := time.Now()
-	if _, err := pipeline.RunTask(ctx, s.cfg.Pipeline, *t); err != nil {
-		slog.Error("web: command run failed", "task_id", id, "error", err, "elapsed", time.Since(start))
-		return
-	}
-	slog.Info("web: command run finished", "task_id", id, "elapsed", time.Since(start))
 }

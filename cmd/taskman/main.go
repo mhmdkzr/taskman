@@ -11,26 +11,20 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 	"uuid"
 
 	"github.com/caarlos0/env/v11"
 	"github.com/joho/godotenv"
 	"github.com/nats-io/nats.go"
-	"github.com/nats-io/nats.go/jetstream"
 
-	"github.com/mhmdkzr/taskman/internal/codebase"
 	"github.com/mhmdkzr/taskman/internal/config"
-	"github.com/mhmdkzr/taskman/internal/pipeline"
+	"github.com/mhmdkzr/taskman/internal/events"
 	"github.com/mhmdkzr/taskman/internal/publisher"
 	"github.com/mhmdkzr/taskman/internal/store"
-	"github.com/mhmdkzr/taskman/internal/streams"
 	"github.com/mhmdkzr/taskman/internal/task"
-	"github.com/mhmdkzr/taskman/internal/web"
 )
 
 func main() {
@@ -49,8 +43,6 @@ func main() {
 		err = cmdShow(os.Args[2:])
 	case "run":
 		err = cmdRun(os.Args[2:])
-	case "web", "-web":
-		err = cmdWeb(os.Args[2:])
 	case "reset":
 		err = cmdReset(os.Args[2:])
 	case "-h", "--help", "help":
@@ -75,9 +67,8 @@ Usage:
   taskman add [flags]     file a new task
   taskman list [-status s] list tasks, optionally filtered by status
   taskman show <id>       print one task in full, as JSON
-  taskman run <id> [<id> ...] [flags] run the pipeline for one or more tasks (concurrently)
+  taskman run <id> [<id> ...] [flags] send a run command to the server for one or more tasks
   taskman reset <id>      return a stuck task to created so it can be re-run
-  taskman web [-addr] [flags] serve the read-only realtime dashboard (blocking)
 
 Run "taskman <command> -h" for a command's flags.
 `,
@@ -271,11 +262,6 @@ func cmdReset(args []string) error {
 func cmdRun(args []string) error {
 	fs := flag.NewFlagSet("run", flag.ExitOnError)
 	sourceDir := fs.String("source", ".", "git repository to run the task against")
-	workDir := fs.String(
-		"workdir",
-		"",
-		"parent directory for each task's isolated worktree (default: a fresh temp dir)",
-	)
 	maxFixupRounds := fs.Int(
 		"max-fixup-rounds",
 		0,
@@ -288,205 +274,55 @@ func cmdRun(args []string) error {
 	if len(rawIDs) == 0 {
 		return fmt.Errorf("usage: taskman run <id> [<id> ...] [flags]")
 	}
-	ids := make([]uuid.UUID, 0, len(rawIDs))
+	ids := make([]string, 0, len(rawIDs))
 	for _, rawID := range rawIDs {
-		id, err := uuid.Parse(rawID)
-		if err != nil {
+		if _, err := uuid.Parse(rawID); err != nil {
 			return fmt.Errorf("invalid task id %q: %w", rawID, err)
 		}
-		ids = append(ids, id)
-	}
-
-	agentCfg, err := loadAgentConfig()
-	if err != nil {
-		return fmt.Errorf("load agent config: %w", err)
-	}
-	if agentCfg.Provider.BaseURL == "" || agentCfg.Provider.APIKey == "" {
-		return fmt.Errorf(
-			"AGENT_PROVIDER_BASE_URL and AGENT_PROVIDER_API_KEY must be set to run a task",
-		)
-	}
-
-	st, err := store.Open(agentCfg.DBPath)
-	if err != nil {
-		return fmt.Errorf("open store: %w", err)
-	}
-	defer closeQuietly(st)
-	if err := store.Migrate(st.RW()); err != nil {
-		return fmt.Errorf("migrate store: %w", err)
-	}
-
-	tasks := make([]task.Task, 0, len(ids))
-	for _, id := range ids {
-		t, err := task.GetTask(context.Background(), st.RW(), id)
-		if err != nil {
-			return fmt.Errorf("get task %s: %w", id, err)
-		}
-		tasks = append(tasks, *t)
+		ids = append(ids, rawID)
 	}
 
 	source, err := filepath.Abs(*sourceDir)
 	if err != nil {
 		return fmt.Errorf("resolve source dir: %w", err)
 	}
-	work := *workDir
-	if work == "" {
-		work, err = os.MkdirTemp("", "taskman-run-")
-		if err != nil {
-			return fmt.Errorf("create work dir: %w", err)
-		}
-	}
 
-	pub, closeNATS := connectPublisher()
-	defer closeNATS()
-
-	cfg := pipeline.Config{
-		Store:     st,
-		Publisher: pub,
-		Agent:     agentCfg,
-		SourceDir: source,
-		WorkDir:   work,
-		Author: codebase.AuthorSignature{
-			Name:  "taskman-pipeline",
-			Email: "pipeline@taskman.local",
-		},
-		MaxFixupRounds: *maxFixupRounds,
-	}
-
-	fmt.Printf("running %d task(s) against %s (worktrees under %s)...\n", len(tasks), source, work)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	type outcome struct {
-		id     uuid.UUID
-		result *pipeline.Result
-		err    error
-	}
-	results := make(chan outcome, len(tasks))
-	for _, t := range tasks {
-		go func(t task.Task) {
-			res, err := pipeline.RunTask(ctx, cfg, t)
-			results <- outcome{id: t.ID, result: res, err: err}
-		}(t)
-	}
-
-	var failures int
-	for range tasks {
-		o := <-results
-		if o.err != nil {
-			failures++
-			fmt.Fprintf(os.Stderr, "task %s failed: %v\n", o.id, o.err)
-			continue
-		}
-		fmt.Printf("task %s:\n", o.id)
-		fmt.Printf("  commit:            %s\n", o.result.CommitHash)
-		fmt.Printf("  execution session: %s\n", o.result.ExecutionSessionID)
-		fmt.Printf("  review session:    %s\n", o.result.ReviewSessionID)
-	}
-	if failures > 0 {
-		return fmt.Errorf("%d of %d task(s) failed", failures, len(tasks))
-	}
-	return nil
-}
-
-// cmdWeb serves the read-only realtime dashboard (see internal/web) and
-// blocks until interrupted. Commands posted to it (e.g. run tasks) are
-// executed through the pipeline, so it also needs a provider and a source
-// repository, like `run`.
-func cmdWeb(args []string) error {
-	fs := flag.NewFlagSet("web", flag.ExitOnError)
-	addr := fs.String("addr", "127.0.0.1:8080", "address to listen on")
-	sourceDir := fs.String("source", ".", "git repository to run tasks against")
-	workDir := fs.String(
-		"workdir",
-		"",
-		"parent directory for each task's isolated worktree (default: a fresh temp dir)",
-	)
-	maxFixupRounds := fs.Int(
-		"max-fixup-rounds",
-		0,
-		"cap on lint/review fixup rounds per phase (default: pipeline's own default)",
-	)
-	if err := fs.Parse(args); err != nil {
+	pub, closeNATS, err := connectPublisherRequired()
+	if err != nil {
 		return err
 	}
-
-	agentCfg, err := loadAgentConfig()
-	if err != nil {
-		return fmt.Errorf("load agent config: %w", err)
-	}
-	if agentCfg.Provider.BaseURL == "" || agentCfg.Provider.APIKey == "" {
-		return fmt.Errorf(
-			"AGENT_PROVIDER_BASE_URL and AGENT_PROVIDER_API_KEY must be set to run tasks from the web UI",
-		)
-	}
-
-	st, err := store.Open(agentCfg.DBPath)
-	if err != nil {
-		return fmt.Errorf("open store: %w", err)
-	}
-	defer closeQuietly(st)
-	if err := store.Migrate(st.RW()); err != nil {
-		return fmt.Errorf("migrate store: %w", err)
-	}
-
-	source, err := filepath.Abs(*sourceDir)
-	if err != nil {
-		return fmt.Errorf("resolve source dir: %w", err)
-	}
-	work := *workDir
-	if work == "" {
-		work, err = os.MkdirTemp("", "taskman-web-")
-		if err != nil {
-			return fmt.Errorf("create work dir: %w", err)
-		}
-	}
-
-	pub, closeNATS := connectPublisher()
 	defer closeNATS()
 
-	pipeCfg := pipeline.Config{
-		Store:     st,
-		Publisher: pub,
-		Agent:     agentCfg,
-		SourceDir: source,
-		WorkDir:   work,
-		Author: codebase.AuthorSignature{
-			Name:  "taskman-pipeline",
-			Email: "pipeline@taskman.local",
-		},
+	cmd := events.RunCommand{
+		TaskIDs:        ids,
+		Source:         source,
 		MaxFixupRounds: *maxFixupRounds,
 	}
-
-	srv, err := web.New(web.Config{
-		Addr:     *addr,
-		Store:    st,
-		Pub:      pub,
-		Pipeline: pipeCfg,
-	})
+	data, err := json.Marshal(cmd)
 	if err != nil {
-		return fmt.Errorf("web: %w", err)
+		return fmt.Errorf("marshal run command: %w", err)
+	}
+	if err := pub.PublishCore(events.CommandRunSubject, data); err != nil {
+		return fmt.Errorf("send run command: %w (is the server running?)", err)
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	return srv.Run(ctx)
+	fmt.Printf(
+		"run command sent to the server for %d task(s) (source %s); watch them on the dashboard\n",
+		len(ids),
+		source,
+	)
+	return nil
 }
 
 // defaultNATSURL matches the URL docker compose exposes NATS on locally (see
 // .env.example); NATS_URL overrides it.
 const defaultNATSURL = "nats://127.0.0.1:4222"
 
-// connectPublisher best-effort connects to NATS and ensures the agent/
-// scheduler event streams exist, returning a live Publisher on success. NATS
-// is optional for `run`: on any failure to connect, init JetStream, or
-// create streams, it reports why to stderr and returns a zero-value
-// Publisher instead — every Publish call through that is a no-op (see
-// Session.publish's best-effort error handling), so the task still runs,
-// just without live event visibility. The returned func closes the
-// connection, if one was made; always defer it.
-func connectPublisher() (publisher.Publisher, func()) {
+// connectPublisherRequired connects to NATS and returns a live Publisher,
+// erroring out (rather than degrading) if NATS is unreachable — `run` must
+// deliver its command. The returned func closes the connection; always defer
+// it.
+func connectPublisherRequired() (publisher.Publisher, func(), error) {
 	natsURL := os.Getenv("NATS_URL")
 	if natsURL == "" {
 		natsURL = defaultNATSURL
@@ -494,24 +330,9 @@ func connectPublisher() (publisher.Publisher, func()) {
 
 	nc, err := nats.Connect(natsURL, nats.Timeout(2*time.Second))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "taskman: NATS not reachable at %s, continuing without live events: %v\n", natsURL, err)
-		return publisher.Publisher{}, func() {}
+		return publisher.Publisher{}, func() {}, fmt.Errorf("connect nats at %s: %w", natsURL, err)
 	}
-
-	js, err := jetstream.New(nc)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "taskman: jetstream init failed, continuing without live events: %v\n", err)
-		nc.Close()
-		return publisher.Publisher{}, func() {}
-	}
-	if err := streams.CreateStreams(context.Background(), js); err != nil {
-		fmt.Fprintf(os.Stderr, "taskman: create streams failed, continuing without live events: %v\n", err)
-		nc.Close()
-		return publisher.Publisher{}, func() {}
-	}
-
-	fmt.Printf("connected to NATS at %s (publishing agent.>/scheduler.> events)\n", natsURL)
-	return publisher.NewPublisher(nc), nc.Close
+	return publisher.NewPublisher(nc), nc.Close, nil
 }
 
 // envConfig mirrors config.Config's Agent field so AgentConfig's env tags

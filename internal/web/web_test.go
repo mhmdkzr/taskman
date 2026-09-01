@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -38,11 +37,7 @@ func newTestServer(t *testing.T) (*Server, *store.Store, publisher.Publisher) {
 	if err != nil {
 		t.Fatalf("connect publisher: %v", err)
 	}
-	srv, err := New(Config{Addr: "127.0.0.1:0", Store: st, Pub: pub})
-	if err != nil {
-		t.Fatalf("new web server: %v", err)
-	}
-	return srv, st, pub
+	return &Server{store: st, pub: pub}, st, pub
 }
 
 func insertTestTask(t *testing.T, db *sql.DB) task.Task {
@@ -70,8 +65,18 @@ func get(t *testing.T, srv *Server, path string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	rec := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(rec, req)
+	srv.routesHandler().ServeHTTP(rec, req)
 	return rec
+}
+
+// routesHandler wraps the server's routes in a bare mux for tests, since the
+// real app mux applies BasePath centrally.
+func (s *Server) routesHandler() http.Handler {
+	mux := http.NewServeMux()
+	for _, r := range s.Routes() {
+		mux.HandleFunc(r.Method+" "+r.Path, r.Handler)
+	}
+	return mux
 }
 
 func TestIndexRendersTasks(t *testing.T) {
@@ -108,54 +113,15 @@ func TestOverviewReturnsTasks(t *testing.T) {
 	}
 }
 
-// TestCommandsPublishForwardsToBus verifies POST /api/commands publishes a
-// RunCommand on the core command subject, which a subscriber can observe.
-func TestCommandsPublishForwardsToBus(t *testing.T) {
-	srv, st, pub := newTestServer(t)
-	tk := insertTestTask(t, st.RW())
-
-	got := make(chan []byte, 1)
-	unsub, err := pub.SubscribeCore(events.CommandRunSubject, func(_ string, data []byte) {
-		select {
-		case got <- data:
-		default:
-		}
-	})
-	if err != nil {
-		t.Fatalf("subscribe command subject: %v", err)
-	}
-	defer unsub()
-
-	body := strings.NewReader(fmt.Sprintf(`{"task_ids":[%q]}`, tk.ID))
-	req := httptest.NewRequest(http.MethodPost, "/api/commands", body)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusAccepted {
-		t.Fatalf("POST /api/commands = %d, want 202", rec.Code)
-	}
-
-	select {
-	case data := <-got:
-		var cmd events.RunCommand
-		if err := json.Unmarshal(data, &cmd); err != nil {
-			t.Fatalf("decode command: %v", err)
-		}
-		if len(cmd.TaskIDs) != 1 || cmd.TaskIDs[0] != tk.ID.String() {
-			t.Errorf("command task ids = %v, want [%s]", cmd.TaskIDs, tk.ID)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("no command observed on the bus")
-	}
-}
-
-func TestCommandsRejectsEmpty(t *testing.T) {
+// TestNoCommandRoutes verifies the dashboard is read-only: there is no route
+// to trigger a run from the browser.
+func TestNoCommandRoutes(t *testing.T) {
 	srv, _, _ := newTestServer(t)
-	req := httptest.NewRequest(http.MethodPost, "/api/commands", strings.NewReader(`{"task_ids":[]}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/commands", strings.NewReader(`{"task_ids":["abc"]}`))
 	rec := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("POST empty commands = %d, want 400", rec.Code)
+	srv.routesHandler().ServeHTTP(rec, req)
+	if rec.Code == http.StatusOK || rec.Code == http.StatusAccepted {
+		t.Fatalf("POST /api/commands = %d, want non-2xx (read-only dashboard)", rec.Code)
 	}
 }
 
@@ -172,7 +138,7 @@ func TestEventsStreamsLiveEvents(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		srv.Handler().ServeHTTP(rec, req)
+		srv.routesHandler().ServeHTTP(rec, req)
 	}()
 
 	// Give the handler time to subscribe, then publish an event.

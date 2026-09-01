@@ -9,6 +9,8 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 
 	"github.com/mhmdkzr/taskman/internal/config"
+	"github.com/mhmdkzr/taskman/internal/publisher"
+	"github.com/mhmdkzr/taskman/internal/store"
 )
 
 // App bundles the application dependencies, configuration, and HTTP mux.
@@ -20,6 +22,8 @@ type App struct {
 
 // Deps holds the shared runtime dependencies of the application.
 type Deps struct {
-	NC *nats.Conn
-	JS jetstream.JetStream
+	NC    *nats.Conn
+	JS    jetstream.JetStream
+	Store *store.Store
+	Pub   publisher.Publisher
 }

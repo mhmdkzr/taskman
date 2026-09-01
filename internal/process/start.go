@@ -15,7 +15,9 @@ import (
 	"github.com/mhmdkzr/taskman/internal/config"
 	"github.com/mhmdkzr/taskman/internal/publisher"
 	"github.com/mhmdkzr/taskman/internal/register"
+	"github.com/mhmdkzr/taskman/internal/runner"
 	"github.com/mhmdkzr/taskman/internal/server"
+	"github.com/mhmdkzr/taskman/internal/store"
 	"github.com/mhmdkzr/taskman/internal/streams"
 	"github.com/mhmdkzr/taskman/pkg/logger"
 	"github.com/mhmdkzr/taskman/pkg/middleware"
@@ -24,9 +26,11 @@ import (
 	"github.com/mhmdkzr/taskman/pkg/middleware/timeout"
 )
 
-// Start boots the application: loads config, connects NATS/JetStream, starts
-// the HTTP server and the agent runtime (store, scheduler, consumer, request
-// subscription) on the same connection.
+// Start boots the application: loads config, connects NATS/JetStream, opens
+// the shared store, starts the HTTP server (health + the read-only web
+// dashboard) and the agent runtime (scheduler, consumer, request
+// subscription) on the same connection, plus the command runner that executes
+// `taskman run` commands.
 func Start(ctx context.Context) error {
 	slog.Info("starting application")
 
@@ -60,10 +64,35 @@ func Start(ctx context.Context) error {
 	}
 	slog.Info("jetstream initialized and streams created")
 
+	pub := publisher.NewPublisher(nc)
+	if pub.Conn() == nil {
+		return fmt.Errorf("publisher has no connection")
+	}
+
+	agentCfg, err := cfg.AgentOptions()
+	if err != nil {
+		return fmt.Errorf("agent config: %w", err)
+	}
+	st, err := store.Open(agentCfg.DBPath)
+	if err != nil {
+		return fmt.Errorf("open store: %w", err)
+	}
+	defer func() {
+		if err := st.Close(); err != nil {
+			slog.Error("close store", "error", err)
+		}
+	}()
+	if err := store.Migrate(st.RW()); err != nil {
+		return fmt.Errorf("migrate store: %w", err)
+	}
+	slog.Info("store ready", "path", agentCfg.DBPath)
+
 	a := app.App{
 		Deps: app.Deps{
-			NC: nc,
-			JS: js,
+			NC:    nc,
+			JS:    js,
+			Store: st,
+			Pub:   pub,
 		},
 		Cfg: cfg,
 		Mux: http.NewServeMux(),
@@ -78,14 +107,14 @@ func Start(ctx context.Context) error {
 	)
 	httpServer, httpErrCh := startHTTPServer(applicationHandler, cfg.Server)
 
-	agentCfg, err := cfg.AgentOptions()
-	if err != nil {
-		return fmt.Errorf("agent config: %w", err)
-	}
 	agentErrCh := make(chan error, 1)
-	if err := startAgent(ctx, nc, agentCfg, agentErrCh); err != nil {
+	if err := startAgent(ctx, st, pub, agentCfg, agentErrCh); err != nil {
 		return err
 	}
+	runnerErrCh := make(chan error, 1)
+	go func() {
+		runnerErrCh <- runner.New(st, pub, agentCfg).Run(ctx)
+	}()
 
 	slog.Info("application is ready")
 
@@ -94,6 +123,10 @@ func Start(ctx context.Context) error {
 	case err := <-httpErrCh:
 		return err
 	case err := <-agentErrCh:
+		if err != nil {
+			return err
+		}
+	case err := <-runnerErrCh:
 		if err != nil {
 			return err
 		}
@@ -117,17 +150,22 @@ func Start(ctx context.Context) error {
 	return nil
 }
 
-// startAgent assembles and runs the agent runtime: the SQLite store, the
+// startAgent assembles and runs the agent runtime over the shared store: the
 // durable scheduler, the scheduled-run consumer and the request subscription.
 // It reports fatal runtime errors on errCh; on ctx cancellation the runtime
 // drains and reports nil.
-func startAgent(ctx context.Context, nc *nats.Conn, cfg config.AgentConfig, errCh chan<- error) error {
+func startAgent(
+	ctx context.Context,
+	st *store.Store,
+	pub publisher.Publisher,
+	cfg config.AgentConfig,
+	errCh chan<- error,
+) error {
 	opts, err := agent.OptionsFromConfig(cfg)
 	if err != nil {
 		return fmt.Errorf("agent options: %w", err)
 	}
-	pub := publisher.NewPublisher(nc)
-	agentServer, err := server.New(opts, pub)
+	agentServer, err := server.New(opts, pub, st)
 	if err != nil {
 		return fmt.Errorf("agent server: %w", err)
 	}

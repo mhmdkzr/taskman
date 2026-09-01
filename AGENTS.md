@@ -64,7 +64,8 @@ The application runs an LLM agent runtime alongside the HTTP server (wired in `i
 - `internal/protocol` — dependency-free client/server wire contract.
 - `internal/store` — SQLite (pure-Go `modernc.org/sqlite`), RW/RO handles, sessions as a shared message chain, fork-by-reference, schema in `migrations/schema.sql` applied idempotently (no numbering; change in place).
 - `internal/tools` — only `bash`, `files`, `spawn`, and `telegram` are registered, plus `schedule` (the `agent.run` wire contract only — no scheduling tools). `internal/tools/tools_test.go` asserts the exact tool count.
-- `internal/web` — read-only realtime dashboard (`taskman web`): renders tasks/sessions from the store, streams live bus events over SSE (`agent.>`, `scheduler.>`, plus the `taskman.command.run` command subject), and executes run commands through the pipeline. Commands are core-NATS messages (`publisher.PublishCore`/`SubscribeCore`), not stream events.
+- `internal/web` — read-only realtime dashboard served by the app HTTP server at `/`: renders tasks/sessions from the store and streams live bus events over SSE (`agent.>`, `scheduler.>`). No control surface.
+- `internal/runner` — server-side executor for the `taskman run` command: subscribes to `taskman.command.run` and drives each task through the pipeline. Commands are core-NATS messages (`publisher.PublishCore`/`SubscribeCore`), not stream events.
 
 Config comes from `AGENT_*` env vars (`config.AgentConfig`): `AGENT_PROVIDER_BASE_URL`, `AGENT_PROVIDER_API_KEY` (required), `AGENT_DB_PATH` (default `~/.taskman/taskman.db`), `AGENT_MODEL`, `AGENT_REASONING_EFFORT`, `AGENT_MAX_STEPS`, and optional `AGENT_TELEGRAM_API_KEY`/`AGENT_TELEGRAM_CHANNEL_ID` for the telegram tool. There is no config file; the old `pkg/notifier` is gone.
 
