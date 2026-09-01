@@ -208,18 +208,44 @@ function renderDetail(id) {
     </div>`;
 }
 
-// ── overview (initial load) ────────────────────────────────────────────────
+// ── overview (initial load + periodic refresh) ─────────────────────────────
 async function loadOverview() {
   const r = await fetch('/api/overview');
   if (!r.ok) return;
   const ov = await r.json();
   countEl.textContent = `${ov.tasks.length} task(s)`;
+  const known = new Set();
   for (const t of ov.tasks) {
+    known.add(t.id);
     if (!state.has(t.id)) state.set(t.id, { phase: '', diff: '', logs: [] });
-    state.get(t.id).status = t.status;
-    state.get(t.id).commit = t.commit_hash;
-    renderTask(t.id);
+    const st = state.get(t.id);
+    st.status = t.status;
+    st.commit = t.commit_hash;
+    st.title = t.title;
+    st.taskType = t.task_type;
   }
+  // Prune tasks that no longer exist.
+  for (const id of [...state.keys()]) {
+    if (!known.has(id)) state.delete(id);
+  }
+  renderTaskList();
+}
+
+// renderTaskList rebuilds the sidebar from state, preserving selection. The
+// template renders the initial list server-side; every later refresh goes
+// through here so tasks added/removed via the CLI appear live.
+function renderTaskList() {
+  const items = [...state.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  tasksEl.innerHTML = items.map(([id, st]) => `
+    <div class="task${id === selected ? ' active' : ''}" data-id="${id}">
+      <div class="row">
+        <span class="badge ${st.status || 'created'}">${st.status || 'created'}</span>
+        <span class="title">${esc(st.title || id)}</span>
+      </div>
+      <div class="meta">${esc(id)} · ${esc(st.taskType || '')}<br>${esc(st.commit || '')}</div>
+      <div class="phase">${esc(st.phase || '')}</div>
+    </div>`).join('') || '<div class="empty">no tasks</div>';
+  if (selected && state.has(selected)) renderDetail(selected);
 }
 
 // ── SSE ────────────────────────────────────────────────────────────────────
@@ -276,6 +302,7 @@ tasksEl.addEventListener('click', (e) => {
 });
 
 loadOverview();
+setInterval(loadOverview, 4000);
 const es = connect();
 </script>
 </body>
