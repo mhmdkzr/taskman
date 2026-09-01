@@ -20,6 +20,9 @@ var reviewAgent embed.FS
 //go:embed commit-agent.md
 var commitAgent embed.FS
 
+//go:embed extract.md
+var extract embed.FS
+
 func SystemPrompt() (string, error) {
 	p, err := systemPrompt.ReadFile("system-prompt.md")
 	if err != nil {
@@ -69,6 +72,21 @@ func ReviewAgent() (string, error) {
 // actual diff being committed.
 func CommitAgent() (string, error) {
 	p, err := commitAgent.ReadFile("commit-agent.md")
+	if err != nil {
+		return "", err
+	}
+	return string(p), nil
+}
+
+// Extract is the system prompt for the pipeline's structured-output
+// extraction pass: a tool-less, single-shot call that turns another agent's
+// free-text final answer into a schema-matching object. It's a separate call
+// from the agent that did the actual work — some models/endpoints can't
+// reliably combine tool-calling with a forced response schema in the same
+// request, so the tool-using turn stays plain text and this extracts
+// structure from its answer afterward.
+func Extract() (string, error) {
+	p, err := extract.ReadFile("extract.md")
 	if err != nil {
 		return "", err
 	}

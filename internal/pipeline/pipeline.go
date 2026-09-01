@@ -181,7 +181,15 @@ func RunTask(ctx context.Context, cfg Config, t task.Task) (*Result, error) {
 	}
 
 	if err := repo.Remove(); err != nil {
-		slog.Warn("pipeline: failed to remove task worktree", "task_id", t.ID, "dir", dir, "error", err)
+		slog.Warn(
+			"pipeline: failed to remove task worktree",
+			"task_id",
+			t.ID,
+			"dir",
+			dir,
+			"error",
+			err,
+		)
 	}
 
 	return &Result{
@@ -196,7 +204,10 @@ func RunTask(ctx context.Context, cfg Config, t task.Task) (*Result, error) {
 // buildExecutorOptions assembles the execution agent's Options and full
 // read+write tool set (codebase read/edit/glob/grep/build/test, the task
 // backlog, spawn, telegram — see agent.DefaultTools), scoped to dir.
-func buildExecutorOptions(cfg Config, dir string) (agent.Options, []goai.Tool, executorRunner, error) {
+func buildExecutorOptions(
+	cfg Config,
+	dir string,
+) (agent.Options, []goai.Tool, executorRunner, error) {
 	sysPrompt, err := prompts.ExecutionAgent()
 	if err != nil {
 		return agent.Options{}, nil, nil, fmt.Errorf("execution agent prompt: %w", err)
@@ -220,7 +231,11 @@ func buildExecutorOptions(cfg Config, dir string) (agent.Options, []goai.Tool, e
 // buildReviewerOptions assembles the review agent's Options and read-only
 // tool set (no edit, no task backlog, no spawn — see
 // codebasetools.ReadOnlyTools), scoped to the same worktree as the executor.
-func buildReviewerOptions(cfg Config, repo codebase.Repository, dir string) (agent.Options, []goai.Tool, error) {
+func buildReviewerOptions(
+	cfg Config,
+	repo codebase.Repository,
+	dir string,
+) (agent.Options, []goai.Tool, error) {
 	sysPrompt, err := prompts.ReviewAgent()
 	if err != nil {
 		return agent.Options{}, nil, fmt.Errorf("review agent prompt: %w", err)
@@ -247,7 +262,7 @@ type executorRunner = interface {
 // createSession pre-registers a session row for opts before any turn runs,
 // so the caller can reference the session id (e.g. task.StartTask's FK) and
 // get an accurate started_at, then run turns against it with
-// agent.ContinueSessionObject.
+// agent.ContinueSession.
 func createSession(
 	ctx context.Context,
 	cfg Config,
@@ -280,6 +295,17 @@ func createSession(
 // runExecution drives the execution agent from the task description until it
 // proposes a commit whose result also passes the automated format/lint pass,
 // retrying up to cfg.MaxFixupRounds times when lint finds something.
+//
+// The agent's own turns are plain text (agent.ContinueSession), not
+// structured output: some models/endpoints cannot reliably combine
+// tool-calling with a forced response schema in one request — verified
+// directly against this pipeline's own provider, where adding
+// response_format to an otherwise-identical, otherwise-working tool-call
+// request made the model stop calling tools entirely and fabricate an
+// answer instead, regardless of how explicit the system prompt was about
+// using tools first. So the tool-using turn stays unconstrained, and a
+// separate, tool-less extraction call (extractProposal) turns its final
+// free-text answer into the executionProposal afterward.
 func runExecution(
 	ctx context.Context,
 	cfg Config,
@@ -292,7 +318,7 @@ func runExecution(
 	prompt := taskPrompt(t)
 
 	for round := 0; ; round++ {
-		proposal, res, _, err := agent.ContinueSessionObject[executionProposal](
+		res, _, err := agent.ContinueSession(
 			ctx,
 			cfg.Store,
 			execOpts,
@@ -313,10 +339,18 @@ func runExecution(
 			return executionProposal{}, total, err
 		}
 		if report.Clean() {
-			return proposal, total, nil
+			proposal, extractUsage, err := extractProposal(ctx, cfg, res.Text)
+			if err != nil {
+				return executionProposal{}, total, err
+			}
+			return proposal, total.Add(extractUsage), nil
 		}
 		if round >= cfg.MaxFixupRounds {
-			return executionProposal{}, total, fmt.Errorf("lint still failing after %d round(s):\n%s", round+1, report)
+			return executionProposal{}, total, fmt.Errorf(
+				"lint still failing after %d round(s):\n%s",
+				round+1,
+				report,
+			)
 		}
 		prompt = fmt.Sprintf(
 			"The automated lint gate found issues after your last change. Fix them, then finish again.\n\n%s",
@@ -350,7 +384,7 @@ func runReview(
 			return reviewUsage, execFixupUsage, err
 		}
 
-		verdict, res, _, err := agent.ContinueSessionObject[reviewVerdict](
+		res, _, err := agent.ContinueSession(
 			ctx,
 			cfg.Store,
 			reviewOpts,
@@ -363,6 +397,12 @@ func runReview(
 		}
 		reviewUsage = reviewUsage.Add(res.Usage)
 
+		verdict, extractUsage, err := extractVerdict(ctx, cfg, res.Text)
+		if err != nil {
+			return reviewUsage, execFixupUsage, err
+		}
+		reviewUsage = reviewUsage.Add(extractUsage)
+
 		if verdict.Approved {
 			return reviewUsage, execFixupUsage, nil
 		}
@@ -374,8 +414,11 @@ func runReview(
 			)
 		}
 
-		fixupPrompt := fmt.Sprintf("Review feedback — address it, then finish again.\n\n%s", verdict.Feedback)
-		_, execRes, _, err := agent.ContinueSessionObject[executionProposal](
+		fixupPrompt := fmt.Sprintf(
+			"Review feedback — address it, then finish again.\n\n%s",
+			verdict.Feedback,
+		)
+		execRes, _, err := agent.ContinueSession(
 			ctx,
 			cfg.Store,
 			execOpts,
@@ -392,6 +435,66 @@ func runReview(
 			return reviewUsage, execFixupUsage, fmt.Errorf("format: %w", err)
 		}
 	}
+}
+
+// extractProposal turns the execution agent's own final free-text answer
+// into an executionProposal via a separate, tool-less structured-output
+// call (see runExecution's doc comment for why this can't just be the
+// execution agent's own response schema).
+func extractProposal(
+	ctx context.Context,
+	cfg Config,
+	text string,
+) (executionProposal, usage.TokenUsage, error) {
+	proposal, u, err := extract[executionProposal](ctx, cfg, text)
+	if err != nil {
+		return executionProposal{}, usage.TokenUsage{}, fmt.Errorf(
+			"extract execution proposal: %w",
+			err,
+		)
+	}
+	return proposal, u, nil
+}
+
+// extractVerdict turns the review agent's own final free-text answer into a
+// reviewVerdict via a separate, tool-less structured-output call.
+func extractVerdict(
+	ctx context.Context,
+	cfg Config,
+	text string,
+) (reviewVerdict, usage.TokenUsage, error) {
+	verdict, u, err := extract[reviewVerdict](ctx, cfg, text)
+	if err != nil {
+		return reviewVerdict{}, usage.TokenUsage{}, fmt.Errorf("extract review verdict: %w", err)
+	}
+	return verdict, u, nil
+}
+
+// extract runs the tool-less structured-extraction pass (prompts.Extract)
+// against text and returns the parsed T plus this call's own usage. The run
+// is persisted (agent.PersistRun) like the commit agent's, for auditability.
+func extract[T any](ctx context.Context, cfg Config, text string) (T, usage.TokenUsage, error) {
+	var zero T
+	sysPrompt, err := prompts.Extract()
+	if err != nil {
+		return zero, usage.TokenUsage{}, fmt.Errorf("extract prompt: %w", err)
+	}
+	opts := agent.Options{
+		Config:          cfg.Agent,
+		Model:           cfg.Agent.Model,
+		ReasoningEffort: agent.ReasoningEffort(cfg.Agent.ReasoningEffort),
+		MaxSteps:        1,
+		SystemPrompt:    sysPrompt,
+	}
+
+	obj, res, err := agent.RunObject[T](ctx, opts, cfg.Publisher, text, "")
+	if err != nil {
+		return zero, usage.TokenUsage{}, err
+	}
+	if _, err := agent.PersistRun(ctx, cfg.Store, opts, cfg.Publisher, text, res); err != nil {
+		return zero, usage.TokenUsage{}, fmt.Errorf("persist extraction run: %w", err)
+	}
+	return obj, res.Usage, nil
 }
 
 // runCommitAgent runs the tool-less, single-shot commit agent against the
@@ -424,7 +527,11 @@ func runCommitAgent(
 		MaxSteps:        1,
 		SystemPrompt:    sysPrompt + "\n\n" + conventions,
 	}
-	inputPrompt := fmt.Sprintf("# Task\n\n%s\n\n# Diff being committed\n\n%s", taskPrompt(t), formatDiffs(diffs))
+	inputPrompt := fmt.Sprintf(
+		"# Task\n\n%s\n\n# Diff being committed\n\n%s",
+		taskPrompt(t),
+		formatDiffs(diffs),
+	)
 
 	proposal, res, err := agent.RunObject[commitProposal](ctx, opts, cfg.Publisher, inputPrompt, "")
 	if err != nil {
@@ -502,11 +609,22 @@ func formatDiffs(diffs []codebase.Diff) string {
 	}
 	var b strings.Builder
 	for _, d := range diffs {
-		fmt.Fprintf(&b, "--- %s (%s, +%d/-%d) ---\n%s\n\n", d.Name, d.ChangeType, d.Additions, d.Deletions, d.Patch)
+		fmt.Fprintf(
+			&b,
+			"--- %s (%s, +%d/-%d) ---\n%s\n\n",
+			d.Name,
+			d.ChangeType,
+			d.Additions,
+			d.Deletions,
+			d.Patch,
+		)
 	}
 	out := strings.TrimRight(b.String(), "\n")
 	if len(out) > maxDiffChars {
-		out = out[:maxDiffChars] + fmt.Sprintf("\n... (truncated to %d chars — the diff is larger than shown)", maxDiffChars)
+		out = out[:maxDiffChars] + fmt.Sprintf(
+			"\n... (truncated to %d chars — the diff is larger than shown)",
+			maxDiffChars,
+		)
 	}
 	return out
 }

@@ -10,16 +10,34 @@ func TestScopeLintToChangedFilesDropsUnrelatedFindings(t *testing.T) {
 	root := "/repo"
 	report := codebase.LintReport{
 		VetIssues: []codebase.VetDiagnostic{
-			{Posn: codebase.Position{File: "/repo/internal/foo/foo.go", Line: 1, Column: 1}, Message: "changed file, absolute path"},
-			{Posn: codebase.Position{File: "/repo/internal/bar/bar.go", Line: 2, Column: 1}, Message: "unrelated file"},
+			{
+				Posn:    codebase.Position{File: "/repo/internal/foo/foo.go", Line: 1, Column: 1},
+				Message: "changed file, absolute path",
+			},
+			{
+				Posn:    codebase.Position{File: "/repo/internal/bar/bar.go", Line: 2, Column: 1},
+				Message: "unrelated file",
+			},
 		},
 		StaticcheckIssues: []codebase.StaticcheckFinding{
-			{Location: codebase.StaticcheckLocation{File: "/repo/internal/foo/foo.go", Line: 3}, Message: "changed file"},
-			{Location: codebase.StaticcheckLocation{File: "/repo/internal/baz/baz.go", Line: 4}, Message: "unrelated file"},
+			{
+				Location: codebase.StaticcheckLocation{File: "/repo/internal/foo/foo.go", Line: 3},
+				Message:  "changed file",
+			},
+			{
+				Location: codebase.StaticcheckLocation{File: "/repo/internal/baz/baz.go", Line: 4},
+				Message:  "unrelated file",
+			},
 		},
 		LintIssues: []codebase.GolangciLintIssue{
-			{Pos: codebase.GolangciLintPosition{Filename: "internal/foo/foo.go", Line: 5}, Text: "changed file, relative path"},
-			{Pos: codebase.GolangciLintPosition{Filename: "internal/qux/qux.go", Line: 6}, Text: "unrelated file"},
+			{
+				Pos:  codebase.GolangciLintPosition{Filename: "internal/foo/foo.go", Line: 5},
+				Text: "changed file, relative path",
+			},
+			{
+				Pos:  codebase.GolangciLintPosition{Filename: "internal/qux/qux.go", Line: 6},
+				Text: "unrelated file",
+			},
 		},
 	}
 	diffs := []codebase.Diff{

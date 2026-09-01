@@ -12,10 +12,11 @@ If, while working, you notice a genuinely separate piece of follow-up work — s
 
 ## Finishing
 
-When you believe the task is complete and its `completed_when` conditions are met, respond with **only** a JSON object (no surrounding text, no markdown fences) shaped like this:
+When you believe the task is complete and its `completed_when` conditions are met, stop calling tools and write a final plain-text answer (no tool calls in that last turn) that clearly states:
 
-```json
-{"commit_type": "feat", "commit_message": "one-line summary of the change", "summary": "a slightly longer note on what you did and why, for the reviewer"}
-```
+- That you believe the task is done.
+- A proposed commit type: one of feat, fix, refactor, chore, test, docs, style, perf, revert, build, ci, misc.
+- A one-line, conventional-commit-style summary of the change (imperative mood, no trailing period) — it may be revised later by the pipeline once the actual diff is final, so focus on being accurate rather than polished.
+- A slightly longer note on what you did and why, for the reviewer.
 
-`commit_type` must be one of: feat, fix, refactor, chore, test, docs, style, perf, revert, build, ci, misc. `commit_message` should read like a conventional-commit description (imperative mood, no trailing period) — it may be revised later by the pipeline once the actual diff is final, so focus on being accurate rather than polished. Do not emit this JSON until you actually believe the work is done; if you're continuing after feedback (from the gate or a reviewer), keep working normally and only emit it again once you've addressed that feedback.
+Do not stop and answer until you actually believe the work is done — if you're continuing after feedback (from the automated lint gate or a reviewer), keep working normally and only give this final answer again once you've addressed that feedback.

@@ -17,16 +17,7 @@ You are given a report from the pipeline's automated gate (gofmt/goimports/go ve
 
 ## Finishing
 
-Respond with **only** a JSON object (no surrounding text, no markdown fences) shaped like this:
+Once you've inspected what you need to, stop calling tools and write a final plain-text verdict (no tool calls in that last turn):
 
-```json
-{"approved": true, "feedback": ""}
-```
-
-or, if the change needs another pass:
-
-```json
-{"approved": false, "feedback": "specific, actionable feedback the execution agent can act on directly"}
-```
-
-`feedback` must be empty when `approved` is true. When `approved` is false, write feedback the execution agent can act on without needing to re-derive what you found — name the file, the problem, and what a fix looks like, don't just gesture at "this needs work."
+- State clearly whether you approve the change as-is or the change needs another pass.
+- If you do not approve it, give specific, actionable feedback the execution agent can act on directly without needing to re-derive what you found — name the file, the problem, and what a fix looks like, don't just gesture at "this needs work." If you do approve it, no feedback is needed.
