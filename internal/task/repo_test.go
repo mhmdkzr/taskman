@@ -156,6 +156,75 @@ func TestTaskLifecycle(t *testing.T) {
 	}
 }
 
+// TestResetTaskClearsLifecycleFields verifies ResetTask returns a started
+// task to created, clears every field the lifecycle transitions had set, and
+// that the task can then be started again from scratch.
+func TestResetTaskClearsLifecycleFields(t *testing.T) {
+	ctx := context.Background()
+	db := newTestDB(t)
+
+	tk := newTestTask()
+	if err := CreateTask(ctx, db, tk); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	execSessionID := newTestSessionID(t, db)
+	if err := StartTask(ctx, db, tk.ID, execSessionID); err != nil {
+		t.Fatalf("StartTask: %v", err)
+	}
+	execUsage := usage.TokenUsage{InputTokens: 100, OutputTokens: 50, TotalTokens: 150}
+	if err := CompleteTask(ctx, db, tk.ID, "fix", "Guard Send against a nil client", execUsage); err != nil {
+		t.Fatalf("CompleteTask: %v", err)
+	}
+
+	if err := ResetTask(ctx, db, tk.ID); err != nil {
+		t.Fatalf("ResetTask: %v", err)
+	}
+
+	got, err := GetTask(ctx, db, tk.ID)
+	if err != nil {
+		t.Fatalf("GetTask after reset: %v", err)
+	}
+	if got.Status != TaskStatusCreated {
+		t.Errorf("status after reset = %q, want %q", got.Status, TaskStatusCreated)
+	}
+	if got.SessionID != uuid.Nil() {
+		t.Errorf("session id after reset = %v, want nil", got.SessionID)
+	}
+	if got.CommitType != "" || got.CommitMessage != "" || got.CommitHash != "" {
+		t.Errorf("commit fields after reset = %+v", got)
+	}
+	if !got.StartedAt.IsZero() || !got.CompletedAt.IsZero() || !got.ReviewedAt.IsZero() {
+		t.Errorf("timestamps after reset = %+v", got)
+	}
+	if got.TokenUsage != (usage.TokenUsage{}) {
+		t.Errorf("token usage after reset = %+v, want zero", got.TokenUsage)
+	}
+
+	// The reset task can be started again like any freshly created one.
+	if err := StartTask(ctx, db, tk.ID, newTestSessionID(t, db)); err != nil {
+		t.Fatalf("StartTask after reset: %v", err)
+	}
+}
+
+// TestResetTaskRejectsAlreadyCreated verifies ResetTask refuses a task that
+// is already TaskStatusCreated — there is nothing to reset.
+func TestResetTaskRejectsAlreadyCreated(t *testing.T) {
+	ctx := context.Background()
+	db := newTestDB(t)
+
+	tk := newTestTask()
+	if err := CreateTask(ctx, db, tk); err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+
+	if err := ResetTask(ctx, db, tk.ID); err == nil {
+		t.Error("ResetTask on a created task: want error")
+	} else if !strings.Contains(err.Error(), "invalid transition") {
+		t.Errorf("ResetTask error = %q, want it to mention invalid transition", err)
+	}
+}
+
 // TestInvalidTransitionsRejected verifies each transition function refuses to
 // run when the task isn't in the expected prior status, and says so clearly.
 func TestInvalidTransitionsRejected(t *testing.T) {

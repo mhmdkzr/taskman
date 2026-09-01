@@ -118,6 +118,41 @@ func ReviewTask(ctx context.Context, db *sql.DB, id, reviewSessionID uuid.UUID, 
 	return requireTransition(ctx, db, id, res, TaskStatusCompleted, "review")
 }
 
+// ResetTask returns a task to TaskStatusCreated, clearing every field
+// StartTask/CompleteTask/ReviewTask set: both session ids, commit info,
+// token usage, and the started/completed/reviewed timestamps. Use it to
+// recover a task a pipeline run left stuck mid-lifecycle — e.g. the process
+// died between StartTask and CompleteTask, or the review/land phase failed
+// after CompleteTask — since there is otherwise no way back to created once
+// a task has started, and taskman run refuses to touch a task that isn't
+// TaskStatusCreated. It fails if the task is already TaskStatusCreated
+// (nothing to reset) or does not exist.
+func ResetTask(ctx context.Context, db *sql.DB, id uuid.UUID) error {
+	res, err := db.ExecContext(ctx, `
+		UPDATE tasks SET
+			status = ?, session_id = NULL, review_session_id = NULL,
+			commit_type = NULL, commit_message = NULL, commit_hash = NULL,
+			started_at = NULL, completed_at = NULL, reviewed_at = NULL,
+			tokens_input = NULL, tokens_output = NULL, tokens_total = NULL,
+			tokens_reasoning = NULL, tokens_cache_read = NULL, tokens_cache_write = NULL
+		WHERE id = ? AND status != ?`,
+		string(TaskStatusCreated), id.String(), string(TaskStatusCreated))
+	if err != nil {
+		return fmt.Errorf("reset task %s: %w", id, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("reset task %s: %w", id, err)
+	}
+	if n > 0 {
+		return nil
+	}
+	if _, getErr := GetTask(ctx, db, id); getErr != nil {
+		return fmt.Errorf("reset task %s: not found", id)
+	}
+	return fmt.Errorf("reset task %s: invalid transition — already %s", id, TaskStatusCreated)
+}
+
 // requireTransition turns a zero-rows-affected guarded UPDATE into a precise
 // error: not found, or found but not in the expected fromStatus (the actual
 // invalid-transition case this package exists to prevent).

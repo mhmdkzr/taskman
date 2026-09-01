@@ -46,6 +46,8 @@ func main() {
 		err = cmdShow(os.Args[2:])
 	case "run":
 		err = cmdRun(os.Args[2:])
+	case "reset":
+		err = cmdReset(os.Args[2:])
 	case "-h", "--help", "help":
 		usage()
 		return
@@ -68,7 +70,8 @@ Usage:
   taskman add [flags]     file a new task
   taskman list [-status s] list tasks, optionally filtered by status
   taskman show <id>       print one task in full, as JSON
-  taskman run <id> [flags] run the pipeline for one task
+  taskman run <id> [<id> ...] [flags] run the pipeline for one or more tasks (concurrently)
+  taskman reset <id>      return a stuck task to created so it can be re-run
 
 Run "taskman <command> -h" for a command's flags.
 `,
@@ -85,30 +88,26 @@ func (s *stringList) Set(v string) error {
 	return nil
 }
 
-// parseFlagsAroundOnePositional parses fs against args, tolerating exactly
-// one positional argument (e.g. a task id) in any position relative to the
+// parseFlagsAroundPositionals parses fs against args, tolerating any number
+// of positional arguments (e.g. task ids) in any position relative to the
 // flags — flag.FlagSet.Parse on its own stops at the first non-flag
 // argument, so "run <id> -source x" would silently leave -source
 // unparsed and defaulted instead of erroring, since flag.Parse treats
 // everything from the id onward as positional. This re-parses the
 // remainder after each positional argument it finds, so flags before and
-// after the id both take effect. It returns the positional argument found
-// (empty if none) and an error if more than one is given or a flag fails
-// to parse.
-func parseFlagsAroundOnePositional(fs *flag.FlagSet, args []string) (string, error) {
-	var positional string
+// after the ids both take effect. It returns the positional arguments
+// found (nil if none) or an error if a flag fails to parse.
+func parseFlagsAroundPositionals(fs *flag.FlagSet, args []string) ([]string, error) {
+	var positionals []string
 	rest := args
 	for {
 		if err := fs.Parse(rest); err != nil {
-			return "", fmt.Errorf("parse flags: %w", err)
+			return nil, fmt.Errorf("parse flags: %w", err)
 		}
 		if fs.NArg() == 0 {
-			return positional, nil
+			return positionals, nil
 		}
-		if positional != "" {
-			return "", fmt.Errorf("unexpected extra argument %q", fs.Arg(0))
-		}
-		positional = fs.Arg(0)
+		positionals = append(positionals, fs.Arg(0))
 		rest = fs.Args()[1:]
 	}
 }
@@ -238,29 +237,58 @@ func cmdShow(args []string) error {
 	return nil
 }
 
+// cmdReset returns a task stuck mid-lifecycle (e.g. a `run` that crashed
+// between phases) back to TaskStatusCreated, so `taskman run <id>` can be
+// retried. See task.ResetTask for exactly what it clears.
+func cmdReset(args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: taskman reset <id>")
+	}
+	id, err := uuid.Parse(args[0])
+	if err != nil {
+		return fmt.Errorf("invalid task id %q: %w", args[0], err)
+	}
+
+	db, err := openDB()
+	if err != nil {
+		return err
+	}
+	defer closeQuietly(db)
+
+	if err := task.ResetTask(context.Background(), db, id); err != nil {
+		return fmt.Errorf("reset task: %w", err)
+	}
+	fmt.Printf("task %s reset to %s\n", id, task.TaskStatusCreated)
+	return nil
+}
+
 func cmdRun(args []string) error {
 	fs := flag.NewFlagSet("run", flag.ExitOnError)
 	sourceDir := fs.String("source", ".", "git repository to run the task against")
 	workDir := fs.String(
 		"workdir",
 		"",
-		"parent directory for the task's isolated worktree (default: a fresh temp dir)",
+		"parent directory for each task's isolated worktree (default: a fresh temp dir)",
 	)
 	maxFixupRounds := fs.Int(
 		"max-fixup-rounds",
 		0,
 		"cap on lint/review fixup rounds per phase (default: pipeline's own default)",
 	)
-	rawID, err := parseFlagsAroundOnePositional(fs, args)
+	rawIDs, err := parseFlagsAroundPositionals(fs, args)
 	if err != nil {
 		return err
 	}
-	if rawID == "" {
-		return fmt.Errorf("usage: taskman run <id> [flags]")
+	if len(rawIDs) == 0 {
+		return fmt.Errorf("usage: taskman run <id> [<id> ...] [flags]")
 	}
-	id, err := uuid.Parse(rawID)
-	if err != nil {
-		return fmt.Errorf("invalid task id %q: %w", rawID, err)
+	ids := make([]uuid.UUID, 0, len(rawIDs))
+	for _, rawID := range rawIDs {
+		id, err := uuid.Parse(rawID)
+		if err != nil {
+			return fmt.Errorf("invalid task id %q: %w", rawID, err)
+		}
+		ids = append(ids, id)
 	}
 
 	agentCfg, err := loadAgentConfig()
@@ -282,9 +310,13 @@ func cmdRun(args []string) error {
 		return fmt.Errorf("migrate store: %w", err)
 	}
 
-	t, err := task.GetTask(context.Background(), st.RW(), id)
-	if err != nil {
-		return fmt.Errorf("get task: %w", err)
+	tasks := make([]task.Task, 0, len(ids))
+	for _, id := range ids {
+		t, err := task.GetTask(context.Background(), st.RW(), id)
+		if err != nil {
+			return fmt.Errorf("get task %s: %w", id, err)
+		}
+		tasks = append(tasks, *t)
 	}
 
 	source, err := filepath.Abs(*sourceDir)
@@ -315,15 +347,40 @@ func cmdRun(args []string) error {
 		MaxFixupRounds: *maxFixupRounds,
 	}
 
-	fmt.Printf("running task %s against %s (worktree under %s)...\n", t.ID, source, work)
-	result, err := pipeline.RunTask(context.Background(), cfg, *t)
-	if err != nil {
-		return fmt.Errorf("run task: %w", err)
+	fmt.Printf("running %d task(s) against %s (worktrees under %s)...\n", len(tasks), source, work)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	type outcome struct {
+		id     uuid.UUID
+		result *pipeline.Result
+		err    error
+	}
+	results := make(chan outcome, len(tasks))
+	for _, t := range tasks {
+		go func(t task.Task) {
+			res, err := pipeline.RunTask(ctx, cfg, t)
+			results <- outcome{id: t.ID, result: res, err: err}
+		}(t)
 	}
 
-	fmt.Printf("commit:            %s\n", result.CommitHash)
-	fmt.Printf("execution session: %s\n", result.ExecutionSessionID)
-	fmt.Printf("review session:    %s\n", result.ReviewSessionID)
+	var failures int
+	for range tasks {
+		o := <-results
+		if o.err != nil {
+			failures++
+			fmt.Fprintf(os.Stderr, "task %s failed: %v\n", o.id, o.err)
+			continue
+		}
+		fmt.Printf("task %s:\n", o.id)
+		fmt.Printf("  commit:            %s\n", o.result.CommitHash)
+		fmt.Printf("  execution session: %s\n", o.result.ExecutionSessionID)
+		fmt.Printf("  review session:    %s\n", o.result.ReviewSessionID)
+	}
+	if failures > 0 {
+		return fmt.Errorf("%d of %d task(s) failed", failures, len(tasks))
+	}
 	return nil
 }
 
