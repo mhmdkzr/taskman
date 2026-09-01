@@ -101,7 +101,11 @@ func Start(ctx context.Context) error {
 	register.RegisterRoutes(a)
 
 	applicationHandler := middleware.Chain(a.Mux,
-		timeout.New(cfg.Server.Timeout),
+		// The /events SSE stream is long-lived by design; it must not be cut
+		// off by the per-request timeout.
+		middleware.Skip(timeout.New(cfg.Server.Timeout), func(r *http.Request) bool {
+			return r.URL.Path == "/events"
+		}),
 		clientip.New(),
 		logging.New(),
 	)
@@ -190,10 +194,12 @@ func startHTTPServer(handler http.Handler, cfg config.ServerConfig) (*http.Serve
 		Addr:              cfg.BindAddr,
 		ReadHeaderTimeout: cfg.Timeout,
 		ReadTimeout:       cfg.Timeout,
-		WriteTimeout:      cfg.Timeout,
-		IdleTimeout:       cfg.Timeout,
-		MaxHeaderBytes:    1 << 20,
-		Handler:           handler,
+		// No WriteTimeout: the /events SSE stream stays open indefinitely and
+		// must not be cut off mid-stream.
+		WriteTimeout:   0,
+		IdleTimeout:    cfg.Timeout,
+		MaxHeaderBytes: 1 << 20,
+		Handler:        handler,
 	}
 	httpErrCh := make(chan error, 1)
 	go func() {
