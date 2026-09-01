@@ -14,7 +14,7 @@ import (
 // one exception is the raw connection returned by Conn, which the server uses
 // for core request/reply and server-capability reads.
 //
-// Published messages carry a dedup id in the Nats-Msg-Id header; the SCION
+// Published messages carry a dedup id in the Nats-Msg-Id header; the TASKMAN
 // stream deduplicates re-publishes of the same id within its dedup window, so
 // delivery is exactly-once.
 type Publisher struct {
@@ -74,7 +74,7 @@ func (m Message) Subject() string { return m.msg.Subject() }
 // Ack tells the stream the message was processed, so it is not redelivered.
 func (m Message) Ack() error { return m.msg.Ack() }
 
-// Subscription is an active consumption of the SCION stream. Stop drains the
+// Subscription is an active consumption of the TASKMAN stream. Stop drains the
 // subscription and waits for it to shut down.
 type Subscription struct {
 	cc jetstream.ConsumeContext
@@ -89,7 +89,7 @@ func (s *Subscription) Stop() {
 	<-s.cc.Closed()
 }
 
-// Subscribe opens a durable consumer on the SCION stream filtered to subject,
+// Subscribe opens a durable consumer on the TASKMAN stream filtered to subject,
 // delivering matching messages to handler. It is idempotent: a restart binds
 // to the existing durable consumer and resumes from where it left off.
 func (p Publisher) Subscribe(ctx context.Context, subject, name string, handler func(Message)) (*Subscription, error) {

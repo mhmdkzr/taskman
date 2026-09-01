@@ -15,7 +15,7 @@ import (
 const (
 	// StreamName is the JetStream stream that captures every message on the
 	// bus and deduplicates by MsgID within dedupWindow.
-	StreamName = "SCION"
+	StreamName = "TASKMAN"
 
 	// dedupWindow is how long the stream remembers published dedup ids, so a
 	// re-published message within that window is dropped as a duplicate.
@@ -38,7 +38,7 @@ func ConnectOn(port int) (Publisher, error) {
 
 // ConnectURL connects to an external NATS server at url — which must be
 // running with JetStream enabled — and returns a Publisher for the bus. The
-// SCION stream is added on connect, idempotently: a reconnect or restart
+// TASKMAN stream is added on connect, idempotently: a reconnect or restart
 // reuses the existing stream as-is.
 func ConnectURL(url string) (Publisher, error) {
 	nc, err := nats.Connect(url)
@@ -100,7 +100,7 @@ func checkPortFree(port int) error {
 	return l.Close()
 }
 
-// ensureStream creates the SCION stream if it does not already exist.
+// ensureStream creates the TASKMAN stream if it does not already exist.
 // CreateOrUpdateStream is idempotent, so a restart leaves it untouched.
 func ensureStream(nc *nats.Conn) error {
 	js, err := jetstream.New(nc)

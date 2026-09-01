@@ -58,7 +58,7 @@ The application runs an LLM agent runtime alongside the HTTP server (wired in `i
 
 - `internal/agent` — wraps `github.com/zendev-sh/goai` behind agent-owned types; sessions, run/persist/fork, the scheduled-run `Consumer`, and the default tool set + sub-agent `Runner`.
 - `internal/events` — every bus message type; each implements `Subject()` and `MsgID()` (deterministic content hash). New event types must implement both.
-- `internal/publisher` — sole gateway to the bus; publishes with a `Nats-Msg-Id` dedup header for exactly-once delivery. Owns the `SCION` stream (`agent.>`, `scheduler.>`, MemoryStorage, 24h dedup window) via `CreateStreams`.
+- `internal/publisher` — sole gateway to the bus; publishes with a `Nats-Msg-Id` dedup header for exactly-once delivery. Owns the `TASKMAN` stream (`agent.>`, `scheduler.>`, MemoryStorage, 24h dedup window) via `CreateStreams`.
 - `internal/scheduler` — durable one-time/recurring message delivery backed by SQLite rows.
 - `internal/server` — assembles store + scheduler + consumer and answers `run`/`ping` request/reply on `protocol.Subject` (`taskman.request`), one request at a time.
 - `internal/protocol` — dependency-free client/server wire contract.

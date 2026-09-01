@@ -7,7 +7,7 @@ import (
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-// CreateStreams creates the SCION stream that captures every message on the
+// CreateStreams creates the TASKMAN stream that captures every message on the
 // agent and scheduler subjects and deduplicates by MsgID within the dedup
 // window. It is idempotent: a restart reuses the existing stream as-is.
 func CreateStreams(ctx context.Context, js jetstream.JetStream) error {

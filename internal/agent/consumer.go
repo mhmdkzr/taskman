@@ -20,7 +20,7 @@ import (
 const consumerName = "agent-run"
 
 // Consumer runs scheduled agent runs. It consumes the agent.run subject as a
-// durable JetStream consumer on the SCION stream. The scheduler publishes each
+// durable JetStream consumer on the TASKMAN stream. The scheduler publishes each
 // message with its schedule id as the dedup id, so a re-publish (e.g. a
 // replay after a crash between publish and marking it) is dropped by the
 // stream and delivery is exactly-once. A message is acknowledged only once its
@@ -82,7 +82,7 @@ func (c *Consumer) Ready() <-chan struct{} {
 }
 
 // Run serves the consumer until ctx is cancelled: it subscribes to agent.run
-// on the SCION stream, then blocks. On cancellation it stops the subscription,
+// on the TASKMAN stream, then blocks. On cancellation it stops the subscription,
 // waits for in-flight runs to finish, and returns nil.
 func (c *Consumer) Run(ctx context.Context) error {
 	sub, err := c.pub.Subscribe(ctx, RunSubject, consumerName, func(msg publisher.Message) {

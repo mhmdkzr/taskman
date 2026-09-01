@@ -11,7 +11,7 @@ import (
 )
 
 // Subject is the NATS subject client requests are sent on and the server
-// subscribes to. It lives outside the SCION JetStream stream (which covers
+// subscribes to. It lives outside the TASKMAN JetStream stream (which covers
 // agent.> and scheduler.>), so requests stay transient request/reply.
 const Subject = "taskman.request"
 
