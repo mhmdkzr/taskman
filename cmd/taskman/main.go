@@ -45,6 +45,8 @@ func main() {
 		err = cmdRun(os.Args[2:])
 	case "reset":
 		err = cmdReset(os.Args[2:])
+	case "rm":
+		err = cmdRm(os.Args[2:])
 	case "-h", "--help", "help":
 		usage()
 		return
@@ -69,6 +71,7 @@ Usage:
   taskman show <id>       print one task in full, as JSON
   taskman run <id> [<id> ...] [flags] send a run command to the server for one or more tasks
   taskman reset <id>      return a stuck task to created so it can be re-run
+  taskman rm <id> [<id> ...] delete one or more tasks
 
 Run "taskman <command> -h" for a command's flags.
 `,
@@ -256,6 +259,31 @@ func cmdReset(args []string) error {
 		return fmt.Errorf("reset task: %w", err)
 	}
 	fmt.Printf("task %s reset to %s\n", id, task.TaskStatusCreated)
+	return nil
+}
+
+// cmdRm deletes one or more tasks by id.
+func cmdRm(args []string) error {
+	if len(args) < 1 {
+		return fmt.Errorf("usage: taskman rm <id> [<id> ...]")
+	}
+	db, err := openDB()
+	if err != nil {
+		return err
+	}
+	defer closeQuietly(db)
+
+	ctx := context.Background()
+	for _, raw := range args {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			return fmt.Errorf("invalid task id %q: %w", raw, err)
+		}
+		if err := task.DeleteTask(ctx, db, id); err != nil {
+			return fmt.Errorf("delete task %s: %w", id, err)
+		}
+		fmt.Printf("deleted task %s\n", id)
+	}
 	return nil
 }
 
