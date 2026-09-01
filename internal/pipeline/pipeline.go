@@ -89,8 +89,12 @@ type commitProposal struct {
 // its own branch, run the execution agent until its work passes the
 // automated format/lint pass, run a separate review agent (looping fixups
 // back through the execution agent on request-changes), then run a commit
-// agent against the actual diff and commit its message. On success the
-// worktree is removed; on any error it's left in place for inspection.
+// agent against the actual diff and commit its message. The resulting
+// commit is fetched back into cfg.SourceDir on the task's branch (the clone
+// itself is disposable and never pushed to or merged from directly) before
+// the worktree is removed on success; on any error it's left in place for
+// inspection. RunTask never merges the task's branch into anything — that's
+// left for a human (or a separate step) to decide.
 func RunTask(ctx context.Context, cfg Config, t task.Task) (*Result, error) {
 	cfg = cfg.normalize()
 
@@ -166,6 +170,19 @@ func RunTask(ctx context.Context, cfg Config, t task.Task) (*Result, error) {
 	commitResult, err := repo.Commit(codebase.NewCommitMessage(finalMessage), cfg.Author)
 	if err != nil {
 		return nil, fmt.Errorf("commit: %w", err)
+	}
+
+	// The clone is disposable and gets removed below on success — the
+	// commit above only really exists once it's fetched back into the
+	// source repository. Do this before anything else that could remove the
+	// clone, and never remove the clone if this fails: it would be the
+	// commit's only copy.
+	sourceRepo, err := codebase.Open(cfg.SourceDir)
+	if err != nil {
+		return nil, fmt.Errorf("open source repo: %w", err)
+	}
+	if err := sourceRepo.FetchBranch(dir, branch); err != nil {
+		return nil, fmt.Errorf("land commit in source repo: %w", err)
 	}
 
 	totalReviewUsage := reviewUsage.Add(execFixupUsage).Add(commitAgentUsage)
