@@ -22,6 +22,20 @@ var files embed.FS
 var templates = template.Must(template.New("index.html").Funcs(template.FuncMap{
 	"shortID":   func(s fmt.Stringer) string { return shorten(s.String(), 13) },
 	"shortHash": func(s string) string { return shorten(s, 8) },
+	// display returns the live pipeline phase when a task is running,
+	// otherwise its stored status — so the badge and the phase line agree.
+	"display": func(status any, phase string) string {
+		if phase != "" {
+			return phase
+		}
+		if s, ok := status.(fmt.Stringer); ok {
+			return s.String()
+		}
+		if s, ok := status.(string); ok {
+			return s
+		}
+		return fmt.Sprint(status)
+	},
 }).ParseFS(files, "*.html"))
 
 // kanbanCol is one status column of the board: a heading plus its tasks.
@@ -54,14 +68,12 @@ type sessionActivity struct {
 
 // activityTurn is one turn of a session: its prompt and the steps that follow.
 type activityTurn struct {
-	Number int
 	Prompt string
 	Steps  []activityStep
 }
 
 // activityStep is one tool-loop step within a turn.
 type activityStep struct {
-	Number    int
 	Reasoning string
 	Text      string
 	Tools     []activityTool
@@ -221,9 +233,9 @@ func (s *Server) renderSessions(r *http.Request, t *task.Task) []sessionActivity
 
 // activityFromTurn flattens one transcript turn into renderable activity.
 func activityFromTurn(turn store.TurnTranscript) activityTurn {
-	out := activityTurn{Number: turn.Turn.Number, Prompt: turn.Prompt.Text()}
+	out := activityTurn{Prompt: turn.Prompt.Text()}
 	for _, step := range turn.Steps {
-		st := activityStep{Number: step.Step.Number}
+		st := activityStep{}
 		// results are keyed by tool call id so a result lands on its call.
 		byCall := map[string]*activityTool{}
 		for _, m := range step.Messages {

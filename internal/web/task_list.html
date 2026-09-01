@@ -10,7 +10,7 @@
       <div class="task" data-class:active="$selected == '{{.ID}}'"
            data-on:click="$selected = '{{.ID}}'; @get('/api/tasks/{{.ID}}')">
         <div class="row">
-          <span class="badge {{.Status}}">{{.Status}}</span>
+          <span class="badge {{display .Status .Phase}}">{{display .Status .Phase}}</span>
           <span class="title">{{.Title}}</span>
         </div>
         <div class="meta">{{.TaskType}} · {{shortID .ID}}{{if .CommitHash}} · {{shortHash .CommitHash}}{{end}}</div>

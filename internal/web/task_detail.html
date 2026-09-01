@@ -1,6 +1,6 @@
 {{define "taskDetail"}}<div id="detail" class="detail"
      data-on-interval__duration.3s="$selected && @get('/api/tasks/' + $selected)">
-  <h2>{{.Task.Title}} <span class="badge {{.Task.Status}}">{{.Task.Status}}</span></h2>
+  <h2>{{.Task.Title}} <span class="badge {{display .Task.Status .Phase}}">{{display .Task.Status .Phase}}</span></h2>
   <div style="font-family:var(--mono);font-size:12px;color:var(--muted)">{{.Task.ID}}</div>
   {{if .Phase}}<div class="section-title" style="margin-top:12px">Phase</div><p style="margin:4px 0">{{.Phase}}</p>{{end}}
 
@@ -19,7 +19,6 @@
     <div class="session-head">{{.Label}}</div>
     {{range .Turns}}
     <div class="turn">
-      <div class="turn-head">Turn {{.Number}}</div>
       <div class="prompt">{{.Prompt}}</div>
       {{range .Steps}}
       <div class="step">

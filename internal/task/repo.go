@@ -94,13 +94,15 @@ func CompleteTask(ctx context.Context, db *sql.DB, id uuid.UUID, commitType, com
 
 // ReviewTask transitions a task from TaskStatusCompleted to
 // TaskStatusReviewed: it records the review session, the actual commit hash
-// (once the orchestrator has committed the reviewed result), adds the
-// review's token usage to the execution usage already recorded, and stamps
-// reviewed_at. It fails if the task is not currently TaskStatusCompleted.
-func ReviewTask(ctx context.Context, db *sql.DB, id, reviewSessionID uuid.UUID, commitHash string, reviewUsage usage.TokenUsage) error {
+// and the commit agent's final commit message (once the orchestrator has
+// committed the reviewed result), adds the review's token usage to the
+// execution usage already recorded, and stamps reviewed_at. It fails if the
+// task is not currently TaskStatusCompleted.
+func ReviewTask(ctx context.Context, db *sql.DB, id, reviewSessionID uuid.UUID, commitHash, commitMessage string, reviewUsage usage.TokenUsage) error {
+	commitType, subject := splitCommitMessage(commitMessage)
 	res, err := db.ExecContext(ctx, `
 		UPDATE tasks SET
-			status = ?, review_session_id = ?, commit_hash = ?, reviewed_at = ?,
+			status = ?, review_session_id = ?, commit_hash = ?, commit_type = ?, commit_message = ?, reviewed_at = ?,
 			tokens_input       = COALESCE(tokens_input, 0)       + ?,
 			tokens_output      = COALESCE(tokens_output, 0)      + ?,
 			tokens_total       = COALESCE(tokens_total, 0)       + ?,
@@ -108,7 +110,7 @@ func ReviewTask(ctx context.Context, db *sql.DB, id, reviewSessionID uuid.UUID, 
 			tokens_cache_read  = COALESCE(tokens_cache_read, 0)  + ?,
 			tokens_cache_write = COALESCE(tokens_cache_write, 0) + ?
 		WHERE id = ? AND status = ?`,
-		string(TaskStatusReviewed), reviewSessionID.String(), nullStr(commitHash), nullTime(time.Now()),
+		string(TaskStatusReviewed), reviewSessionID.String(), nullStr(commitHash), nullStr(commitType), nullStr(subject), nullTime(time.Now()),
 		reviewUsage.InputTokens, reviewUsage.OutputTokens, reviewUsage.TotalTokens,
 		reviewUsage.ReasoningTokens, reviewUsage.CacheReadTokens, reviewUsage.CacheWriteTokens,
 		id.String(), string(TaskStatusCompleted))
@@ -116,6 +118,18 @@ func ReviewTask(ctx context.Context, db *sql.DB, id, reviewSessionID uuid.UUID, 
 		return fmt.Errorf("review task %s: %w", id, err)
 	}
 	return requireTransition(ctx, db, id, res, TaskStatusCompleted, "review")
+}
+
+// splitCommitMessage splits a conventional-commit message like
+// "feat: add X" into its type and subject ("feat", "add X"). When the message
+// has no type prefix the type is "" and the whole message is the subject.
+func splitCommitMessage(msg string) (commitType, subject string) {
+	msg = strings.TrimSpace(msg)
+	idx := strings.Index(msg, ":")
+	if idx <= 0 {
+		return "", msg
+	}
+	return strings.TrimSpace(msg[:idx]), strings.TrimSpace(msg[idx+1:])
 }
 
 // ResetTask returns a task to TaskStatusCreated, clearing every field

@@ -95,19 +95,30 @@ func (s *Server) patchTaskList(sse *datastar.ServerSentEventGenerator, r *http.R
 }
 
 // handleEvent records the transient live state an event carries so the
-// fragments can render it: the current pipeline phase per task.
+// fragments can render it: the current pipeline phase per task. A phase is
+// only meaningful while the task is running; once the pipeline finishes (or
+// fails) a task, its phase is cleared so the board settles back to the
+// stored status.
 func (s *Server) handleEvent(m sseMsg) {
-	if m.subject != "agent.pipeline.phase" {
-		return
+	switch m.subject {
+	case "agent.pipeline.phase":
+		var ev struct {
+			TaskID string `json:"task_id"`
+			Phase  string `json:"phase"`
+		}
+		if err := json.Unmarshal(m.data, &ev); err != nil || ev.TaskID == "" {
+			return
+		}
+		s.setPhase(ev.TaskID, ev.Phase)
+	case "agent.pipeline.task.finished", "agent.pipeline.task.failed":
+		var ev struct {
+			TaskID string `json:"task_id"`
+		}
+		if err := json.Unmarshal(m.data, &ev); err != nil || ev.TaskID == "" {
+			return
+		}
+		s.setPhase(ev.TaskID, "")
 	}
-	var ev struct {
-		TaskID string `json:"task_id"`
-		Phase  string `json:"phase"`
-	}
-	if err := json.Unmarshal(m.data, &ev); err != nil || ev.TaskID == "" {
-		return
-	}
-	s.setPhase(ev.TaskID, ev.Phase)
 }
 
 // sseMsg is one bus message ready to be handled by the live stream.

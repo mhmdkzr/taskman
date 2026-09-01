@@ -125,7 +125,7 @@ func TestTaskLifecycle(t *testing.T) {
 
 	reviewSessionID := newTestSessionID(t, db)
 	reviewUsage := usage.TokenUsage{InputTokens: 40, OutputTokens: 10, TotalTokens: 50}
-	if err := ReviewTask(ctx, db, tk.ID, reviewSessionID, "abc123", reviewUsage); err != nil {
+	if err := ReviewTask(ctx, db, tk.ID, reviewSessionID, "abc123", "fix: guard the client", reviewUsage); err != nil {
 		t.Fatalf("ReviewTask: %v", err)
 	}
 	got, err = GetTask(ctx, db, tk.ID)
@@ -134,6 +134,9 @@ func TestTaskLifecycle(t *testing.T) {
 	}
 	if got.Status != TaskStatusReviewed || got.ReviewSessionID != reviewSessionID || got.CommitHash != "abc123" || got.ReviewedAt.IsZero() {
 		t.Errorf("after review = %+v", got)
+	}
+	if got.CommitType != "fix" || got.CommitMessage != "guard the client" {
+		t.Errorf("commit fields after review = %+v", got)
 	}
 	wantUsage := execUsage.Add(reviewUsage)
 	if got.TokenUsage != wantUsage {
@@ -242,7 +245,7 @@ func TestInvalidTransitionsRejected(t *testing.T) {
 	} else if !strings.Contains(err.Error(), "invalid transition") {
 		t.Errorf("CompleteTask error = %q, want it to mention invalid transition", err)
 	}
-	if err := ReviewTask(ctx, db, tk.ID, NewTaskID(), "hash", usage.TokenUsage{}); err == nil {
+	if err := ReviewTask(ctx, db, tk.ID, NewTaskID(), "hash", "fix: x", usage.TokenUsage{}); err == nil {
 		t.Error("ReviewTask on a created task: want error")
 	}
 
@@ -255,7 +258,7 @@ func TestInvalidTransitionsRejected(t *testing.T) {
 		t.Error("StartTask twice: want error")
 	}
 	// Can't review before completing.
-	if err := ReviewTask(ctx, db, tk.ID, NewTaskID(), "hash", usage.TokenUsage{}); err == nil {
+	if err := ReviewTask(ctx, db, tk.ID, NewTaskID(), "hash", "fix: x", usage.TokenUsage{}); err == nil {
 		t.Error("ReviewTask on a started task: want error")
 	}
 

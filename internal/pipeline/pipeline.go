@@ -237,6 +237,7 @@ func RunTask(ctx context.Context, cfg Config, t task.Task) (result *Result, err 
 		t.ID,
 		reviewSID,
 		string(commitResult.Hash),
+		finalMessage,
 		totalReviewUsage,
 	); err != nil {
 		return nil, fmt.Errorf("review task: %w", err)
