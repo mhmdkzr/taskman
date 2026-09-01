@@ -4,25 +4,28 @@ import (
 	"context"
 	"fmt"
 
-	cb "github.com/mhmdkzr/taskman/internal/codebase"
 	"github.com/zendev-sh/goai"
+
+	cb "github.com/mhmdkzr/taskman/internal/codebase"
 )
 
 type editInput struct {
-	Path string `json:"path" jsonschema:"description=Path of the file, relative to the repository root."`
-	Old  string `json:"old,omitempty" jsonschema:"description=Exact text to replace. Leave empty to create the file (if it does not exist) or append (if it does)."`
-	New  string `json:"new" jsonschema:"description=Replacement text, new file content, or text to append, depending on old and whether the file exists."`
+	Path       string `json:"path"                  jsonschema:"description=Path of the file, relative to the repository root."`
+	Old        string `json:"old,omitempty"         jsonschema:"description=Exact text to replace. Leave empty to create the file (if it does not exist) or append (if it does)."`
+	New        string `json:"new"                   jsonschema:"description=Replacement text, new file content, or text to append, depending on old and whether the file exists."`
+	ReplaceAll bool   `json:"replace_all,omitempty" jsonschema:"description=Replace every occurrence of old instead of requiring exactly one match. Use for renaming a variable/symbol throughout the file; leave false otherwise so a non-unique old is caught as an error."`
 }
 
 // EditTool returns the edit tool bound to repo: create, append, or
 // exact-match replace, chosen by whether old is set and whether the file
 // already exists (see Repository.Edit).
 func EditTool(repo cb.Repository) goai.Tool {
-	return goai.NewTool("edit",
+	return goai.NewTool(
+		"edit",
 		"Create, append to, or replace text in a file. Leave old empty to create a new file or append to an existing one; "+
-			"set old to the exact text to replace (it must match exactly once, otherwise this errors).",
+			"set old to the exact text to replace (it must match exactly once, otherwise this errors unless replace_all is set).",
 		func(ctx context.Context, in editInput) (string, error) {
-			res, err := repo.Edit(in.Path, in.Old, in.New)
+			res, err := repo.Edit(in.Path, in.Old, in.New, in.ReplaceAll)
 			if err != nil {
 				return "", err
 			}
@@ -33,5 +36,6 @@ func EditTool(repo cb.Repository) goai.Tool {
 				return fmt.Sprintf("appended %d bytes to %s", res.BytesWritten, in.Path), nil
 			}
 			return fmt.Sprintf("edited %s", in.Path), nil
-		})
+		},
+	)
 }

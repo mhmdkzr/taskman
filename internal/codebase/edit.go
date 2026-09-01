@@ -23,10 +23,12 @@ type EditResult struct {
 //   - file exists,        old == ""    -> append newText to the end
 //   - file exists,        old != ""    -> old must match exactly once in the
 //     current content; replaced with newText (old matching zero or more than
-//     once is an error, so a caller can't silently touch the wrong text)
+//     once is an error, so a caller can't silently touch the wrong text),
+//     unless replaceAll is set, in which case every occurrence is replaced
+//     and old matching zero times is still an error
 //
 // path is resolved against the worktree root and cannot escape it.
-func (r Repository) Edit(path, old, newText string) (*EditResult, error) {
+func (r Repository) Edit(path, old, newText string, replaceAll bool) (*EditResult, error) {
 	full, err := r.resolvePath(path)
 	if err != nil {
 		return nil, fmt.Errorf("edit: %w", err)
@@ -58,14 +60,19 @@ func (r Repository) Edit(path, old, newText string) (*EditResult, error) {
 		return &EditResult{BytesWritten: len(newText)}, nil
 	}
 
-	switch n := strings.Count(content, old); {
+	n := strings.Count(content, old)
+	switch {
 	case n == 0:
 		return nil, fmt.Errorf("edit: old text not found in %s", path)
-	case n > 1:
-		return nil, fmt.Errorf("edit: old text appears %d times in %s; make it more specific", n, path)
+	case n > 1 && !replaceAll:
+		return nil, fmt.Errorf("edit: old text appears %d times in %s; make it more specific or set replaceAll", n, path)
 	}
 
-	updated := strings.Replace(content, old, newText, 1)
+	limit := 1
+	if replaceAll {
+		limit = -1
+	}
+	updated := strings.Replace(content, old, newText, limit)
 	if err := os.WriteFile(full, []byte(updated), 0o644); err != nil {
 		return nil, fmt.Errorf("edit: %w", err)
 	}

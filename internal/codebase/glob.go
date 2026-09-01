@@ -10,8 +10,10 @@ import (
 
 // Glob finds files under path (relative to the worktree root, default ".")
 // matching pattern. ** matches across directories, * matches within a
-// directory, ? matches a single character. Hidden files/directories are
-// skipped. Returned paths are relative to path.
+// directory, ? matches a single character. The repository's own .git
+// directory is skipped; other dotfiles/dot-directories (e.g. .golangci.yaml)
+// are walked and matched like any other path. Returned paths are relative to
+// path.
 func (r Repository) Glob(pattern, path string) ([]string, error) {
 	if pattern == "" {
 		return nil, fmt.Errorf("glob: pattern is required")
@@ -32,12 +34,9 @@ func (r Repository) Glob(pattern, path string) ([]string, error) {
 			return nil
 		}
 		if d.IsDir() {
-			if p != root && strings.HasPrefix(d.Name(), ".") {
+			if d.Name() == ".git" {
 				return filepath.SkipDir
 			}
-			return nil
-		}
-		if strings.HasPrefix(d.Name(), ".") {
 			return nil
 		}
 		rel, err := filepath.Rel(root, p)
