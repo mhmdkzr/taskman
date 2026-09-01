@@ -81,6 +81,34 @@ func (s *stringList) Set(v string) error {
 	return nil
 }
 
+// parseFlagsAroundOnePositional parses fs against args, tolerating exactly
+// one positional argument (e.g. a task id) in any position relative to the
+// flags — flag.FlagSet.Parse on its own stops at the first non-flag
+// argument, so "run <id> -source x" would silently leave -source
+// unparsed and defaulted instead of erroring, since flag.Parse treats
+// everything from the id onward as positional. This re-parses the
+// remainder after each positional argument it finds, so flags before and
+// after the id both take effect. It returns the positional argument found
+// (empty if none) and an error if more than one is given or a flag fails
+// to parse.
+func parseFlagsAroundOnePositional(fs *flag.FlagSet, args []string) (string, error) {
+	var positional string
+	rest := args
+	for {
+		if err := fs.Parse(rest); err != nil {
+			return "", fmt.Errorf("parse flags: %w", err)
+		}
+		if fs.NArg() == 0 {
+			return positional, nil
+		}
+		if positional != "" {
+			return "", fmt.Errorf("unexpected extra argument %q", fs.Arg(0))
+		}
+		positional = fs.Arg(0)
+		rest = fs.Args()[1:]
+	}
+}
+
 func cmdAdd(args []string) error {
 	fs := flag.NewFlagSet("add", flag.ExitOnError)
 	title := fs.String("title", "", "short title (required)")
@@ -219,15 +247,16 @@ func cmdRun(args []string) error {
 		0,
 		"cap on lint/review fixup rounds per phase (default: pipeline's own default)",
 	)
-	if err := fs.Parse(args); err != nil {
-		return fmt.Errorf("parse flags: %w", err)
+	rawID, err := parseFlagsAroundOnePositional(fs, args)
+	if err != nil {
+		return err
 	}
-	if fs.NArg() < 1 {
+	if rawID == "" {
 		return fmt.Errorf("usage: taskman run <id> [flags]")
 	}
-	id, err := uuid.Parse(fs.Arg(0))
+	id, err := uuid.Parse(rawID)
 	if err != nil {
-		return fmt.Errorf("invalid task id %q: %w", fs.Arg(0), err)
+		return fmt.Errorf("invalid task id %q: %w", rawID, err)
 	}
 
 	agentCfg, err := loadAgentConfig()
