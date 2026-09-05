@@ -12,9 +12,14 @@ import (
 	_ "modernc.org/sqlite" // Register the SQLite database driver.
 
 	"github.com/mhmdkzr/loop/internal/agent"
+	agenttools "github.com/mhmdkzr/loop/internal/agent/tools"
+	"github.com/mhmdkzr/loop/internal/agent/tools/browser"
+	"github.com/mhmdkzr/loop/internal/agent/tools/telegram"
+	"github.com/mhmdkzr/loop/internal/agent/tools/websearch"
 	"github.com/mhmdkzr/loop/internal/app"
 	"github.com/mhmdkzr/loop/internal/app/config"
 	"github.com/mhmdkzr/loop/internal/app/register"
+	"github.com/mhmdkzr/loop/internal/rpc"
 	"github.com/mhmdkzr/loop/migrations"
 	"github.com/mhmdkzr/loop/pkg/logger"
 	"github.com/mhmdkzr/loop/pkg/middleware"
@@ -31,6 +36,7 @@ type StartOptions struct {
 	EnvFile        string
 	LogLevel       string
 	LogFormat      string
+	RPC            bool
 }
 
 func Start(ctx context.Context, options StartOptions) error {
@@ -100,8 +106,19 @@ func Start(ctx context.Context, options StartOptions) error {
 		Cfg: cfg,
 		Mux: http.NewServeMux(),
 	}
+	telegramClient, err := telegram.NewClientFromConfig(cfg.Telegram)
+	if err != nil {
+		return fmt.Errorf("initialize telegram client: %w", err)
+	}
+	a.Deps.AgentTools = agenttools.Deps{
+		DB: db, Config: cfg,
+		Configured: agent.ConfiguredTools(browser.NewClientFromConfig(cfg.Browser), telegramClient, websearch.NewClientFromConfig(cfg.Tavily)),
+	}
 
 	register.RegisterRoutes(a)
+	if options.RPC {
+		a.Mux.Handle("POST /rpc", rpc.NewHandler(a))
+	}
 	applicationHandler := middleware.Chain(a.Mux,
 		timeout.New(cfg.Server.Timeout),
 		logging.New(),

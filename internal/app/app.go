@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"net/http"
 
+	agenttools "github.com/mhmdkzr/loop/internal/agent/tools"
 	"github.com/mhmdkzr/loop/internal/app/config"
 )
 
@@ -18,5 +19,6 @@ type App struct {
 
 // Deps holds the shared runtime dependencies of the application.
 type Deps struct {
-	DB *sql.DB
+	DB         *sql.DB
+	AgentTools agenttools.Deps
 }

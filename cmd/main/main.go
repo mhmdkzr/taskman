@@ -29,6 +29,7 @@ func run() int {
 	logLevel := flags.String("log-level", "", "override the logger level")
 	logFormat := flags.String("log-format", "", "override the logger format")
 	port := flags.Int("port", 0, "override the web UI port")
+	rpcMode := flags.Bool("rpc", false, "enable the JSON-RPC API at /rpc")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return 2
 	}
@@ -47,6 +48,7 @@ func run() int {
 		EnvFile:        *envFile,
 		LogLevel:       *logLevel,
 		LogFormat:      *logFormat,
+		RPC:            *rpcMode,
 	}); err != nil {
 		slog.Error("app init", "error", err)
 		return 1
