@@ -139,6 +139,23 @@ CREATE TABLE IF NOT EXISTS session_turns (
 CREATE INDEX IF NOT EXISTS idx_session_turns_session
     ON session_turns (session_id, created_at);
 
+CREATE TABLE IF NOT EXISTS session_todos (
+    todo_id    TEXT        PRIMARY KEY,
+    session_id TEXT        NOT NULL REFERENCES agent_sessions(session_id) ON DELETE RESTRICT,
+    content    TEXT        NOT NULL,
+    status     TEXT        NOT NULL CHECK (status IN ('pending', 'in_progress', 'completed', 'cancelled')),
+    priority   TEXT        NOT NULL CHECK (priority IN ('high', 'medium', 'low')),
+    position   INTEGER     NOT NULL,
+    created_at TEXT        NOT NULL,
+    updated_at TEXT        NOT NULL,
+
+    CONSTRAINT session_todos_content_check
+        CHECK (length(content) > 0)
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS idx_session_todos_session
+    ON session_todos (session_id, position);
+
 CREATE TABLE IF NOT EXISTS session_tools (
     session_id TEXT NOT NULL REFERENCES agent_sessions(session_id) ON DELETE RESTRICT,
     tool_id    TEXT NOT NULL REFERENCES tools(tool_id) ON DELETE RESTRICT,

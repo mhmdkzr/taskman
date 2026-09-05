@@ -8,7 +8,7 @@ import (
 
 const (
 	Name        = "read_file"
-	description = "Read a file from the local filesystem and return its contents, optionally windowed to a line range."
+	description = "Read a file or list a directory from the local filesystem. Directory listings exclude images and PDFs."
 )
 
 const Description = description

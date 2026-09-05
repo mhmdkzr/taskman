@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -21,9 +23,11 @@ const (
 var errPathRequired = errors.New("path is required")
 
 type output struct {
-	Content   string `json:"content"`
-	LineCount int    `json:"line_count"`
-	Truncated bool   `json:"truncated"`
+	Content   string   `json:"content"`
+	Entries   []string `json:"entries,omitempty"`
+	Directory bool     `json:"directory"`
+	LineCount int      `json:"line_count"`
+	Truncated bool     `json:"truncated"`
 }
 
 func execute(_ context.Context, in input) (output, error) {
@@ -34,6 +38,14 @@ func execute(_ context.Context, in input) (output, error) {
 	limit := in.Limit
 	if limit <= 0 {
 		limit = defaultLimit
+	}
+
+	info, err := os.Stat(in.Path)
+	if err != nil {
+		return output{}, fmt.Errorf("read: %w", err)
+	}
+	if info.IsDir() {
+		return readDirectory(in.Path)
 	}
 
 	file, err := os.Open(in.Path)
@@ -70,4 +82,30 @@ func execute(_ context.Context, in input) (output, error) {
 		LineCount: lineCount,
 		Truncated: truncated,
 	}, nil
+}
+
+func readDirectory(path string) (output, error) {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return output{}, fmt.Errorf("read directory: %w", err)
+	}
+
+	paths := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() && isExcluded(entry.Name()) {
+			continue
+		}
+		paths = append(paths, filepath.Join(path, entry.Name()))
+	}
+	sort.Strings(paths)
+	return output{Entries: paths, Directory: true, LineCount: len(paths)}, nil
+}
+
+func isExcluded(name string) bool {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".ico", ".tiff", ".tif", ".svg":
+		return true
+	default:
+		return false
+	}
 }
