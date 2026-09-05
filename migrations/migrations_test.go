@@ -24,8 +24,7 @@ func TestSchemaApply(t *testing.T) {
 
 	tables := []string{
 		"agent_sessions", "agent_tools", "agents", "model_providers", "models",
-		"prompt_templates", "session_todos", "session_tools", "session_turns", "task_sessions",
-		"tasks", "tools",
+		"prompt_templates", "session_todos", "session_tools", "session_turns", "tools",
 	}
 
 	list := exec.Command("sqlite3", "-noheader", dbPath,
@@ -43,16 +42,6 @@ func TestSchemaApply(t *testing.T) {
 		t,
 		dbPath,
 		"INSERT INTO tools (tool_id, tool_name, tool_description, input_schema, output_schema) VALUES ('tool', 'name', 'description', 'not json', '{}');",
-	)
-	assertRejected(
-		t,
-		dbPath,
-		"INSERT INTO tasks (task_id, task_name, task, status, created_at) VALUES ('task', 'name', '{}', 'unknown', '2026-01-01T00:00:00Z');",
-	)
-	assertRejected(
-		t,
-		dbPath,
-		"INSERT INTO tasks (task_id, task_name, task, status, created_at) VALUES ('task', 'name', 'not json', 'backlog', '2026-01-01T00:00:00Z');",
 	)
 }
 
