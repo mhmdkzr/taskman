@@ -1,0 +1,115 @@
+package sessions
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"strings"
+	"text/template"
+
+	"github.com/zendev-sh/goai"
+	"github.com/zendev-sh/goai/provider"
+	"github.com/zendev-sh/goai/provider/compat"
+
+	"github.com/mhmdkzr/loop/internal/app/config"
+)
+
+// Create resolves agentName to its model and prompt template, renders the
+// system prompt with params, and persists a new session with an empty turn
+// history. parentSessionID is nil for a top-level, user-initiated session.
+func Create(
+	ctx context.Context,
+	db *sql.DB,
+	cfg config.ProviderConfig,
+	agentName string,
+	params map[string]any,
+	parentSessionID *SessionID,
+) (SessionID, error) {
+	agent, err := AgentByName(ctx, db, agentName)
+	if err != nil {
+		return SessionID{}, fmt.Errorf("create session: resolve agent: %w", err)
+	}
+
+	sysPrompt, err := renderPrompt(agent.TemplateBody, params)
+	if err != nil {
+		return SessionID{}, fmt.Errorf("create session: render prompt: %w", err)
+	}
+
+	providerOpts := map[string]any{
+		"reasoning_effort": cfg.ReasoningEffort,
+	}
+
+	id, err := createSession(ctx, db, agent.AgentID, agent.ModelID, sysPrompt, providerOpts, parentSessionID)
+	if err != nil {
+		return SessionID{}, fmt.Errorf("create session: %w", err)
+	}
+	return id, nil
+}
+
+// renderPrompt executes an agent's prompt template with params.
+func renderPrompt(body string, params map[string]any) (string, error) {
+	tmpl, err := template.New("prompt").Parse(body)
+	if err != nil {
+		return "", fmt.Errorf("parse prompt template: %w", err)
+	}
+	var buf strings.Builder
+	if err := tmpl.Execute(&buf, params); err != nil {
+		return "", fmt.Errorf("execute prompt template: %w", err)
+	}
+	return buf.String(), nil
+}
+
+func Run(
+	ctx context.Context,
+	db *sql.DB,
+	cfg config.ProviderConfig,
+	id SessionID,
+	prompt string,
+	tools []goai.Tool,
+) (*goai.TextResult, error) {
+	if strings.TrimSpace(prompt) == "" {
+		return nil, fmt.Errorf("prompt is empty")
+	}
+
+	stored, err := sessionByID(ctx, db, id)
+	if err != nil {
+		return nil, fmt.Errorf("load session: %w", err)
+	}
+
+	msgs := make([]provider.Message, 0, len(stored.Turns)*2+1)
+	for _, turn := range stored.Turns {
+		msgs = append(msgs, goai.UserMessage(turn.Prompt))
+		if turn.Result != nil {
+			msgs = append(msgs, turn.Result.ResponseMessages...)
+		}
+	}
+	msgs = append(msgs, goai.UserMessage(prompt))
+
+	modelName, err := modelNameByID(ctx, db, stored.ModelID)
+	if err != nil {
+		return nil, fmt.Errorf("resolve session model: %w", err)
+	}
+	model := compat.Chat(
+		modelName,
+		compat.WithBaseURL(cfg.BaseURL),
+		compat.WithAPIKey(cfg.APIKeyOpenCode),
+	)
+
+	opts := []goai.Option{
+		goai.WithSystem(stored.SystemPrompt),
+		goai.WithTools(tools...),
+		goai.WithProviderOptions(stored.ProviderOptions),
+		goai.WithMessages(msgs...),
+	}
+
+	result, err := goai.GenerateText(ctx, model, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("generate text: %w", err)
+	}
+
+	if err := appendTurn(ctx, db, id, prompt, result); err != nil {
+		return nil, fmt.Errorf("persist session turn: %w", err)
+	}
+
+	return result, nil
+}

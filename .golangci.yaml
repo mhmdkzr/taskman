@@ -1,0 +1,320 @@
+version: "2"
+run:
+  go: "1.27"
+  timeout: 1m
+
+formatters:
+  enable:
+    - gci
+    - gofumpt
+    - golines
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/mhmdkzr/loop)
+    golines:
+      max-len: 120
+
+linters:
+  enable:
+    - arangolint
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - canonicalheader
+    - clickhouselint
+    - containedctx
+    - contextcheck
+    - copyloopvar
+    - cyclop
+    - decorder
+    - depguard
+    - dogsled
+    - dupl
+    - dupword
+    - durationcheck
+    - embeddedstructfieldcheck
+    - errcheck
+    - errchkjson
+    - errname
+    - errorlint
+    - exhaustive
+    - exptostd
+    - fatcontext
+    - forbidigo
+    - forcetypeassert
+    - funcorder
+    - funlen
+    - ginkgolinter
+    - gocheckcompilerdirectives
+    - gochecknoinits
+    - gochecksumtype
+    - gocognit
+    - gocritic
+    - gocyclo
+    - godoclint
+    - goheader
+    - gomoddirectives
+    - gomodguard_v2
+    - goprintffuncname
+    - gosec
+    - gosmopolitan
+    - govet
+    - grouper
+    - iface
+    - importas
+    - inamedparam
+    - ineffassign
+    - intrange
+    - iotamixing
+    - loggercheck
+    - maintidx
+    - makezero
+    - mirror
+    - modernize
+    - musttag
+    - nakedret
+    - nestif
+    - nilerr
+    - nilnesserr
+    - nilnil
+    - noctx
+    - nolintlint
+    - nonamedreturns
+    - nosprintfhostport
+    - prealloc
+    - promlinter
+    - protogetter
+    - reassign
+    - recvcheck
+    - revive
+    - rowserrcheck
+    - sloglint
+    - spancheck
+    - sqlclosecheck
+    - staticcheck
+    - tagalign
+    - testableexamples
+    - testifylint
+    - testpackage
+    - thelper
+    - unconvert
+    - unparam
+    - unqueryvet
+    - unused
+    - usestdlibvars
+    - usetesting
+    - wastedassign
+    - whitespace
+    - wrapcheck
+    - zerologlint
+
+  settings:
+    decorder:
+      ignore-underscore-vars: true
+    depguard:
+      rules:
+        main:
+          deny:
+            - pkg: io/ioutil
+              desc: "replaced by io/os since Go 1.16"
+    dogsled:
+      max-blank-identifiers: 2
+    dupl:
+      threshold: 100
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    errorlint:
+      errorf: true
+      comparison: true
+    exhaustive:
+      default-signifies-exhaustive: true
+    forbidigo:
+      forbid:
+        - pattern: "^fmt\\.Print"
+        - pattern: "^log\\."
+    funlen:
+      lines: 200
+      statements: 100
+    cyclop:
+      max-complexity: 35
+    gocognit:
+      min-complexity: 55
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+      disabled-checks:
+        - hugeParam
+        - preferStringWriter
+        - rangeValCopy
+        - singleCaseSwitch
+    gocyclo:
+      min-complexity: 35
+    gomoddirectives:
+      replace-allow-list: []
+      retract-allow-no-explanation: false
+    grouper: {}
+    lll:
+      line-length: 120
+      tab-width: 1
+    maintidx:
+      under: 19
+    nakedret:
+      max-func-lines: 30
+    nestif:
+      min-complexity: 30
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    prealloc:
+      simple: true
+      range-loops: true
+      for-loops: false
+    revive:
+      rules:
+        - name: package-comments
+          disabled: true
+        - name: blank-imports
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: deep-exit
+        - name: error-return
+        - name: error-strings
+        - name: if-return
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: range
+        - name: receiver-naming
+        - name: time-naming
+        - name: unexported-return
+        - name: unreachable-code
+        - name: var-declaration
+        - name: waitgroup-by-value
+    sloglint:
+      no-raw-keys: false
+      key-naming-case: snake
+    staticcheck:
+      checks:
+        - all
+        - -ST1003
+    tagalign:
+      align: true
+      sort: false
+      order:
+        - json
+        - yaml
+        - yml
+        - toml
+        - mapstructure
+        - validate
+    testifylint:
+      enable:
+        - blank-import
+        - bool-compare
+        - compares
+        - contains
+        - empty
+        - encoded-compare
+        - equal-values
+        - error-is-as
+        - error-nil
+        - expected-actual
+        - float-compare
+        - formatter
+        - go-require
+        - len
+        - negative-positive
+        - nil-compare
+        - regexp
+        - require-error
+        - suite-broken-parallel
+        - suite-dont-use-pkg
+        - suite-extra-assert-call
+        - suite-method-signature
+        - suite-subtest-run
+        - suite-thelper
+        - useless-assert
+    unconvert: {}
+    unparam:
+      check-exported: false
+    unused: {}
+    usestdlibvars:
+      http-method: true
+      http-status-code: true
+      time-layout: true
+      time-month: true
+      time-weekday: true
+      tls-signature-scheme: true
+    usetesting:
+      os-temp-dir: true
+    whitespace:
+      multi-if: false
+      multi-func: false
+    wrapcheck:
+      ignore-sigs:
+        - ".Errorf("
+        - ".Wrap("
+        - ".Wrapf("
+        - ".WithMessage("
+        - ".WithMessagef("
+        - ".New("
+        - errors.New(
+        - fmt.Errorf(
+
+  exclusions:
+    generated: lax
+    rules:
+      - linters:
+          - errcheck
+        source: "errors\\.AsType\\["
+        # errors.AsType[T](err) returns (T, bool), not (T, error) -- errcheck's
+        # check-type-assertions heuristic misreads the discarded T (a pointer
+        # error type) as an unchecked error. The bool is always checked at
+        # call sites; this is a false positive on every use, not a real issue.
+      - linters:
+          - canonicalheader
+        text: "TRON-PRO-API-KEY"
+      - linters:
+          - wrapcheck
+        text: "encoding/json.(Marshal|Unmarshal)"
+        # Domain newtypes (open two-value string enums, UUID-backed IDs) intentionally
+        # repeat the same Scan/Value/MarshalJSON/UnmarshalJSON boilerplate per type per
+        # CLAUDE.md's type-safety convention — each is its own irreducible domain type,
+        # not accidental copy-paste.
+      - path: _test\.go
+        linters:
+          - bodyclose
+          - cyclop
+          - dupl
+          - dupword
+          - errcheck
+          - exhaustive
+          - exhaustruct
+          - forcetypeassert
+          - funlen
+          - gochecknoglobals
+          - gocognit
+          - gocyclo
+          - gosec
+          - lll
+          - maintidx
+          - mnd
+          - nestif
+          - nilnil
+          - nlreturn
+          - noctx
+          - nonamedreturns
+          - testpackage
+          - varnamelen
+          - wastedassign
+          - wrapcheck
+    paths:
+      - "migrations/"
+      - "bin/"
+      - "third_party/"
+      - "vendor/"
