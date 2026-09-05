@@ -171,7 +171,7 @@ func upsertModel(ctx context.Context, db *sql.DB, providerID, modelID string, op
 		) VALUES (?, ?, ?, 0, 0, ?)
 		ON CONFLICT (provider_id, model_name) DO UPDATE SET
 			thinking_options = EXCLUDED.thinking_options`,
-		uuid.NewV7().String(), providerID, modelID, optionsJSON)
+		uuid.NewV7().String(), providerID, modelID, string(optionsJSON))
 	return err
 }
 

@@ -9,7 +9,7 @@ import (
 
 	"github.com/zendev-sh/goai"
 	"github.com/zendev-sh/goai/provider"
-	"github.com/zendev-sh/goai/provider/compat"
+	"github.com/zendev-sh/goai/provider/openai"
 
 	"github.com/mhmdkzr/loop/internal/app/config"
 )
@@ -37,6 +37,8 @@ func Create(
 
 	providerOpts := map[string]any{
 		"reasoning_effort": cfg.ReasoningEffort,
+		"useResponsesAPI":  !strings.Contains(strings.TrimRight(cfg.BaseURL, "/"), "/go/v1"),
+		"store":            false,
 	}
 
 	id, err := createSession(ctx, db, agent.AgentID, agent.ModelID, sysPrompt, providerOpts, parentSessionID)
@@ -89,16 +91,27 @@ func Run(
 	if err != nil {
 		return nil, fmt.Errorf("resolve session model: %w", err)
 	}
-	model := compat.Chat(
+	model := openai.Chat(
 		modelName,
-		compat.WithBaseURL(cfg.BaseURL),
-		compat.WithAPIKey(cfg.APIKeyOpenCode),
+		openai.WithBaseURL(cfg.BaseURL),
+		openai.WithAPIKey(cfg.APIKeyOpenCode),
 	)
+	providerOptions := stored.ProviderOptions
+	if _, ok := providerOptions["useResponsesAPI"]; !ok {
+		if providerOptions == nil {
+			providerOptions = make(map[string]any)
+		}
+		providerOptions["useResponsesAPI"] = !strings.Contains(strings.TrimRight(cfg.BaseURL, "/"), "/go/v1")
+	}
+	if _, ok := providerOptions["store"]; !ok {
+		providerOptions["store"] = false
+	}
 
 	opts := []goai.Option{
 		goai.WithSystem(stored.SystemPrompt),
 		goai.WithTools(tools...),
-		goai.WithProviderOptions(stored.ProviderOptions),
+		goai.WithMaxSteps(4),
+		goai.WithProviderOptions(providerOptions),
 		goai.WithMessages(msgs...),
 	}
 

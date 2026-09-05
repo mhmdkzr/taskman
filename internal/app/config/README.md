@@ -61,4 +61,7 @@ public `/webhooks/*` counterpart.
 `PROVIDER_BASE_URL`, `PROVIDER_API_KEY_OPENCODE`, `PROVIDER_MODEL`, and
 `PROVIDER_REASONING_EFFORT` configure the current OpenCode provider. The API
 key itself remains in the environment; the database stores only its environment
-variable name.
+variable name. The `/zen/go/v1` base URL uses Chat Completions, while the
+OpenCode Zen `/zen/v1` base URL uses the OpenAI Responses API. Both modes use
+the same API key; select the active base URL and model together. The free Zen
+model ID is `muse-spark-1.2-contributor-free`.
