@@ -7,6 +7,7 @@ require (
 	github.com/caarlos0/env/v11 v11.4.1
 	github.com/go-rod/rod v0.116.2
 	github.com/go-telegram/bot v1.21.0
+	github.com/google/go-github/v68 v68.0.0
 	github.com/joho/godotenv v1.5.1
 	github.com/starfederation/datastar-go v1.2.2
 	github.com/zendev-sh/goai v0.10.0
@@ -17,6 +18,7 @@ require (
 	github.com/CAFxX/httpcompression v0.0.9 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
