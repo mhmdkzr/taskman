@@ -23,7 +23,7 @@ type input struct {
 }
 
 type output struct {
-	Saved int `json:"saved"`
+	Todos []sessions.Todo `json:"todos"`
 }
 
 type Input = input
@@ -40,7 +40,7 @@ func Tool(d tools.Deps) goai.Tool {
 		if err := sessions.ReplaceTodos(ctx, d.DB, d.SessionID, in.Todos); err != nil {
 			return output{}, fmt.Errorf("todowrite: %w", err)
 		}
-		return output{Saved: len(in.Todos)}, nil
+		return output{Todos: in.Todos}, nil
 	})
 }
 
