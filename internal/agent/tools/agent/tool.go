@@ -18,6 +18,8 @@ const (
 	description = "Dispatch a task to a named agent, running it as a new child session with that agent's model, system prompt, and tools. Returns the agent's final text result."
 )
 
+const Description = description
+
 var (
 	errAgentNameRequired = errors.New("agent_name is required")
 	errTaskRequired      = errors.New("task is required")
@@ -34,6 +36,9 @@ type output struct {
 	Result    string `json:"result"`
 }
 
+type Input = input
+type Output = output
+
 // Tool returns the agent dispatch tool. db, cfg, and registry are the
 // runtime dependencies used to create and run the dispatched session;
 // parentSessionID scopes the new session to the caller's session.
@@ -42,12 +47,14 @@ func Tool(
 	cfg config.ProviderConfig,
 	registry tools.Registry,
 	parentSessionID sessions.SessionID,
+	configured map[string]goai.Tool,
 ) goai.Tool {
 	d := deps{
 		DB:              db,
 		Cfg:             cfg,
 		Registry:        registry,
 		ParentSessionID: parentSessionID,
+		Configured:      configured,
 	}
 	return tools.Tool(Name, description, func(ctx context.Context, in input) (output, error) {
 		return execute(ctx, d, in)

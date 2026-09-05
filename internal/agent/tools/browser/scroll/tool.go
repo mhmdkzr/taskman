@@ -15,6 +15,8 @@ const (
 	description = "Scroll the current browser page or scroll an element into view."
 )
 
+const Description = description
+
 type input struct {
 	Direction string `json:"direction,omitempty" jsonschema:"description=Scroll direction when no selector is given: up, down, top, or bottom. Defaults to down."`
 	Selector  string `json:"selector,omitempty"  jsonschema:"description=CSS selector of the element to scroll into view. When set, direction is ignored."`
@@ -25,6 +27,9 @@ type output struct {
 	Direction string `json:"direction,omitempty"`
 	Selector  string `json:"selector,omitempty"`
 }
+
+type Input = input
+type Output = output
 
 // Tool returns the browser_scroll tool bound to c.
 func Tool(c *browser.Client) goai.Tool {

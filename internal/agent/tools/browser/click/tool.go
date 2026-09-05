@@ -15,6 +15,8 @@ const (
 	description = "Click an element on the current browser page by CSS selector. The page must already be open via browser_navigate."
 )
 
+const Description = description
+
 type input struct {
 	Selector string `json:"selector" jsonschema:"description=CSS selector of the element to click, e.g. \"button.submit\" or \"#login\""`
 }
@@ -24,6 +26,9 @@ type output struct {
 	URL     string `json:"url"`
 	Title   string `json:"title,omitempty"`
 }
+
+type Input = input
+type Output = output
 
 // Tool returns the browser_click tool bound to c.
 func Tool(c *browser.Client) goai.Tool {

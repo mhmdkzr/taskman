@@ -15,6 +15,8 @@ const (
 	description = "Extract visible text from the current browser page or a specific element. Call browser_navigate first to open a page."
 )
 
+const Description = description
+
 type input struct {
 	Selector string `json:"selector,omitempty" jsonschema:"description=CSS selector of the element to extract text from. When empty, extracts visible text from the whole page body."`
 }
@@ -25,6 +27,9 @@ type output struct {
 	Selector string `json:"selector,omitempty"`
 	Text     string `json:"text"`
 }
+
+type Input = input
+type Output = output
 
 // Tool returns the browser_extract tool bound to c.
 func Tool(c *browser.Client) goai.Tool {

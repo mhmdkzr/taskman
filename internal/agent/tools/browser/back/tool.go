@@ -15,12 +15,17 @@ const (
 	description = "Navigate one step back in the browser history."
 )
 
+const Description = description
+
 type input struct{}
 
 type output struct {
 	URL   string `json:"url"`
 	Title string `json:"title,omitempty"`
 }
+
+type Input = input
+type Output = output
 
 // Tool returns the web_browser_back tool bound to c.
 func Tool(c *browser.Client) goai.Tool {

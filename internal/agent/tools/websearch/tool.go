@@ -13,10 +13,15 @@ const (
 	description = "Search the web using Tavily and return a list of results with title, url and a short snippet for each."
 )
 
+const Description = description
+
 type input struct {
 	Query      string `json:"query"                 jsonschema:"description=The search query."`
 	MaxResults *int   `json:"max_results,omitempty" jsonschema:"description=Maximum number of results to return (default 5, max 10)."`
 }
+
+type Input = input
+type Output = output
 
 // Tool returns the web_search tool bound to c.
 func Tool(c *Client) goai.Tool {

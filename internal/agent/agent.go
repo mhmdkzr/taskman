@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/zendev-sh/goai"
 
@@ -30,6 +31,21 @@ func StartSession(
 	return id, nil
 }
 
+// CreateAgent creates a named agent using the active configured model and
+// grants it every registered tool.
+func CreateAgent(ctx context.Context, db *sql.DB, cfg config.ProviderConfig, name, prompt string) error {
+	if strings.TrimSpace(name) == "" {
+		return fmt.Errorf("create agent: name is required")
+	}
+	if strings.TrimSpace(prompt) == "" {
+		return fmt.Errorf("create agent: prompt is required")
+	}
+	if err := createAgent(ctx, db, cfg.Model, name, prompt, toolSeeds()); err != nil {
+		return fmt.Errorf("create agent: %w", err)
+	}
+	return nil
+}
+
 // Respond runs one turn of a top-level session: message is what the user
 // sent. Like a dispatched subagent, its tool list comes from its agent_tools
 // rows — the same Registry.Resolve every agent uses, not a special-cased
@@ -39,26 +55,25 @@ func StartSession(
 // stay available to other agents.
 func Respond(
 	ctx context.Context,
-	db *sql.DB,
-	cfg config.ProviderConfig,
+	deps tools.Deps,
 	sessionID sessions.SessionID,
 	message string,
 ) (*goai.TextResult, error) {
-	agentID, err := sessions.AgentIDFor(ctx, db, sessionID)
+	deps.SessionID = sessionID
+	agentID, err := sessions.AgentIDFor(ctx, deps.DB, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("respond: %w", err)
 	}
-	toolNames, err := sessions.ToolNamesForAgent(ctx, db, agentID)
+	toolNames, err := sessions.ToolNamesForAgent(ctx, deps.DB, agentID)
 	if err != nil {
 		return nil, fmt.Errorf("respond: %w", err)
 	}
-	deps := tools.Deps{DB: db, SessionID: sessionID}
 	resolved, err := Tools().Resolve(toolNames, deps)
 	if err != nil {
 		return nil, fmt.Errorf("respond: %w", err)
 	}
 
-	result, err := sessions.Run(ctx, db, cfg, sessionID, message, resolved)
+	result, err := sessions.Run(ctx, deps.DB, deps.Config.Provider, sessionID, message, resolved)
 	if err != nil {
 		return nil, fmt.Errorf("respond: %w", err)
 	}

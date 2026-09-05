@@ -8,12 +8,15 @@ import (
 	"github.com/zendev-sh/goai"
 
 	"github.com/mhmdkzr/loop/internal/agent/sessions"
+	"github.com/mhmdkzr/loop/internal/app/config"
 )
 
 type (
 	Deps struct {
-		DB        *sql.DB
-		SessionID sessions.SessionID
+		DB         *sql.DB
+		SessionID  sessions.SessionID
+		Config     config.Config
+		Configured map[ToolName]goai.Tool
 	}
 
 	ToolName    = string

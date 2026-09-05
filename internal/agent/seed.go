@@ -10,11 +10,21 @@ import (
 	"github.com/zendev-sh/goai"
 
 	"github.com/mhmdkzr/loop/internal/agent/tools"
+	agenttool "github.com/mhmdkzr/loop/internal/agent/tools/agent"
+	"github.com/mhmdkzr/loop/internal/agent/tools/browser/back"
+	"github.com/mhmdkzr/loop/internal/agent/tools/browser/click"
+	"github.com/mhmdkzr/loop/internal/agent/tools/browser/extract"
+	"github.com/mhmdkzr/loop/internal/agent/tools/browser/fill"
+	"github.com/mhmdkzr/loop/internal/agent/tools/browser/forward"
+	"github.com/mhmdkzr/loop/internal/agent/tools/browser/navigate"
+	"github.com/mhmdkzr/loop/internal/agent/tools/browser/reset"
+	"github.com/mhmdkzr/loop/internal/agent/tools/browser/scroll"
 	"github.com/mhmdkzr/loop/internal/agent/tools/curl"
 	"github.com/mhmdkzr/loop/internal/agent/tools/datetime"
 	"github.com/mhmdkzr/loop/internal/agent/tools/deno"
 	"github.com/mhmdkzr/loop/internal/agent/tools/files/edit"
 	"github.com/mhmdkzr/loop/internal/agent/tools/files/glob"
+	"github.com/mhmdkzr/loop/internal/agent/tools/files/grep"
 	"github.com/mhmdkzr/loop/internal/agent/tools/files/patch"
 	"github.com/mhmdkzr/loop/internal/agent/tools/files/read"
 	"github.com/mhmdkzr/loop/internal/agent/tools/files/rg"
@@ -23,6 +33,10 @@ import (
 	golang "github.com/mhmdkzr/loop/internal/agent/tools/go"
 	"github.com/mhmdkzr/loop/internal/agent/tools/nats"
 	"github.com/mhmdkzr/loop/internal/agent/tools/psql"
+	telegramread "github.com/mhmdkzr/loop/internal/agent/tools/telegram/read"
+	telegrams "github.com/mhmdkzr/loop/internal/agent/tools/telegram/send"
+	"github.com/mhmdkzr/loop/internal/agent/tools/todowrite"
+	"github.com/mhmdkzr/loop/internal/agent/tools/websearch"
 	"github.com/mhmdkzr/loop/internal/app/config"
 )
 
@@ -132,6 +146,7 @@ func toolSeeds() []toolSeed {
 		newToolSeed[glob.Input, glob.Output](glob.Name, glob.Description),
 		newToolSeed[patch.Input, patch.Output](patch.Name, patch.Description),
 		newToolSeed[rg.Input, tools.Output](rg.Name, rg.Description),
+		newToolSeed[grep.Input, grep.Output](grep.Name, grep.Description),
 		newToolSeed[psql.Input, tools.Output](psql.Name, psql.Description),
 		newToolSeed[git.Input, tools.Output](git.Name, git.Description),
 		newToolSeed[golang.Input, tools.Output](golang.Name, golang.Description),
@@ -139,6 +154,19 @@ func toolSeeds() []toolSeed {
 		newToolSeed[deno.Input, tools.Output](deno.Name, deno.Description),
 		newToolSeed[nats.Input, tools.Output](nats.Name, nats.Description),
 		newToolSeed[datetime.Input, datetime.Output](datetime.Name, datetime.Description),
+		newToolSeed[todowrite.Input, todowrite.Output](todowrite.Name, todowrite.Description),
+		newToolSeed[agenttool.Input, agenttool.Output](agenttool.Name, agenttool.Description),
+		newToolSeed[navigate.Input, navigate.Output](navigate.Name, navigate.Description),
+		newToolSeed[extract.Input, extract.Output](extract.Name, extract.Description),
+		newToolSeed[click.Input, click.Output](click.Name, click.Description),
+		newToolSeed[fill.Input, fill.Output](fill.Name, fill.Description),
+		newToolSeed[scroll.Input, scroll.Output](scroll.Name, scroll.Description),
+		newToolSeed[back.Input, back.Output](back.Name, back.Description),
+		newToolSeed[forward.Input, forward.Output](forward.Name, forward.Description),
+		newToolSeed[reset.Input, reset.Output](reset.Name, reset.Description),
+		newToolSeed[telegramread.Input, telegramread.Output](telegramread.Name, telegramread.Description),
+		newToolSeed[telegrams.Input, telegrams.Output](telegrams.Name, telegrams.Description),
+		newToolSeed[websearch.Input, websearch.Output](websearch.Name, websearch.Description),
 	}
 }
 

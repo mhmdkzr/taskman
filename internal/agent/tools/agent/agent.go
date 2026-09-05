@@ -8,6 +8,7 @@ import (
 	"github.com/mhmdkzr/loop/internal/agent/sessions"
 	"github.com/mhmdkzr/loop/internal/agent/tools"
 	"github.com/mhmdkzr/loop/internal/app/config"
+	"github.com/zendev-sh/goai"
 )
 
 // deps bundles what execute needs to dispatch a named agent as a new,
@@ -17,6 +18,7 @@ type deps struct {
 	Cfg             config.ProviderConfig
 	Registry        tools.Registry
 	ParentSessionID sessions.SessionID
+	Configured      map[string]goai.Tool
 }
 
 // execute always dispatches a subagent, so ParentSessionID is required: this
@@ -41,8 +43,10 @@ func execute(ctx context.Context, d deps, in input) (output, error) {
 		return output{}, fmt.Errorf("agent: %w", err)
 	}
 	resolved, err := d.Registry.Resolve(toolNames, tools.Deps{
-		DB:        d.DB,
-		SessionID: childID,
+		DB:         d.DB,
+		SessionID:  childID,
+		Config:     config.Config{Provider: d.Cfg},
+		Configured: d.Configured,
 	})
 	if err != nil {
 		return output{}, fmt.Errorf("agent: %w", err)

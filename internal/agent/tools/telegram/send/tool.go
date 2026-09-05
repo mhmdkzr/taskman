@@ -14,9 +14,14 @@ const (
 	description = "Send a plain text Telegram message to the configured channel."
 )
 
+const Description = description
+
 type input struct {
 	Message string `json:"message" jsonschema:"description=The plain text message to send."`
 }
+
+type Input = input
+type Output = output
 
 // Tool returns the telegram_send tool bound to c.
 func Tool(c *telegram.Client) goai.Tool {
