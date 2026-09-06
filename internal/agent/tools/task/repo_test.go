@@ -99,6 +99,7 @@ func TestDBListTasksFilterValues(t *testing.T) {
 	second.State = TaskStateStarted
 	second.Labels = []string{"frontend"}
 	second.CommitHash = "def456"
+	second.Importance = LevelLow
 	third := testTask()
 	third.ID = uuid.NewV7()
 	third.State = TaskStateCompleted

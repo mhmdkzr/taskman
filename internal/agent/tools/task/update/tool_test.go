@@ -13,6 +13,7 @@ func validInput() Input {
 		Definition:    "definition",
 		Specification: "specification",
 		State:         taskrepo.TaskStateCreated,
+		Model:         "test-model",
 		Importance:    taskrepo.LevelLow,
 		Urgency:       taskrepo.LevelLow,
 		Complexity:    taskrepo.LevelLow,

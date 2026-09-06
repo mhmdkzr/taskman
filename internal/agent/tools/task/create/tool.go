@@ -10,6 +10,7 @@ import (
 
 	"github.com/zendev-sh/goai"
 
+	"github.com/mhmdkzr/loop/internal/agent/sessions"
 	"github.com/mhmdkzr/loop/internal/agent/tools"
 	taskrepo "github.com/mhmdkzr/loop/internal/agent/tools/task"
 	"github.com/mhmdkzr/loop/internal/store"
@@ -54,6 +55,9 @@ func (in Input) Validate() error {
 	if strings.TrimSpace(in.Specification) == "" {
 		return errors.New("specification is required")
 	}
+	if strings.TrimSpace(in.Model) == "" {
+		return errors.New("model is required")
+	}
 	for _, level := range []taskrepo.Level{
 		in.Importance, in.Urgency, in.Complexity, in.Effort, in.Risk, in.Autonomy,
 	} {
@@ -69,6 +73,13 @@ func (in Input) Validate() error {
 func execute(ctx context.Context, st *store.Store, in Input) (Output, error) {
 	if st == nil {
 		return Output{}, errors.New("database is required")
+	}
+	// Model is a free-text name (task.Task.Model, not a models.model_id FK),
+	// so it isn't caught by any DB constraint - resolve it now rather than
+	// leaving a typo to surface only once something tries to dispatch a
+	// session against it.
+	if _, err := sessions.ModelIDByName(ctx, st.RO(), in.Model); err != nil {
+		return Output{}, fmt.Errorf("resolve model %q: %w", in.Model, err)
 	}
 
 	levelOrDefault := func(level taskrepo.Level) taskrepo.Level {

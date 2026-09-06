@@ -1,6 +1,7 @@
 package create
 
 import (
+	"database/sql"
 	"path/filepath"
 	"testing"
 	"uuid"
@@ -25,16 +26,42 @@ func openTestStore(t *testing.T) *store.Store {
 	return st
 }
 
+// seedModel inserts a model row under the "opencode" provider - the one
+// sessions.ModelIDByName resolves against - so a task's Model can validate
+// against something real.
+func seedModel(t *testing.T, db *sql.DB, modelName string) {
+	t.Helper()
+	ctx := t.Context()
+	providerID := uuid.NewV7()
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO model_providers (provider_id, provider_name) VALUES (?, ?)`,
+		providerID.String(), "opencode"); err != nil {
+		t.Fatalf("insert provider: %v", err)
+	}
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO models (model_id, provider_id, model_name, context_window, has_vision) VALUES (?, ?, ?, 0, 0)`,
+		uuid.NewV7().String(), providerID.String(), modelName); err != nil {
+		t.Fatalf("insert model: %v", err)
+	}
+}
+
 func TestInputValidate(t *testing.T) {
-	valid := Input{Definition: "define work", Specification: "implement it", Importance: task.LevelHigh}
+	valid := Input{
+		Definition: "define work", Specification: "implement it",
+		Model: "test-model", Importance: task.LevelHigh,
+	}
 	if err := valid.Validate(); err != nil {
 		t.Fatalf("Validate() = %v", err)
 	}
 
 	for name, input := range map[string]Input{
-		"missing definition":    {Specification: "implement it"},
-		"missing specification": {Definition: "define work"},
-		"invalid level":         {Definition: "define work", Specification: "implement it", Risk: task.Level(99)},
+		"missing definition":    {Specification: "implement it", Model: "test-model"},
+		"missing specification": {Definition: "define work", Model: "test-model"},
+		"missing model":         {Definition: "define work", Specification: "implement it"},
+		"invalid level": {
+			Definition: "define work", Specification: "implement it",
+			Model: "test-model", Risk: task.Level(99),
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if err := input.Validate(); err == nil {
@@ -47,6 +74,7 @@ func TestInputValidate(t *testing.T) {
 func TestExecuteCreatesTask(t *testing.T) {
 	testenv.SkipIfDBTestsDisabled(t)
 	st := openTestStore(t)
+	seedModel(t, st.RW(), "test-model")
 	in := Input{
 		Definition:    "define work",
 		Specification: "implement it",

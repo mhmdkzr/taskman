@@ -10,6 +10,7 @@ import (
 
 	"github.com/zendev-sh/goai"
 
+	"github.com/mhmdkzr/loop/internal/agent/sessions"
 	"github.com/mhmdkzr/loop/internal/agent/tools"
 	taskrepo "github.com/mhmdkzr/loop/internal/agent/tools/task"
 	"github.com/mhmdkzr/loop/internal/store"
@@ -64,6 +65,9 @@ func (in Input) Validate() error {
 	if !validState(in.State) {
 		return fmt.Errorf("invalid state: %q", in.State)
 	}
+	if strings.TrimSpace(in.Model) == "" {
+		return errors.New("model is required")
+	}
 	for _, level := range []taskrepo.Level{
 		in.Importance, in.Urgency, in.Complexity, in.Effort, in.Risk, in.Autonomy,
 	} {
@@ -81,6 +85,13 @@ func execute(ctx context.Context, st *store.Store, in Input) (Output, error) {
 	id, err := uuid.Parse(in.ID)
 	if err != nil {
 		return Output{}, fmt.Errorf("invalid id: %w", err)
+	}
+	// Model is a free-text name (task.Task.Model, not a models.model_id FK),
+	// so it isn't caught by any DB constraint - resolve it now rather than
+	// leaving a typo to surface only once something tries to dispatch a
+	// session against it.
+	if _, err := sessions.ModelIDByName(ctx, st.RO(), in.Model); err != nil {
+		return Output{}, fmt.Errorf("resolve model %q: %w", in.Model, err)
 	}
 	t := taskrepo.Task{
 		ID: id, Definition: in.Definition, Specification: in.Specification, State: in.State,
