@@ -241,22 +241,23 @@ CREATE TABLE IF NOT EXISTS session_tools (
 
 --
 CREATE TABLE IF NOT EXISTS tasks (
-    id            TEXT PRIMARY KEY,
-    definition    TEXT NOT NULL,
-    specification TEXT NOT NULL,
-    state         TEXT NOT NULL,
-    importance    INTEGER NOT NULL CHECK (importance BETWEEN 1 AND 5),
-    urgency       INTEGER NOT NULL CHECK (urgency BETWEEN 1 AND 5),
-    complexity    INTEGER NOT NULL CHECK (complexity BETWEEN 1 AND 5),
-    effort        INTEGER NOT NULL CHECK (effort BETWEEN 1 AND 5),
-    risk          INTEGER NOT NULL CHECK (risk BETWEEN 1 AND 5),
-    autonomy      INTEGER NOT NULL CHECK (autonomy BETWEEN 1 AND 5),
-    model         TEXT NOT NULL,
-    commit_hash   TEXT NOT NULL,
-    branch        TEXT,
-    created_at    TEXT NOT NULL,
-    updated_at    TEXT,
-    deleted_at    TEXT
+    id               TEXT PRIMARY KEY,
+    definition       TEXT NOT NULL,
+    specification    TEXT NOT NULL,
+    state            TEXT NOT NULL,
+    importance       INTEGER NOT NULL CHECK (importance BETWEEN 1 AND 5),
+    urgency          INTEGER NOT NULL CHECK (urgency BETWEEN 1 AND 5),
+    complexity       INTEGER NOT NULL CHECK (complexity BETWEEN 1 AND 5),
+    effort           INTEGER NOT NULL CHECK (effort BETWEEN 1 AND 5),
+    risk             INTEGER NOT NULL CHECK (risk BETWEEN 1 AND 5),
+    autonomy         INTEGER NOT NULL CHECK (autonomy BETWEEN 1 AND 5),
+    model            TEXT NOT NULL,
+    reasoning_effort TEXT,
+    commit_hash      TEXT NOT NULL,
+    branch           TEXT,
+    created_at       TEXT NOT NULL,
+    updated_at       TEXT,
+    deleted_at       TEXT
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_tasks_state

@@ -21,20 +21,21 @@ const (
 )
 
 type Input struct {
-	ID            string             `json:"id" jsonschema:"description=Task UUID."`
-	Definition    string             `json:"definition" jsonschema:"description=What needs to be done."`
-	Specification string             `json:"specification" jsonschema:"description=How the task should be done."`
-	State         taskrepo.TaskState `json:"state" jsonschema:"description=Task state."`
-	Labels        []string           `json:"labels,omitempty" jsonschema:"description=Labels for categorizing the task."`
-	Importance    taskrepo.Level     `json:"importance"`
-	Urgency       taskrepo.Level     `json:"urgency"`
-	Complexity    taskrepo.Level     `json:"complexity"`
-	Effort        taskrepo.Level     `json:"effort"`
-	Risk          taskrepo.Level     `json:"risk"`
-	Autonomy      taskrepo.Level     `json:"autonomy"`
-	Model         string             `json:"model"`
-	CommitHash    string             `json:"commit_hash,omitempty"`
-	Branch        string             `json:"branch,omitempty"`
+	ID              string             `json:"id"                         jsonschema:"description=Task UUID."`
+	Definition      string             `json:"definition"                 jsonschema:"description=What needs to be done."`
+	Specification   string             `json:"specification"              jsonschema:"description=How the task should be done."`
+	State           taskrepo.TaskState `json:"state"                      jsonschema:"description=Task state."`
+	Labels          []string           `json:"labels,omitempty"           jsonschema:"description=Labels for categorizing the task."`
+	Importance      taskrepo.Level     `json:"importance"`
+	Urgency         taskrepo.Level     `json:"urgency"`
+	Complexity      taskrepo.Level     `json:"complexity"`
+	Effort          taskrepo.Level     `json:"effort"`
+	Risk            taskrepo.Level     `json:"risk"`
+	Autonomy        taskrepo.Level     `json:"autonomy"`
+	Model           string             `json:"model"`
+	ReasoningEffort string             `json:"reasoning_effort,omitempty"`
+	CommitHash      string             `json:"commit_hash,omitempty"`
+	Branch          string             `json:"branch,omitempty"`
 }
 
 type Output struct {
@@ -85,7 +86,7 @@ func execute(ctx context.Context, st *store.Store, in Input) (Output, error) {
 		ID: id, Definition: in.Definition, Specification: in.Specification, State: in.State,
 		Labels: in.Labels, Importance: in.Importance, Urgency: in.Urgency,
 		Complexity: in.Complexity, Effort: in.Effort, Risk: in.Risk, Autonomy: in.Autonomy,
-		Model: in.Model, CommitHash: in.CommitHash, Branch: in.Branch,
+		Model: in.Model, ReasoningEffort: in.ReasoningEffort, CommitHash: in.CommitHash, Branch: in.Branch,
 	}
 	if err := taskrepo.UpdateTask(ctx, st.RW(), t); err != nil {
 		return Output{}, fmt.Errorf("update task: %w", err)

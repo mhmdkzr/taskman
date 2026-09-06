@@ -1,6 +1,7 @@
 package task
 
 import (
+	"errors"
 	"path/filepath"
 	"testing"
 	"uuid"
@@ -82,7 +83,7 @@ func TestDBTaskCRUD(t *testing.T) {
 	if err := DeleteTask(ctx, st.RW(), task.ID); err != nil {
 		t.Fatalf("DeleteTask: %v", err)
 	}
-	if _, err := GetTask(ctx, st.RO(), task.ID); err != ErrTaskNotFound {
+	if _, err := GetTask(ctx, st.RO(), task.ID); !errors.Is(err, ErrTaskNotFound) {
 		t.Fatalf("GetTask deleted error = %v, want %v", err, ErrTaskNotFound)
 	}
 }
@@ -115,10 +116,18 @@ func TestDBListTasksFilterValues(t *testing.T) {
 		want   []uuid.UUID
 	}{
 		{name: "one state", filter: TaskFilter{State: []TaskState{TaskStateStarted}}, want: []uuid.UUID{second.ID}},
-		{name: "many states", filter: TaskFilter{State: []TaskState{TaskStateCreated, TaskStateStarted}}, want: []uuid.UUID{first.ID, second.ID}},
+		{
+			name:   "many states",
+			filter: TaskFilter{State: []TaskState{TaskStateCreated, TaskStateStarted}},
+			want:   []uuid.UUID{first.ID, second.ID},
+		},
 		{name: "one level", filter: TaskFilter{Importance: []Level{LevelHigh}}, want: []uuid.UUID{first.ID, third.ID}},
 		{name: "one label", filter: TaskFilter{Labels: []string{"frontend"}}, want: []uuid.UUID{second.ID}},
-		{name: "many commit hashes", filter: TaskFilter{CommitHashes: []string{"abc123", "ghi789"}}, want: []uuid.UUID{first.ID, third.ID}},
+		{
+			name:   "many commit hashes",
+			filter: TaskFilter{CommitHashes: []string{"abc123", "ghi789"}},
+			want:   []uuid.UUID{first.ID, third.ID},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
