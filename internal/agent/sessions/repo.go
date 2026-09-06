@@ -12,6 +12,7 @@ import (
 	"uuid"
 
 	"github.com/zendev-sh/goai"
+	"github.com/zendev-sh/goai/provider"
 
 	"github.com/mhmdkzr/loop/internal/store"
 )
@@ -142,71 +143,89 @@ func ToolNamesForAgent(ctx context.Context, st *store.Store, agentID AgentID) ([
 	return names, nil
 }
 
-// ReplaceTodos replaces the active session's todo list atomically.
-func ReplaceTodos(ctx context.Context, st *store.Store, id SessionID, todos []Todo) error {
-	for _, todo := range todos {
-		if strings.TrimSpace(todo.Content) == "" {
-			return fmt.Errorf("%w: content is required", ErrInvalidTodo)
-		}
-		if !validTodoStatus(todo.Status) {
-			return fmt.Errorf("%w: invalid status %q", ErrInvalidTodo, todo.Status)
-		}
-		if !validTodoPriority(todo.Priority) {
-			return fmt.Errorf("%w: invalid priority %q", ErrInvalidTodo, todo.Priority)
-		}
-	}
-
-	tx, err := st.RW().BeginTx(ctx, nil)
+func GetSessionTokenUsage(ctx context.Context, db *sql.DB, sessionID uuid.UUID) (provider.Usage, error) {
+	var usage provider.Usage
+	err := db.QueryRowContext(ctx, `
+		SELECT
+			COALESCE(SUM(input_tokens), 0),
+			COALESCE(SUM(output_tokens), 0),
+			COALESCE(SUM(total_tokens), 0),
+			COALESCE(SUM(reasoning_tokens), 0),
+			COALESCE(SUM(cache_read_tokens), 0),
+			COALESCE(SUM(cache_write_tokens), 0)
+		FROM token_usage
+		WHERE session_id = ?`, sessionID.String()).Scan(
+		&usage.InputTokens,
+		&usage.OutputTokens,
+		&usage.TotalTokens,
+		&usage.ReasoningTokens,
+		&usage.CacheReadTokens,
+		&usage.CacheWriteTokens,
+	)
 	if err != nil {
-		return fmt.Errorf("begin todo transaction: %w", err)
+		return provider.Usage{}, fmt.Errorf("query session token usage: %w", err)
 	}
-	defer func() {
-		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
-			slog.Error("rollback todo transaction", "error", err)
-		}
-	}()
+	return usage, nil
+}
 
-	result, err := tx.ExecContext(ctx, `
-		DELETE FROM session_todos
-		WHERE session_id = ? AND EXISTS (
-			SELECT 1 FROM agent_sessions WHERE session_id = ? AND deleted_at IS NULL
-		)`, id.String(), id.String())
+func GetTotalTokenUsage(ctx context.Context, db *sql.DB, sessionIDs []uuid.UUID) (provider.Usage, error) {
+	if len(sessionIDs) == 0 {
+		return provider.Usage{}, nil
+	}
+
+	placeholders := strings.TrimRight(strings.Repeat("?,", len(sessionIDs)), ",")
+	args := make([]any, len(sessionIDs))
+	for i, sessionID := range sessionIDs {
+		args[i] = sessionID.String()
+	}
+
+	var usage provider.Usage
+	err := db.QueryRowContext(ctx, fmt.Sprintf(`
+		SELECT
+			COALESCE(SUM(input_tokens), 0),
+			COALESCE(SUM(output_tokens), 0),
+			COALESCE(SUM(total_tokens), 0),
+			COALESCE(SUM(reasoning_tokens), 0),
+			COALESCE(SUM(cache_read_tokens), 0),
+			COALESCE(SUM(cache_write_tokens), 0)
+		FROM token_usage
+		WHERE session_id IN (%s)`, placeholders), args...).Scan(
+		&usage.InputTokens,
+		&usage.OutputTokens,
+		&usage.TotalTokens,
+		&usage.ReasoningTokens,
+		&usage.CacheReadTokens,
+		&usage.CacheWriteTokens,
+	)
 	if err != nil {
-		return fmt.Errorf("delete session todos: %w", err)
+		return provider.Usage{}, fmt.Errorf("query total token usage: %w", err)
 	}
-	if affected, err := result.RowsAffected(); err != nil {
-		return fmt.Errorf("check session todos: %w", err)
-	} else if affected == 0 {
-		var exists int
-		if err := tx.QueryRowContext(ctx,
-			`SELECT 1 FROM agent_sessions WHERE session_id = ? AND deleted_at IS NULL`, id.String(),
-		).Scan(&exists); errors.Is(err, sql.ErrNoRows) {
-			return errSessionNotFound
-		} else if err != nil {
-			return fmt.Errorf("check session: %w", err)
-		}
-	}
+	return usage, nil
+}
 
-	now := time.Now().UTC().Format(time.RFC3339Nano)
-	for position, todo := range todos {
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO session_todos (todo_id, session_id, content, status, priority, position, created_at, updated_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, uuid.NewV7().String(), id.String(), todo.Content, todo.Status, todo.Priority, position, now, now); err != nil {
-			return fmt.Errorf("insert session todo: %w", err)
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit session todos: %w", err)
+func recordSessionTokenUsage(
+	ctx context.Context,
+	tx *sql.Tx,
+	sessionID uuid.UUID,
+	turnID uuid.UUID,
+	usage provider.Usage,
+) error {
+	_, err := tx.ExecContext(ctx, `
+		INSERT INTO token_usage (
+			session_id, turn_id,
+			input_tokens, output_tokens, total_tokens,
+			reasoning_tokens, cache_read_tokens, cache_write_tokens,
+			created_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		sessionID.String(), turnID.String(),
+		usage.InputTokens, usage.OutputTokens, usage.TotalTokens,
+		usage.ReasoningTokens, usage.CacheReadTokens, usage.CacheWriteTokens,
+		time.Now().UTC().Format(time.RFC3339Nano),
+	)
+	if err != nil {
+		return fmt.Errorf("insert token usage: %w", err)
 	}
 	return nil
-}
-
-func validTodoStatus(status TodoStatus) bool {
-	return status == TodoPending || status == TodoInProgress || status == TodoCompleted || status == TodoCancelled
-}
-
-func validTodoPriority(priority TodoPriority) bool {
-	return priority == TodoHigh || priority == TodoMedium || priority == TodoLow
 }
 
 // createSession validates and persists a new session with an empty turn
@@ -326,12 +345,24 @@ func appendTurn(ctx context.Context, db *sql.DB, id SessionID, prompt string, re
 		return fmt.Errorf("marshal turn result: %w", err)
 	}
 
-	res, err := db.ExecContext(ctx, `
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin append turn transaction: %w", err)
+	}
+	defer func() {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			slog.Error("rollback append turn transaction", "error", rollbackErr)
+		}
+	}()
+
+	turnID := uuid.NewV7()
+	createdAt := time.Now().UTC().Format(time.RFC3339Nano)
+	res, err := tx.ExecContext(ctx, `
 		INSERT INTO session_turns (turn_id, session_id, prompt, result, created_at)
 			SELECT ?, session_id, ?, ?, ?
 		FROM agent_sessions
 		WHERE session_id = ? AND deleted_at IS NULL`,
-		uuid.NewV7().String(), prompt, string(resultJSON), time.Now().UTC().Format(time.RFC3339Nano), id.String())
+		turnID.String(), prompt, string(resultJSON), createdAt, id.String())
 	if err != nil {
 		return fmt.Errorf("insert session turn: %w", err)
 	}
@@ -341,6 +372,12 @@ func appendTurn(ctx context.Context, db *sql.DB, id SessionID, prompt string, re
 	}
 	if n == 0 {
 		return errSessionNotFound
+	}
+	if err := recordSessionTokenUsage(ctx, tx, uuid.UUID(id), turnID, result.TotalUsage); err != nil {
+		return fmt.Errorf("record token usage: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit append turn transaction: %w", err)
 	}
 	return nil
 }

@@ -139,22 +139,25 @@ CREATE TABLE IF NOT EXISTS session_turns (
 CREATE INDEX IF NOT EXISTS idx_session_turns_session
     ON session_turns (session_id, created_at);
 
-CREATE TABLE IF NOT EXISTS session_todos (
-    todo_id    TEXT        PRIMARY KEY,
-    session_id TEXT        NOT NULL REFERENCES agent_sessions(session_id) ON DELETE RESTRICT,
-    content    TEXT        NOT NULL,
-    status     TEXT        NOT NULL CHECK (status IN ('pending', 'in_progress', 'completed', 'cancelled')),
-    priority   TEXT        NOT NULL CHECK (priority IN ('high', 'medium', 'low')),
-    position   INTEGER     NOT NULL,
-    created_at TEXT        NOT NULL,
-    updated_at TEXT        NOT NULL,
+CREATE TABLE IF NOT EXISTS token_usage (
+    session_id         TEXT    NOT NULL REFERENCES agent_sessions(session_id) ON DELETE RESTRICT,
+    turn_id            TEXT    NOT NULL REFERENCES session_turns(turn_id)     ON DELETE RESTRICT,
+    input_tokens       INTEGER NOT NULL,
+    output_tokens      INTEGER NOT NULL,
+    total_tokens       INTEGER NOT NULL,
+    reasoning_tokens   INTEGER NOT NULL,
+    cache_read_tokens  INTEGER NOT NULL,
+    cache_write_tokens INTEGER NOT NULL,
+    created_at         TEXT    NOT NULL,
 
-    CONSTRAINT session_todos_content_check
-        CHECK (length(content) > 0)
+    PRIMARY KEY (session_id, turn_id)
 ) STRICT;
 
-CREATE INDEX IF NOT EXISTS idx_session_todos_session
-    ON session_todos (session_id, position);
+CREATE INDEX IF NOT EXISTS idx_token_usage_session
+    ON token_usage (session_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_token_usage_turn
+    ON token_usage (turn_id);
 
 CREATE TABLE IF NOT EXISTS session_tools (
     session_id TEXT NOT NULL REFERENCES agent_sessions(session_id) ON DELETE RESTRICT,
@@ -164,38 +167,55 @@ CREATE TABLE IF NOT EXISTS session_tools (
 ) STRICT;
 
 --
-CREATE TABLE IF NOT EXISTS notes (
-    id         TEXT PRIMARY KEY,
-    session_id TEXT NOT NULL REFERENCES agent_sessions(session_id) ON DELETE CASCADE,
-    message_id TEXT REFERENCES session_turns(turn_id) ON DELETE SET NULL,
-    name       TEXT NOT NULL UNIQUE,
-    body       TEXT NOT NULL,
-    created_at TEXT NOT NULL
+CREATE TABLE IF NOT EXISTS session_todos (
+    todo_id    TEXT        PRIMARY KEY,
+    session_id TEXT        NOT NULL REFERENCES agent_sessions(session_id) ON DELETE RESTRICT,
+    content    TEXT        NOT NULL,
+    status     TEXT        NOT NULL CHECK (status IN ('pending', 'in_progress', 'completed', 'cancelled')),
+    priority   TEXT        NOT NULL CHECK (priority IN ('high', 'medium', 'low')),
+    position   INTEGER     NOT NULL,
+    created_at TEXT        NOT NULL,
+    updated_at TEXT,
+
+    CONSTRAINT session_todos_content_check
+        CHECK (length(content) > 0)
 ) STRICT;
 
-CREATE TABLE IF NOT EXISTS notes_links (
-    note_a       TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
-    note_b       TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
-    relationship TEXT,
-    created_at   TEXT NOT NULL,
-    PRIMARY KEY (note_a, note_b),
-    CHECK (note_a < note_b)
+CREATE INDEX IF NOT EXISTS idx_session_todos_session
+    ON session_todos (session_id, position);
+
+--
+CREATE TABLE IF NOT EXISTS tasks (
+    id            TEXT PRIMARY KEY,
+    definition    TEXT NOT NULL,
+    specification TEXT NOT NULL,
+    state         TEXT NOT NULL,
+    importance    INTEGER NOT NULL CHECK (importance BETWEEN 1 AND 5),
+    urgency       INTEGER NOT NULL CHECK (urgency BETWEEN 1 AND 5),
+    complexity    INTEGER NOT NULL CHECK (complexity BETWEEN 1 AND 5),
+    effort        INTEGER NOT NULL CHECK (effort BETWEEN 1 AND 5),
+    risk          INTEGER NOT NULL CHECK (risk BETWEEN 1 AND 5),
+    autonomy      INTEGER NOT NULL CHECK (autonomy BETWEEN 1 AND 5),
+    model         TEXT NOT NULL,
+    commit_hash   TEXT NOT NULL,
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT,
+    deleted_at    TEXT
 ) STRICT;
 
-CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
-    name,
-    body,
-    content='notes',
-    content_rowid='rowid'
-);
+CREATE INDEX IF NOT EXISTS idx_tasks_state
+    ON tasks (state);
 
-CREATE TRIGGER IF NOT EXISTS notes_ai AFTER INSERT ON notes BEGIN
-    INSERT INTO notes_fts(rowid, name, body) VALUES (new.rowid, new.name, new.body);
-END;
-CREATE TRIGGER IF NOT EXISTS notes_ad AFTER DELETE ON notes BEGIN
-    INSERT INTO notes_fts(notes_fts, rowid, name, body) VALUES ('delete', old.rowid, old.name, old.body);
-END;
-CREATE TRIGGER IF NOT EXISTS notes_au AFTER UPDATE ON notes BEGIN
-    INSERT INTO notes_fts(notes_fts, rowid, name, body) VALUES ('delete', old.rowid, old.name, old.body);
-    INSERT INTO notes_fts(rowid, name, body) VALUES (new.rowid, new.name, new.body);
-END;
+CREATE TABLE IF NOT EXISTS tasks_labels (
+    task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE RESTRICT,
+    label   TEXT NOT NULL,
+
+    PRIMARY KEY (task_id, label)
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS tasks_sessions (
+    task_id       TEXT NOT NULL REFERENCES tasks(id) ON DELETE RESTRICT,
+    session_id    TEXT NOT NULL REFERENCES agent_sessions(session_id) ON DELETE RESTRICT,
+
+    PRIMARY KEY (task_id, session_id)
+) STRICT;

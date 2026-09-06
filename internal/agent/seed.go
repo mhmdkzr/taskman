@@ -34,15 +34,13 @@ import (
 	golang "github.com/mhmdkzr/loop/internal/agent/tools/go"
 	"github.com/mhmdkzr/loop/internal/agent/tools/history"
 	"github.com/mhmdkzr/loop/internal/agent/tools/nats"
-	notesdelete "github.com/mhmdkzr/loop/internal/agent/tools/notes/delete"
-	notesedit "github.com/mhmdkzr/loop/internal/agent/tools/notes/edit"
-	noteslink "github.com/mhmdkzr/loop/internal/agent/tools/notes/link"
-	noteslist "github.com/mhmdkzr/loop/internal/agent/tools/notes/list"
-	notesread "github.com/mhmdkzr/loop/internal/agent/tools/notes/read"
-	notessearch "github.com/mhmdkzr/loop/internal/agent/tools/notes/search"
-	noteswrite "github.com/mhmdkzr/loop/internal/agent/tools/notes/write"
 	"github.com/mhmdkzr/loop/internal/agent/tools/psql"
 	"github.com/mhmdkzr/loop/internal/agent/tools/query"
+	taskcreate "github.com/mhmdkzr/loop/internal/agent/tools/task/create"
+	taskdelete "github.com/mhmdkzr/loop/internal/agent/tools/task/delete"
+	taskget "github.com/mhmdkzr/loop/internal/agent/tools/task/get"
+	tasklist "github.com/mhmdkzr/loop/internal/agent/tools/task/list"
+	taskupdate "github.com/mhmdkzr/loop/internal/agent/tools/task/update"
 	tgread "github.com/mhmdkzr/loop/internal/agent/tools/telegram/read"
 	tgsend "github.com/mhmdkzr/loop/internal/agent/tools/telegram/send"
 	"github.com/mhmdkzr/loop/internal/agent/tools/todo"
@@ -160,13 +158,6 @@ func toolSeeds() []toolSeed {
 		newToolSeed[psql.Input, tools.Output](psql.Name, psql.Description),
 		newToolSeed[query.Input, query.Output](query.Name, query.Description),
 		newToolSeed[history.Input, history.Output](history.Name, history.Description),
-		newToolSeed[noteswrite.Input, noteswrite.Output](noteswrite.Name, noteswrite.Description),
-		newToolSeed[notesdelete.Input, notesdelete.Output](notesdelete.Name, notesdelete.Description),
-		newToolSeed[notesedit.Input, notesedit.Output](notesedit.Name, notesedit.Description),
-		newToolSeed[noteslink.Input, noteslink.Output](noteslink.Name, noteslink.Description),
-		newToolSeed[noteslist.Input, noteslist.Output](noteslist.Name, noteslist.Description),
-		newToolSeed[notesread.Input, notesread.Output](notesread.Name, notesread.Description),
-		newToolSeed[notessearch.Input, notessearch.Output](notessearch.Name, notessearch.Description),
 		newToolSeed[git.Input, tools.Output](git.Name, git.Description),
 		newToolSeed[golang.Input, tools.Output](golang.Name, golang.Description),
 		newToolSeed[bash.Input, tools.Output](bash.Name, bash.Description),
@@ -175,6 +166,11 @@ func toolSeeds() []toolSeed {
 		newToolSeed[nats.Input, tools.Output](nats.Name, nats.Description),
 		newToolSeed[datetime.Input, datetime.Output](datetime.Name, datetime.Description),
 		newToolSeed[todo.Input, todo.Output](todo.Name, todo.Description),
+		newToolSeed[taskcreate.Input, taskcreate.Output](taskcreate.Name, taskcreate.Description),
+		newToolSeed[taskget.Input, taskget.Output](taskget.Name, taskget.Description),
+		newToolSeed[tasklist.Input, tasklist.Output](tasklist.Name, tasklist.Description),
+		newToolSeed[taskupdate.Input, taskupdate.Output](taskupdate.Name, taskupdate.Description),
+		newToolSeed[taskdelete.Input, taskdelete.Output](taskdelete.Name, taskdelete.Description),
 		newToolSeed[agenttool.Input, agenttool.Output](agenttool.Name, agenttool.Description),
 		newToolSeed[navigate.Input, navigate.Output](navigate.Name, navigate.Description),
 		newToolSeed[extract.Input, extract.Output](extract.Name, extract.Description),

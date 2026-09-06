@@ -8,6 +8,7 @@ import (
 	"uuid"
 
 	"github.com/zendev-sh/goai"
+	"github.com/zendev-sh/goai/provider"
 
 	"github.com/mhmdkzr/loop/internal/store"
 	"github.com/mhmdkzr/loop/migrations"
@@ -189,5 +190,64 @@ func TestDBSearchHistoryLimit(t *testing.T) {
 	}
 	if len(turns) != 1 || turns[0].Prompt != "turn two" {
 		t.Fatalf("turns = %+v, want only the newest turn", turns)
+	}
+}
+
+func TestDBTokenUsage(t *testing.T) {
+	testenv.SkipIfDBTestsDisabled(t)
+	st := openTestStore(t)
+	agentID, modelID := seedAgent(t, st.RW())
+	ctx := t.Context()
+
+	id1, err := createSession(ctx, st.RW(), agentID, modelID, "sys", nil, nil)
+	if err != nil {
+		t.Fatalf("createSession: %v", err)
+	}
+	id2, err := createSession(ctx, st.RW(), agentID, modelID, "sys", nil, nil)
+	if err != nil {
+		t.Fatalf("createSession: %v", err)
+	}
+
+	usage1 := provider.Usage{
+		InputTokens: 10, OutputTokens: 20, TotalTokens: 30,
+		ReasoningTokens: 4, CacheReadTokens: 5, CacheWriteTokens: 6,
+	}
+	usage2 := provider.Usage{
+		InputTokens: 2, OutputTokens: 3, TotalTokens: 5,
+		ReasoningTokens: 1, CacheReadTokens: 7, CacheWriteTokens: 8,
+	}
+	if err := appendTurn(ctx, st.RW(), id1, "first", &goai.TextResult{TotalUsage: usage1}); err != nil {
+		t.Fatalf("appendTurn: %v", err)
+	}
+	if err := appendTurn(ctx, st.RW(), id2, "second", &goai.TextResult{TotalUsage: usage2}); err != nil {
+		t.Fatalf("appendTurn: %v", err)
+	}
+
+	got, err := GetSessionTokenUsage(ctx, st.RO(), id1.UUID())
+	if err != nil {
+		t.Fatalf("GetSessionTokenUsage: %v", err)
+	}
+	if got != usage1 {
+		t.Fatalf("session usage = %+v, want %+v", got, usage1)
+	}
+
+	got, err = GetTotalTokenUsage(ctx, st.RO(), []uuid.UUID{id1.UUID(), id2.UUID()})
+	if err != nil {
+		t.Fatalf("GetTotalTokenUsage: %v", err)
+	}
+	want := provider.Usage{
+		InputTokens: 12, OutputTokens: 23, TotalTokens: 35,
+		ReasoningTokens: 5, CacheReadTokens: 12, CacheWriteTokens: 14,
+	}
+	if got != want {
+		t.Fatalf("total usage = %+v, want %+v", got, want)
+	}
+
+	got, err = GetTotalTokenUsage(ctx, st.RO(), nil)
+	if err != nil {
+		t.Fatalf("GetTotalTokenUsage empty: %v", err)
+	}
+	if got != (provider.Usage{}) {
+		t.Fatalf("empty total usage = %+v, want zero", got)
 	}
 }

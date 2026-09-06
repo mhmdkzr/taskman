@@ -18,11 +18,11 @@ const (
 )
 
 type Input struct {
-	Todos []sessions.Todo `json:"todos" jsonschema:"description=The complete current todo list. Use an empty list when no work remains."`
+	Todos []Todo `json:"todos" jsonschema:"description=The complete current todo list. Use an empty list when no work remains."`
 }
 
 type Output struct {
-	Todos []sessions.Todo `json:"todos" jsonschema:"description=The complete current todo list. Use an empty list when no work remains."`
+	Todos []Todo `json:"todos" jsonschema:"description=The complete current todo list. Use an empty list when no work remains."`
 }
 
 func Tool(d tools.Deps) goai.Tool {
@@ -33,7 +33,7 @@ func Tool(d tools.Deps) goai.Tool {
 		if d.SessionID == (sessions.SessionID{}) {
 			return Output{}, errors.New("todo: session is required")
 		}
-		if err := sessions.ReplaceTodos(ctx, d.Store, d.SessionID, in.Todos); err != nil {
+		if err := ReplaceTodos(ctx, d.Store, d.SessionID, in.Todos); err != nil {
 			return Output{}, fmt.Errorf("todo: %w", err)
 		}
 		return Output(in), nil
