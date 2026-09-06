@@ -18,11 +18,11 @@ import (
 )
 
 var (
-	// errSessionNotFound is returned when no live session matches the requested ID.
-	errSessionNotFound = errors.New("session not found")
+	// ErrSessionNotFound is returned when no live session matches the requested ID.
+	ErrSessionNotFound = errors.New("session not found")
 
-	// errAgentNotFound is returned when no agents row matches the requested name.
-	errAgentNotFound = errors.New("agent not found")
+	// ErrAgentNotFound is returned when no agents row matches the requested name.
+	ErrAgentNotFound = errors.New("agent not found")
 )
 
 // sessionConfig is the immutable configuration of an agent session plus its
@@ -37,9 +37,12 @@ type sessionConfig struct {
 // turn is one user prompt and the full goai.TextResult it produced.
 // Result is nil for a turn still in the "running" status (see turnStatus).
 type turn struct {
-	Prompt string
-	Result *goai.TextResult
-	Status turnStatus
+	TurnID      string
+	Prompt      string
+	Result      *goai.TextResult
+	Status      turnStatus
+	CreatedAt   string
+	CompletedAt string
 }
 
 // turnStatus tracks a session_turns row's crash-recovery lifecycle.
@@ -92,10 +95,10 @@ func AgentByName(ctx context.Context, st *store.Store, name string) (AgentConfig
 		SELECT a.agent_id, a.model_id, pt.template_body
 		FROM agents a
 		JOIN prompt_templates pt ON pt.prompt_id = a.prompt_id
-		WHERE a.agent_name = ?`, name).
+		WHERE a.agent_name = ? AND a.deleted_at IS NULL`, name).
 		Scan(&agentIDStr, &modelIDStr, &cfg.TemplateBody)
 	if errors.Is(err, sql.ErrNoRows) {
-		return AgentConfig{}, errAgentNotFound
+		return AgentConfig{}, ErrAgentNotFound
 	}
 	if err != nil {
 		return AgentConfig{}, fmt.Errorf("query agent by name: %w", err)
@@ -121,7 +124,7 @@ func AgentIDFor(ctx context.Context, st *store.Store, id SessionID) (AgentID, er
 		SELECT agent_id FROM agent_sessions
 		WHERE session_id = ? AND deleted_at IS NULL`, id.String()).Scan(&agentIDStr)
 	if errors.Is(err, sql.ErrNoRows) {
-		return AgentID{}, errSessionNotFound
+		return AgentID{}, ErrSessionNotFound
 	}
 	if err != nil {
 		return AgentID{}, fmt.Errorf("query agent id for session: %w", err)
@@ -321,7 +324,7 @@ func sessionByID(ctx context.Context, db *sql.DB, id SessionID) (sessionConfig, 
 	err := db.QueryRowContext(ctx, query, id.String()).
 		Scan(&modelIDStr, &cfg.SystemPrompt, &optsJSON)
 	if errors.Is(err, sql.ErrNoRows) {
-		return sessionConfig{}, errSessionNotFound
+		return sessionConfig{}, ErrSessionNotFound
 	}
 	if err != nil {
 		return sessionConfig{}, fmt.Errorf("query session by id: %w", err)
@@ -386,7 +389,7 @@ func appendTurn(
 // startTurn inserts a turnStatusRunning row with no result: the write-ahead
 // marker for a turn about to begin its model/tool-call loop. It validates
 // against the live session, so a missing or soft-deleted session inserts
-// nothing and maps to errSessionNotFound.
+// nothing and maps to ErrSessionNotFound.
 func startTurn(
 	ctx context.Context,
 	db *sql.DB,
@@ -412,7 +415,7 @@ func startTurn(
 		return fmt.Errorf("rows affected: %w", err)
 	}
 	if n == 0 {
-		return errSessionNotFound
+		return ErrSessionNotFound
 	}
 	return nil
 }
@@ -507,7 +510,7 @@ func recordTurnEvent(
 // turnsBySession loads a session's turns in insertion order.
 func turnsBySession(ctx context.Context, db *sql.DB, id SessionID) ([]turn, error) {
 	const query = `
-		SELECT prompt, result, status, created_at
+		SELECT turn_id, prompt, result, status, created_at, completed_at
 		FROM session_turns
 		WHERE session_id = ?
 		ORDER BY created_at, turn_id`
@@ -525,15 +528,16 @@ func turnsBySession(ctx context.Context, db *sql.DB, id SessionID) ([]turn, erro
 	var turns []turn
 	for rows.Next() {
 		var (
-			t         turn
-			resultRaw sql.NullString
-			status    string
-			createdAt string
+			t           turn
+			resultRaw   sql.NullString
+			status      string
+			completedAt sql.NullString
 		)
-		if err := rows.Scan(&t.Prompt, &resultRaw, &status, &createdAt); err != nil {
+		if err := rows.Scan(&t.TurnID, &t.Prompt, &resultRaw, &status, &t.CreatedAt, &completedAt); err != nil {
 			return nil, fmt.Errorf("scan session turn: %w", err)
 		}
 		t.Status = turnStatus(status)
+		t.CompletedAt = completedAt.String
 		if resultRaw.Valid && resultRaw.String != "" {
 			if err := json.Unmarshal([]byte(resultRaw.String), &t.Result); err != nil {
 				return nil, fmt.Errorf("decode session turn result: %w", err)
@@ -545,6 +549,279 @@ func turnsBySession(ctx context.Context, db *sql.DB, id SessionID) ([]turn, erro
 		return nil, fmt.Errorf("iterate session turns: %w", err)
 	}
 	return turns, nil
+}
+
+// SessionSummary is one agent_sessions row summarized for a session list: the
+// agent it runs as, its latest turn's status, and light aggregate stats. It
+// carries no turn history — see GetSessionDetail for that.
+type SessionSummary struct {
+	SessionID       SessionID
+	AgentName       string
+	ParentSessionID *SessionID
+	CreatedAt       string
+	Status          string
+	TurnCount       int
+	TotalTokens     int64
+	LastPrompt      string
+}
+
+// ListSessions returns every live session, newest first, each summarized with
+// its agent, latest turn status, and aggregate turn/token counts.
+func ListSessions(ctx context.Context, st *store.Store) ([]SessionSummary, error) {
+	return listSessionSummaries(ctx, st.RO())
+}
+
+// SessionSummariesByIDs returns a summary for each of the given sessions,
+// newest first. A task's linked sessions are looked up this way: task.
+// SessionIDsForTask returns the IDs (tasks_sessions is task-owned, so the
+// sessions package doesn't query it directly), and this resolves them to
+// display data.
+func SessionSummariesByIDs(ctx context.Context, st *store.Store, ids []SessionID) ([]SessionSummary, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	return sessionSummariesByIDs(ctx, st.RO(), ids)
+}
+
+// sessionSummariesByIDs is listSessionSummaries filtered to a specific set of
+// sessions, for resolving a task's linked sessions to display data.
+func sessionSummariesByIDs(ctx context.Context, db *sql.DB, ids []SessionID) ([]SessionSummary, error) {
+	placeholders := strings.TrimRight(strings.Repeat("?,", len(ids)), ",")
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id.String()
+	}
+
+	rows, err := db.QueryContext(ctx, fmt.Sprintf(`
+		SELECT
+			s.session_id, s.parent_session_id, s.created_at, a.agent_name,
+			(SELECT COUNT(*) FROM session_turns t WHERE t.session_id = s.session_id),
+			(SELECT t.status FROM session_turns t WHERE t.session_id = s.session_id
+				ORDER BY t.created_at DESC, t.turn_id DESC LIMIT 1),
+			(SELECT t.prompt FROM session_turns t WHERE t.session_id = s.session_id
+				ORDER BY t.created_at DESC, t.turn_id DESC LIMIT 1),
+			(SELECT COALESCE(SUM(total_tokens), 0) FROM token_usage WHERE session_id = s.session_id)
+		FROM agent_sessions s
+		JOIN agents a ON a.agent_id = s.agent_id
+		WHERE s.deleted_at IS NULL AND s.session_id IN (%s)
+		ORDER BY s.created_at DESC`, placeholders), args...)
+	if err != nil {
+		return nil, fmt.Errorf("query session summaries by id: %w", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			slog.Error("close session summary rows", "error", err)
+		}
+	}()
+	return scanSessionSummaries(rows)
+}
+
+// listSessionSummaries scans agent_sessions joined with agents, using
+// correlated subqueries against session_turns/token_usage for the per-session
+// aggregates a session list needs to render without a second round trip.
+func listSessionSummaries(ctx context.Context, db *sql.DB) ([]SessionSummary, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT
+			s.session_id, s.parent_session_id, s.created_at, a.agent_name,
+			(SELECT COUNT(*) FROM session_turns t WHERE t.session_id = s.session_id),
+			(SELECT t.status FROM session_turns t WHERE t.session_id = s.session_id
+				ORDER BY t.created_at DESC, t.turn_id DESC LIMIT 1),
+			(SELECT t.prompt FROM session_turns t WHERE t.session_id = s.session_id
+				ORDER BY t.created_at DESC, t.turn_id DESC LIMIT 1),
+			(SELECT COALESCE(SUM(total_tokens), 0) FROM token_usage WHERE session_id = s.session_id)
+		FROM agent_sessions s
+		JOIN agents a ON a.agent_id = s.agent_id
+		WHERE s.deleted_at IS NULL
+		ORDER BY s.created_at DESC`)
+	if err != nil {
+		return nil, fmt.Errorf("query session summaries: %w", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			slog.Error("close session summary rows", "error", err)
+		}
+	}()
+	return scanSessionSummaries(rows)
+}
+
+// scanSessionSummaries reads every row of a session-summary query (see
+// listSessionSummaries and sessionSummariesByIDs for the two column-compatible
+// queries it scans).
+func scanSessionSummaries(rows *sql.Rows) ([]SessionSummary, error) {
+	var summaries []SessionSummary
+	for rows.Next() {
+		var (
+			s            SessionSummary
+			sessionIDStr string
+			parentIDStr  sql.NullString
+			lastStatus   sql.NullString
+			lastPrompt   sql.NullString
+		)
+		if err := rows.Scan(
+			&sessionIDStr, &parentIDStr, &s.CreatedAt, &s.AgentName,
+			&s.TurnCount, &lastStatus, &lastPrompt, &s.TotalTokens,
+		); err != nil {
+			return nil, fmt.Errorf("scan session summary: %w", err)
+		}
+
+		id, err := uuid.Parse(sessionIDStr)
+		if err != nil {
+			return nil, fmt.Errorf("parse session id: %w", err)
+		}
+		s.SessionID = SessionID(id)
+
+		if parentIDStr.Valid {
+			parentID, err := uuid.Parse(parentIDStr.String)
+			if err != nil {
+				return nil, fmt.Errorf("parse parent session id: %w", err)
+			}
+			parent := SessionID(parentID)
+			s.ParentSessionID = &parent
+		}
+
+		s.Status = "new"
+		if lastStatus.Valid {
+			s.Status = lastStatus.String
+		}
+		s.LastPrompt = lastPrompt.String
+
+		summaries = append(summaries, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate session summaries: %w", err)
+	}
+	return summaries, nil
+}
+
+// ToolCallDetail is one tool call within a turn, matched with its result (if
+// any was recorded) for display.
+type ToolCallDetail struct {
+	ID     string
+	Name   string
+	Input  json.RawMessage
+	Output string
+	Error  string
+}
+
+// TurnStepDetail is one step of a turn's model/tool-call loop: the text the
+// model produced in that step (if any) followed by the tool calls it made
+// (if any) - the order they actually happened in, so a transcript view can
+// show a tool call under the text that preceded it rather than always after
+// every tool call in the turn.
+type TurnStepDetail struct {
+	Text      string
+	ToolCalls []ToolCallDetail
+}
+
+// TurnDetail is one session_turns row expanded for display: the prompt,
+// every step of the model/tool-call loop that produced its reply, and the
+// crash-recovery status.
+type TurnDetail struct {
+	TurnID      string
+	Prompt      string
+	Status      string
+	CreatedAt   string
+	CompletedAt string
+	Usage       provider.Usage
+	Steps       []TurnStepDetail
+}
+
+// SessionDetail is a session's header (agent, model, lineage) plus its full
+// turn history expanded for display.
+type SessionDetail struct {
+	SessionID       SessionID
+	AgentName       string
+	ModelName       string
+	ParentSessionID *SessionID
+	CreatedAt       string
+	Turns           []TurnDetail
+}
+
+// GetSessionDetail loads a live session's header and full turn history,
+// expanding each turn's stored goai.TextResult into the reply text and tool
+// calls a transcript view needs.
+func GetSessionDetail(ctx context.Context, st *store.Store, id SessionID) (SessionDetail, error) {
+	detail, err := sessionHeader(ctx, st.RO(), id)
+	if err != nil {
+		return SessionDetail{}, fmt.Errorf("get session detail: %w", err)
+	}
+
+	turns, err := turnsBySession(ctx, st.RO(), id)
+	if err != nil {
+		return SessionDetail{}, fmt.Errorf("get session detail: %w", err)
+	}
+	detail.Turns = make([]TurnDetail, len(turns))
+	for i, t := range turns {
+		td := TurnDetail{
+			TurnID:      t.TurnID,
+			Prompt:      t.Prompt,
+			Status:      string(t.Status),
+			CreatedAt:   t.CreatedAt,
+			CompletedAt: t.CompletedAt,
+		}
+		if t.Result != nil {
+			td.Usage = t.Result.TotalUsage
+			td.Steps = turnStepDetailsFromResult(t.Result)
+		}
+		detail.Turns[i] = td
+	}
+	return detail, nil
+}
+
+// sessionHeader loads a live session's agent name, model name, lineage, and
+// creation time - everything GetSessionDetail needs besides the turn history.
+func sessionHeader(ctx context.Context, db *sql.DB, id SessionID) (SessionDetail, error) {
+	var (
+		detail      SessionDetail
+		parentIDStr sql.NullString
+	)
+	err := db.QueryRowContext(ctx, `
+		SELECT s.parent_session_id, s.created_at, a.agent_name, m.model_name
+		FROM agent_sessions s
+		JOIN agents a ON a.agent_id = s.agent_id
+		JOIN models m ON m.model_id = s.model_id
+		WHERE s.session_id = ? AND s.deleted_at IS NULL`, id.String()).
+		Scan(&parentIDStr, &detail.CreatedAt, &detail.AgentName, &detail.ModelName)
+	if errors.Is(err, sql.ErrNoRows) {
+		return SessionDetail{}, ErrSessionNotFound
+	}
+	if err != nil {
+		return SessionDetail{}, fmt.Errorf("query session header: %w", err)
+	}
+	detail.SessionID = id
+	if parentIDStr.Valid {
+		parentID, err := uuid.Parse(parentIDStr.String)
+		if err != nil {
+			return SessionDetail{}, fmt.Errorf("parse parent session id: %w", err)
+		}
+		parent := SessionID(parentID)
+		detail.ParentSessionID = &parent
+	}
+	return detail, nil
+}
+
+// turnStepDetailsFromResult expands a result's steps for display: each
+// step's text paired with the tool calls it made, matched element-for-element
+// with that step's ToolResults (see goai.StepResult.ToolResults), preserving
+// the order the model actually produced them in.
+func turnStepDetailsFromResult(result *goai.TextResult) []TurnStepDetail {
+	steps := make([]TurnStepDetail, 0, len(result.Steps))
+	for _, step := range result.Steps {
+		sd := TurnStepDetail{Text: step.Text}
+		for i, tc := range step.ToolCalls {
+			detail := ToolCallDetail{ID: tc.ID, Name: tc.Name, Input: tc.Input}
+			if i < len(step.ToolResults) {
+				tr := step.ToolResults[i]
+				detail.Output = tr.Output
+				if tr.Error != nil {
+					detail.Error = tr.Error.Error()
+				}
+			}
+			sd.ToolCalls = append(sd.ToolCalls, detail)
+		}
+		steps = append(steps, sd)
+	}
+	return steps
 }
 
 // SearchHistory returns turns across sessions, newest session first and

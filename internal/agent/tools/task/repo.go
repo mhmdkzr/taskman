@@ -178,6 +178,38 @@ func ListTasks(ctx context.Context, db *sql.DB, filter TaskFilter) ([]Task, erro
 	return tasks, nil
 }
 
+// SessionIDsForTask returns every session linked to taskID via tasks_sessions,
+// in the order they were linked.
+func SessionIDsForTask(ctx context.Context, db *sql.DB, taskID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT session_id FROM tasks_sessions WHERE task_id = ?`, taskID.String())
+	if err != nil {
+		return nil, fmt.Errorf("query task session ids: %w", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			slog.Error("close task session id rows", "error", err)
+		}
+	}()
+
+	var ids []uuid.UUID
+	for rows.Next() {
+		var idString string
+		if err := rows.Scan(&idString); err != nil {
+			return nil, fmt.Errorf("scan task session id: %w", err)
+		}
+		id, err := uuid.Parse(idString)
+		if err != nil {
+			return nil, fmt.Errorf("parse task session id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate task session ids: %w", err)
+	}
+	return ids, nil
+}
+
 func UpdateTask(ctx context.Context, db *sql.DB, t Task) error {
 	if t.ID == (uuid.UUID{}) {
 		return fmt.Errorf("update task: id is required")

@@ -1,9 +1,9 @@
 ## Stack
 
-### Backend
-
 - Go
 - SQLite
+- Templ
+- Datastar
 
 ---
 

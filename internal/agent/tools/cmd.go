@@ -14,7 +14,7 @@ type Input struct {
 
 type Output struct {
 	StdOut   string `json:"stdout"`
-	StdErr   string `json:"stderr"`
+	StdErr   string `json:"stderr,omitempty"`
 	ExitCode int    `json:"exit_code"`
 }
 

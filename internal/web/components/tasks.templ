@@ -1,0 +1,122 @@
+package components
+
+templ taskItem(t TaskSummary, active *TaskDetailView) {
+	<a
+		class={ "task-item", templ.KV("active", active != nil && active.Task.ID == t.ID) }
+		href={ templ.SafeURL("/tasks/" + t.ID.String()) }
+	>
+		<div class="task-item-top">
+			<span class={ "status-dot", statusClass(string(t.State)) }></span>
+			<span class="task-item-def">{ t.Definition }</span>
+		</div>
+		if len(t.Labels) > 0 {
+			<div class="task-item-labels">
+				for _, label := range t.Labels {
+					<span class="tag">{ label }</span>
+				}
+			</div>
+		}
+		<div class="task-item-meta">
+			<span>{ statusLabel(string(t.State)) }</span>
+			<span class="tabular">
+				{ formatTokens(int64(t.SessionCount)) }
+				if t.SessionCount == 1 {
+					session
+				} else {
+					sessions
+				}
+			</span>
+		</div>
+	</a>
+}
+
+templ taskMain(view TaskDetailView) {
+	<div class="main-header">
+		<div class="main-header-title">
+			<span class="main-header-agent">{ view.Task.Definition }</span>
+			<span class="main-header-id">{ view.Task.ID.String() }</span>
+			@statusPill(string(view.Task.State))
+		</div>
+	</div>
+	<div class="transcript" id="transcript">
+		<div class="task-body">
+			<div>
+				<div class="section-label">Specification</div>
+				<div class="spec-block">{ view.Task.Specification }</div>
+			</div>
+			<div>
+				<div class="section-label">Planning</div>
+				<div class="planning-grid">
+					@planningStat("Importance", int(view.Task.Importance))
+					@planningStat("Urgency", int(view.Task.Urgency))
+					@planningStat("Complexity", int(view.Task.Complexity))
+					@planningStat("Effort", int(view.Task.Effort))
+					@planningStat("Risk", int(view.Task.Risk))
+					@planningStat("Autonomy", int(view.Task.Autonomy))
+				</div>
+			</div>
+			<div>
+				<div class="section-label">Details</div>
+				<div class="task-meta-row">
+					<div class="task-meta-item">
+						<span class="label">Model</span>
+						<div class="value">{ view.Task.Model }</div>
+					</div>
+					<div class="task-meta-item">
+						<span class="label">Commit</span>
+						<div class="value">{ view.Task.CommitHash }</div>
+					</div>
+					if len(view.Task.Labels) > 0 {
+						<div class="task-meta-item">
+							<span class="label">Labels</span>
+							<div class="labels-row">
+								for _, label := range view.Task.Labels {
+									<span class="tag">{ label }</span>
+								}
+							</div>
+						</div>
+					}
+				</div>
+			</div>
+			<div>
+				<div class="section-label">Sessions ({ itoa(len(view.Sessions)) })</div>
+				if len(view.Sessions) > 0 {
+					<div class="sessions-list">
+						for _, row := range view.Sessions {
+							@taskSessionRow(row)
+						}
+					</div>
+				} else {
+					<div class="empty-state" style="padding:20px 0;">No sessions dispatched for this task yet.</div>
+				}
+			</div>
+		</div>
+	</div>
+}
+
+templ planningStat(name string, level int) {
+	<div class="planning-stat">
+		<div class="planning-stat-top">
+			<span class="planning-stat-name">{ name }</span>
+			<span class="planning-stat-val tabular">{ itoa(level) }/5</span>
+		</div>
+		<div class="meter">
+			<div class="meter-fill" style={ meterStyle(level) }></div>
+		</div>
+	</div>
+}
+
+templ taskSessionRow(row TaskSessionRow) {
+	<a class="session-row" href={ templ.SafeURL("/sessions/" + row.Session.SessionID.String()) }>
+		<span class="session-row-role">{ row.Role }</span>
+		<span class="session-row-agent">{ row.Session.AgentName }</span>
+		if row.Session.LastPrompt != "" {
+			<span class="session-row-preview">{ truncate(row.Session.LastPrompt, 70) }</span>
+		}
+		@statusPill(row.Session.Status)
+		<span class="session-row-meta">
+			<span class="tabular">{ formatTokens(int64(row.Session.TurnCount)) } turns</span>
+			<span class="tabular">{ formatTokens(row.Session.TotalTokens) } tok</span>
+		</span>
+	</a>
+}
