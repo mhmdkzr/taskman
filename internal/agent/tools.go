@@ -5,6 +5,7 @@ import (
 
 	"github.com/mhmdkzr/loop/internal/agent/tools"
 	agenttool "github.com/mhmdkzr/loop/internal/agent/tools/agent"
+	"github.com/mhmdkzr/loop/internal/agent/tools/bash"
 	"github.com/mhmdkzr/loop/internal/agent/tools/browser"
 	"github.com/mhmdkzr/loop/internal/agent/tools/browser/back"
 	"github.com/mhmdkzr/loop/internal/agent/tools/browser/click"
@@ -61,6 +62,7 @@ func Tools() tools.Registry {
 		rg.Name:           func(tools.Deps) goai.Tool { return rg.Tool() },
 		grep.Name:         func(tools.Deps) goai.Tool { return grep.Tool() },
 		psql.Name:         func(tools.Deps) goai.Tool { return psql.Tool() },
+		bash.Name:         func(tools.Deps) goai.Tool { return bash.Tool() },
 		query.Name:        func(deps tools.Deps) goai.Tool { return query.Tool(deps) },
 		history.Name:      func(deps tools.Deps) goai.Tool { return history.Tool(deps) },
 		noteswrite.Name:   func(deps tools.Deps) goai.Tool { return noteswrite.Tool(deps) },

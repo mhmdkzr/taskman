@@ -11,6 +11,7 @@ import (
 
 	"github.com/mhmdkzr/loop/internal/agent/tools"
 	agenttool "github.com/mhmdkzr/loop/internal/agent/tools/agent"
+	"github.com/mhmdkzr/loop/internal/agent/tools/bash"
 	"github.com/mhmdkzr/loop/internal/agent/tools/browser/back"
 	"github.com/mhmdkzr/loop/internal/agent/tools/browser/click"
 	"github.com/mhmdkzr/loop/internal/agent/tools/browser/extract"
@@ -170,6 +171,7 @@ func toolSeeds() []toolSeed {
 		newToolSeed[notessearch.Input, notessearch.Output](notessearch.Name, notessearch.Description),
 		newToolSeed[git.Input, tools.Output](git.Name, git.Description),
 		newToolSeed[golang.Input, tools.Output](golang.Name, golang.Description),
+		newToolSeed[bash.Input, tools.Output](bash.Name, bash.Description),
 		newToolSeed[curl.Input, tools.Output](curl.Name, curl.Description),
 		newToolSeed[deno.Input, tools.Output](deno.Name, deno.Description),
 		newToolSeed[nats.Input, tools.Output](nats.Name, nats.Description),
