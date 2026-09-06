@@ -19,7 +19,6 @@ import (
 	"github.com/mhmdkzr/loop/internal/app"
 	"github.com/mhmdkzr/loop/internal/app/config"
 	"github.com/mhmdkzr/loop/internal/app/register"
-	"github.com/mhmdkzr/loop/internal/rpc"
 	"github.com/mhmdkzr/loop/internal/store"
 	"github.com/mhmdkzr/loop/migrations"
 	"github.com/mhmdkzr/loop/pkg/logger"
@@ -37,7 +36,6 @@ type StartOptions struct {
 	EnvFile        string
 	LogLevel       string
 	LogFormat      string
-	RPC            bool
 }
 
 // Start boots the application, loads configuration, connects dependencies, and starts the HTTP server.
@@ -134,9 +132,6 @@ func Start(ctx context.Context, options StartOptions) error {
 	}
 
 	register.RegisterRoutes(a)
-	if options.RPC {
-		a.Mux.Handle("POST /rpc", rpc.NewHandler(a))
-	}
 	applicationHandler := middleware.Chain(a.Mux,
 		timeout.New(cfg.Server.Timeout),
 		logging.New(),
