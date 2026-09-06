@@ -17,6 +17,12 @@ import (
 	"github.com/mhmdkzr/loop/internal/store"
 )
 
+// maxAutoSteps bounds how many model/tool-call rounds a single turn can run
+// through on its own (see goai.WithMaxSteps in Run) before it must return
+// control to the user - generous enough for a real multi-step task, but not
+// unbounded.
+const maxAutoSteps = 50
+
 // Create resolves agentName to its model and prompt template, renders the
 // system prompt with params, and persists a new session with an empty turn
 // history. parentSessionID is nil for a top-level, user-initiated session.
@@ -157,9 +163,16 @@ func Run(
 		goai.WithTools(tools...),
 		goai.WithProviderOptions(providerOptions),
 		goai.WithMessages(msgs...),
-		goai.WithHeaders(map[string]string{"x-opencode-session": id.String()}),
+		goai.WithHeaders(map[string]string{"x-opencode-session": id.String()}), // TODO: make it conditional, only set when provider is opencode
 		goai.WithPromptCaching(true),
 		goai.WithMaxRetries(10),
+		// goai's own default (1) runs at most one round of tool calls per
+		// turn and stops - it will not see a tool's result and decide to act
+		// on it. maxAutoSteps lets a turn keep looping (model response ->
+		// tool calls -> tool results -> next model response -> ...) on its
+		// own until it produces a final answer with no further tool calls,
+		// or this cap is hit.
+		goai.WithMaxSteps(maxAutoSteps),
 		goai.WithOnStepFinish(func(step goai.StepResult) {
 			payload := stepFinishPayload{
 				Step:      step.Number,
