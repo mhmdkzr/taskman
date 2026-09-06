@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 	"uuid"
 )
 
@@ -83,8 +84,9 @@ func createAgent(ctx context.Context, db *sql.DB, modelName, agentName, prompt s
 	}
 	agentID := uuid.NewV7().String()
 	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO agents (agent_id, agent_name, prompt_id, model_id)
-		VALUES (?, ?, ?, ?)`, agentID, agentName, promptID, modelID); err != nil {
+		INSERT INTO agents (agent_id, agent_name, prompt_id, model_id, created_at)
+		VALUES (?, ?, ?, ?, ?)`, agentID, agentName, promptID, modelID,
+		time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
 		return fmt.Errorf("insert agent: %w", err)
 	}
 	for _, seed := range seeds {

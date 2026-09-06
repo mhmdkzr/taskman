@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"uuid"
 
 	"github.com/zendev-sh/goai"
@@ -66,6 +67,13 @@ type toolSeed struct {
 const (
 	currentProviderName = "opencode"
 	currentAPIKeyEnv    = "PROVIDER_API_KEY_OPENCODE"
+
+	// operatorAgentName is loop's default top-level agent, seeded once so
+	// there's always at least one agent to start a session against.
+	operatorAgentName = "operator"
+	operatorPrompt    = "You are operator, loop's default top-level agent. Help the user " +
+		"accomplish tasks using the tools available to you, dispatching subagents for " +
+		"work that benefits from running independently."
 )
 
 var providerNames = []string{
@@ -119,6 +127,27 @@ func Seed(ctx context.Context, st *store.Store, cfg config.ProviderConfig) error
 	}
 	if err := upsertTools(ctx, db, toolSeeds()); err != nil {
 		return fmt.Errorf("seed tools: %w", err)
+	}
+	if err := seedOperatorAgent(ctx, st, cfg); err != nil {
+		return fmt.Errorf("seed operator agent: %w", err)
+	}
+	return nil
+}
+
+// seedOperatorAgent creates the operator agent the first time loop starts
+// against a fresh database, so there's always at least one agent to start a
+// session against - agent creation itself is an agent tool (agentcreate),
+// which needs an existing agent to run as, so it can't bootstrap itself.
+func seedOperatorAgent(ctx context.Context, st *store.Store, cfg config.ProviderConfig) error {
+	names, err := ListAgentNames(ctx, st)
+	if err != nil {
+		return fmt.Errorf("list agent names: %w", err)
+	}
+	if slices.Contains(names, operatorAgentName) {
+		return nil
+	}
+	if err := CreateAgent(ctx, st, cfg, operatorAgentName, operatorPrompt); err != nil {
+		return fmt.Errorf("create operator agent: %w", err)
 	}
 	return nil
 }
