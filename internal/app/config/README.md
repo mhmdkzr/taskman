@@ -1,67 +1,51 @@
 # `config`
 
-Application configuration loaded from environment variables.
-
-## Architecture
-
-Configuration is loaded entirely from environment variables using `github.com/caarlos0/env/v11`. An optional `.env` file can be loaded from the current working directory (skipped if `SKIP_ENV_AUTO_LOAD=true` is set). All fields are required — every configuration value must be provided via env var or `.env` file.
+Application configuration loaded from environment variables with
+`github.com/caarlos0/env/v11`.
 
 ## Loading
 
-The `Config.Load()` method:
-1. Optionally loads `.env` from the working directory (skipped if `SKIP_ENV_AUTO_LOAD=true`)
-2. Parses all environment variables into the `Config` struct using `github.com/caarlos0/env/v11`
+`Config.Load()` loads `.env` from the current working directory unless
+`SKIP_ENV_AUTO_LOAD=true`, then parses the environment. `Config.LoadFrom(path)`
+uses the supplied env file instead. Failure to load the env file is logged, but
+parsing errors are returned to the caller. Validation errors are returned by
+`Config.Validate()`.
 
-## Types
+Fields without defaults are required by the parser. Call `Config.Validate()`
+after loading to apply section-specific validation; loading does not call
+`Validate()` automatically.
 
-| Type | Description |
-|---|---|
-| `Config` | Top-level application configuration |
-| `ServerConfig` | HTTP server bind address and base path |
-| `TemporalConfig` | Temporal host, namespace and task queue (`TEMPORAL_*`) |
-| `TigerBeetleConfig` | TigerBeetle address and cluster ID (`TIGERBEETLE_*`) |
-| `ZitadelConfig` | Zitadel client domain and insecure flag (`ZITADEL_CLIENT_*`) |
-| `SMTPConfig` | SMTP mailer host/port/credentials (`SMTP_*`, MailHog defaults) |
-| `TelegramConfig` | Telegram bot credentials for the agent tools (`TELEGRAM_*`) |
-| `TavilyConfig` | Tavily API key for the agent websearch tool (`TAVILY_*`) |
+## Configuration
 
-Nested configuration types are defined in their respective packages:
-- `pkg/logger.Config`
-- application-owned SQLite configuration
+| Section | Environment variables | Defaults |
+|---|---|---|
+| `ServerConfig` | `SERVER_BIND_ADDR`, `SERVER_BASE_PATH`, `SERVER_TIMEOUT`, `SERVER_SHUTDOWN_TIMEOUT` | None |
+| `logger.Config` | `LOGGER_FORMAT`, `LOGGER_LEVEL` | None |
+| `SQLiteConfig` | `SQLITE_PATH`, `SQLITE_AUTO_MIGRATE` | `loop.db`, `true` |
+| `ProviderConfig` | `PROVIDER_BASE_URL`, `PROVIDER_API_KEY_OPENCODE`, `PROVIDER_MODEL`, `PROVIDER_REASONING_EFFORT` | None |
+| `TelegramConfig` | `TELEGRAM_API_KEY`, `TELEGRAM_CHANNEL_ID` | None |
+| `TavilyConfig` | `TAVILY_API_KEY` | None |
+| `BrowserConfig` | `browser_ENABLED`, `browser_HEADLESS`, `browser_BIN`, `browser_CDP_URL`, `browser_TIMEOUT` | `true`, `true`, empty, empty, `60s` |
 
-### TigerBeetle
+The browser prefix is lowercase in the struct tag, so its environment variable
+names are the lowercase `browser_*` names shown above.
 
-`TIGERBEETLE_ADDRESS` (default `127.0.0.1:3000`) and `TIGERBEETLE_CLUSTER_ID` (default `0`, `uint64`). Validated: `ADDRESS` non-empty. Compose override `tigerbeetle:3000`.
+## Validation
 
-### Zitadel Client
+- `SERVER_BIND_ADDR` and `SQLITE_PATH` must not be empty.
+- Provider, Telegram, and Tavily values must not be empty.
+- `browser_TIMEOUT` must be positive.
+- Logger format must be `json` or `text`; logger level must be a valid slog level.
 
-`ZITADEL_CLIENT_DOMAIN` (default `127.0.0.1:8080`, e.g. `zitadel:8080` in compose) and `ZITADEL_CLIENT_INSECURE` (default `true`). Validated: `DOMAIN` non-empty. Built with `zitadel.New(domain, zitadel.WithInsecure(...))` and `client.New`.
+## Provider
 
-### BFF authentication and private webhooks
+The `/zen/go/v1` provider endpoint uses Chat Completions. The OpenCode Zen
+`/zen/v1` endpoint uses the Responses API. Select the base URL and model
+together. The free Zen model is `muse-spark-1.2-contributor-free`.
 
-`AUTH_*` configures the confidential server-side Zitadel OIDC client and the
-SQLite-backed session. Authentication is always enabled.
-`AUTH_INTERNAL_ADDRESS` is optional and Compose-only: it dials the private
-provider address while retaining the public `AUTH_ISSUER` URL and Host header.
-Issuer, client credentials, exact callback URLs, and positive session durations are
-required. `WEBHOOKS_ZITADEL_PATH_SECRET` enables the private-network
-notification handler on the existing app listener; Caddy deliberately returns 404 for its
-public `/webhooks/*` counterpart.
+## Agent Tools
 
-### SMTP (MailHog)
-
-`SMTP_HOST` (default `127.0.0.1`, compose `mailhog`), `SMTP_PORT` (default `1025`), `SMTP_FROM` (default `noreply@example.com`), `SMTP_FROM_NAME`, `SMTP_USERNAME`, `SMTP_PASSWORD`. Validated: `HOST` non-empty, `PORT` 1–65535, `FROM` contains `@`. Built with `mail.NewClient(host, mail.WithPort(port), ...)`. MailHog UI at `http://localhost:8025`, SMTP at `localhost:1025`.
-
-### Agent tools
-
-`TELEGRAM_API_KEY` (bot token), `TELEGRAM_CHANNEL_ID`, and `TAVILY_API_KEY` configure the agent's `telegram_send`/`telegram_read` and `websearch` tools. All are required: `Config.Load` fails when any is missing, and `validate` rejects empty values. Built with `telegram.NewClientFromConfig` and `websearch.NewClientFromConfig`.
-
-### Model provider
-
-`PROVIDER_BASE_URL`, `PROVIDER_API_KEY_OPENCODE`, `PROVIDER_MODEL`, and
-`PROVIDER_REASONING_EFFORT` configure the current OpenCode provider. The API
-key itself remains in the environment; the database stores only its environment
-variable name. The `/zen/go/v1` base URL uses Chat Completions, while the
-OpenCode Zen `/zen/v1` base URL uses the OpenAI Responses API. Both modes use
-the same API key; select the active base URL and model together. The free Zen
-model ID is `muse-spark-1.2-contributor-free`.
+Telegram settings configure the `telegram_send` and `telegram_read` tools.
+Tavily configures `websearch`. Browser tools are enabled by default and use a
+local browser unless `browser_CDP_URL` points to an existing Chrome DevTools
+Protocol endpoint; set `browser_ENABLED=false` to disable them.

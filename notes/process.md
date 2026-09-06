@@ -3,6 +3,8 @@
 ## Discovery
 Finding what needs to be done, could be based on code, system behavior, or an interview with user to capture their intent. Could also be a bug which needs to get fixed.
 
+Discovery draws on Signal Collection (automated code review, system behavior, monitoring) and an intake decision on how much process the candidate actually needs — a trivial item (a doc fix, a missing test) can move through Definition, Prioritization, Specification, and Assignment as near-instant defaults rather than deliberate steps; a substantial one goes through them in full. Signal Collection feeds Discovery as a continuous input layer, not a stage of its own: raw, high-volume, unfiltered findings from automated sources (code scanners, dependency/security bots, doc-drift detectors, monitoring anomalies) alongside human-initiated reports. Discovery is where a signal — or cluster of signals — becomes a real, distinct candidate worth acting on.
+
 ## Definition - The What and Why
 The outcome of the discovery process. Value, budget, outcome risk, and deadline would be specified here, at goal level.
 
@@ -31,10 +33,10 @@ Merge the PR into the codebase.
 Deploy the code to the staging environment.
 
 ## Release
-Promote a staged deployment to production. Kept distinct from Deployment since production promotion may need its own approval, canary period, or additional sign-off — particularly for anything carrying elevated risk from Definition or Specification.
+Promote a staged deployment to production. Kept distinct from Deployment since production promotion may need its own approval, canary period, or additional sign-off for higher-risk work.
 
 ## Monitoring
-Monitoring the behavior of the deployed system. Can result in new discoveries. Costs would be tracked.
+Monitoring the behavior of the deployed system. Can result in new signals feeding back into Discovery. Costs would be tracked.
 
 ## Feedback and Calibration
 Learning from results, and finding out how good the estimations were, so we can improve future estimates where possible.
