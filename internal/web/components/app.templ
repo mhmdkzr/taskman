@@ -2,129 +2,54 @@ package components
 
 import (
 	"github.com/mhmdkzr/loop/internal/agent/sessions"
-	"github.com/mhmdkzr/loop/internal/agent/tools/ask"
 	"github.com/mhmdkzr/loop/internal/agent/tools/task"
 )
 
-// SessionView wraps sessions.SessionDetail with the display data that would
-// otherwise create an import cycle if sessions depended on it directly:
-// ask.PendingAsk needs tools.Deps (which itself depends on sessions), so a
-// pending ask is looked up here in the web layer and attached per turn ID
-// instead of living on sessions.TurnDetail.
-type SessionView struct {
-	sessions.SessionDetail
-	PendingAsks map[string]*ask.PendingAsk
-}
-
-// TaskSummary is one task summarized for the task list: the task itself plus
-// how many sessions have been dispatched for it.
-type TaskSummary struct {
-	task.Task
-	SessionCount int
-}
-
-// TaskSessionRow is one session linked to a task, tagged with its role: a
-// "root" session has no parent (a human can talk to it); a "child" session
-// was dispatched by another session working the task and is shown read-only.
+// TaskSessionRow is one session linked to a task. Detail carries that
+// session's full turn-by-turn history so it can render inline rather than
+// linking out to a separate page.
 type TaskSessionRow struct {
 	Session sessions.SessionSummary
-	Role    string
+	Detail  sessions.SessionDetail
 }
 
-// TaskDetailView is a task's full detail plus every session dispatched for it.
+// TaskDetailView is a task's full detail plus every session dispatched for
+// it. The task list renders one of these per task, not just a summary: every
+// task's full detail (including its sessions' full transcripts) is always in
+// the page, expanding in place under that task's own card rather than
+// linking out to a separate page.
 type TaskDetailView struct {
 	Task     task.Task
 	Sessions []TaskSessionRow
 }
 
-// AppView is everything a page render of the app shell needs. Mode selects
-// which pane of data is live - "sessions" or "tasks" - the other side's
-// fields are left zero.
+// AppView is everything a page render of the app shell needs: every task.
 type AppView struct {
-	Mode string
-
-	Sessions   []sessions.SessionSummary
-	Active     *SessionView
-	AgentNames []string
-
-	Tasks      []TaskSummary
-	ActiveTask *TaskDetailView
+	Tasks []TaskDetailView
 }
 
-// App renders the full two-pane shell: a rail (session or task list) on the
-// left, and the active item's detail on the right. Every route (page loads
-// and Datastar patches alike) renders this one component so the two never
+// App renders the full shell - the task list, always. There is no other
+// page and no navigation chrome beyond the topbar: every route (page loads
+// and Datastar patches alike) renders this one component so they never
 // drift apart.
 templ App(view AppView) {
 	@page("Loop") {
-		<div class="rail" id="rail">
-			<div class="rail-header">
-				<div class="brand"><span class="brand-mark"></span>loop</div>
-			</div>
-			<div class="tabs">
-				<a class={ "tab", templ.KV("active", view.Mode == "sessions") } href="/">Sessions</a>
-				<a class={ "tab", templ.KV("active", view.Mode == "tasks") } href="/tasks">Tasks</a>
-			</div>
-			<div class="rail-list" id="rail-list">
-				if view.Mode == "tasks" {
-					for _, t := range view.Tasks {
-						@taskItem(t, view.ActiveTask)
-					}
-				} else {
-					for _, s := range view.Sessions {
-						@sessionItem(s, view.Active)
-					}
-				}
-			</div>
-			if view.Mode == "sessions" {
-				<div class="rail-footer">
-					<a class="new-session-btn" href="/new">+ New session</a>
-				</div>
-			}
-		</div>
-		<div
-			class="main"
-			id="main-pane"
-			if view.Mode == "sessions" {
-				data-signals:turn_running={ jsBool(view.Active != nil && latestStatus(view.Active.SessionDetail) == "running") }
-			}
-			data-on-interval__duration.3s={ refreshAction(view) }
-		>
-			if view.Mode == "tasks" {
-				if view.ActiveTask != nil {
-					@taskMain(*view.ActiveTask)
-				} else {
-					<div class="empty-state">No tasks yet.</div>
-				}
-			} else {
-				if view.Active != nil {
-					@sessionMain(*view.Active, view.AgentNames)
-				} else {
-					@newSessionMain(view.AgentNames)
-				}
-			}
+		<div class="tasks-app" id="main-pane" data-on-interval__duration.3s="@get('/')">
+			@taskListPage(view.Tasks)
 		</div>
 	}
 }
 
-templ sessionItem(s sessions.SessionSummary, active *SessionView) {
-	<a
-		class={ "session-item", templ.KV("nested", s.ParentSessionID != nil), templ.KV("active", active != nil && active.SessionID == s.SessionID) }
-		href={ templ.SafeURL("/sessions/" + s.SessionID.String()) }
-	>
-		<span class={ "status-dot", statusClass(s.Status) }></span>
-		<span class="session-item-body">
-			<span class="session-item-top">
-				<span class="session-item-agent">{ s.AgentName }</span>
-				<span class="session-item-time">{ formatTime(s.CreatedAt) }</span>
-			</span>
-			if s.LastPrompt != "" {
-				<span class="session-item-preview">{ truncate(s.LastPrompt, 60) }</span>
-			}
-			<span class="session-item-meta">
-				<span class="tabular">{ formatTokens(int64(s.TurnCount)) } turns</span>
-				<span class="tabular">{ formatTokens(s.TotalTokens) } tok</span>
-			</span>
-		</span>
-	</a>
+// topbar is the chrome shared by every page: just the brand, which doubles
+// as the way back to the task list - there's no back button anywhere else,
+// and no page title lives here either. A task's title reads like a
+// document's, in the body content it belongs to, not in the chrome above
+// it. children, when given, renders on the bar's right side.
+templ topbar() {
+	<div class="topbar">
+		<div class="col topbar-inner">
+			<a class="brand" href="/"><span class="brand-mark"></span>loop</a>
+			{ children... }
+		</div>
+	</div>
 }

@@ -23,7 +23,7 @@ templ page(title string) {
 					--surface: #101214;
 					--surface-2: #16181b;
 					--border: #202327;
-					--text: #e7e5e1;
+					--text: #d9d7d2;
 					--text-dim: #8b8e92;
 					--text-faint: #4d5054;
 					--accent: #63a89f;
@@ -77,25 +77,6 @@ templ page(title string) {
 
 				.tabular { font-variant-numeric: tabular-nums; }
 
-				/* ---------- rail ---------- */
-
-				.rail {
-					width: 340px;
-					flex: none;
-					border-right: 1px solid var(--border);
-					display: flex;
-					flex-direction: column;
-					background: var(--bg);
-				}
-
-				.rail-header {
-					display: flex;
-					align-items: center;
-					justify-content: space-between;
-					padding: 18px 18px 14px;
-					border-bottom: 1px solid var(--border);
-				}
-
 				.brand {
 					font-family: "JetBrains Mono", ui-monospace, monospace;
 					font-weight: 600;
@@ -115,171 +96,175 @@ templ page(title string) {
 					transform: rotate(45deg);
 				}
 
-				.tabs {
-					display: flex;
-					gap: 2px;
-					padding: 10px 14px 0;
-					border-bottom: 1px solid var(--border);
-				}
-				.tab {
-					background: none;
-					border: none;
-					color: var(--text-faint);
-					font-family: "JetBrains Mono", monospace;
-					font-size: 11.5px;
-					letter-spacing: 0.03em;
-					padding: 8px 10px 10px;
-					border-bottom: 2px solid transparent;
-				}
-				.tab:hover { color: var(--text); }
-				.tab.active { color: var(--text); border-bottom-color: var(--accent); }
-
-				.rail-list {
-					flex: 1;
-					overflow-y: auto;
-					padding: 6px 0 14px;
-				}
-
-				.session-item {
-					display: flex;
-					align-items: flex-start;
-					gap: 9px;
-					width: 100%;
-					text-align: left;
-					background: none;
-					border: none;
-					border-left: 2px solid transparent;
-					color: var(--text);
-					padding: 8px 18px;
-				}
-				.session-item.nested { padding-left: 36px; }
-				.session-item:hover { background: var(--surface); }
-				.session-item.active { background: var(--surface); border-left-color: var(--accent); }
-
-				.status-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex: none; }
-				.status-dot.running { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-bg); }
-				.status-dot.completed { background: var(--ok); }
-				.status-dot.interrupted { background: var(--bad); }
-				.status-dot.neutral { background: var(--neutral); }
-
-				.session-item-body { min-width: 0; flex: 1; }
-				.session-item-top { display: flex; justify-content: space-between; gap: 8px; }
-				.session-item-agent {
-					font-family: "JetBrains Mono", monospace;
-					font-size: 12.5px;
-					font-weight: 500;
-					white-space: nowrap;
-					overflow: hidden;
-					text-overflow: ellipsis;
-				}
-				.session-item-time { font-size: 10.5px; color: var(--text-faint); flex: none; }
-				.session-item-preview {
-					font-size: 11.5px;
-					color: var(--text-dim);
-					white-space: nowrap;
-					overflow: hidden;
-					text-overflow: ellipsis;
-					margin-top: 2px;
-				}
-				.session-item-meta { font-size: 10px; color: var(--text-faint); margin-top: 4px; display: flex; gap: 8px; }
-
-				/* task rows */
-				.task-item {
-					display: flex;
-					flex-direction: column;
-					gap: 6px;
-					width: 100%;
-					text-align: left;
-					background: none;
-					border: none;
-					border-left: 2px solid transparent;
-					color: var(--text);
-					padding: 10px 18px;
-				}
-				.task-item:hover { background: var(--surface); }
-				.task-item.active { background: var(--surface); border-left-color: var(--accent); }
-				.task-item-top { display: flex; align-items: center; gap: 8px; }
-				.task-item-def { font-size: 12.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
-				.task-item-meta { display: flex; align-items: center; gap: 10px; font-size: 10px; color: var(--text-faint); }
-				.task-item-labels { display: flex; gap: 5px; flex-wrap: wrap; }
 				.tag { font-size: 9.5px; color: var(--text-dim); background: var(--surface-2); border-radius: 3px; padding: 1px 6px; font-family: "JetBrains Mono", monospace; }
 
-				.rail-footer { padding: 12px 18px; border-top: 1px solid var(--border); }
-				.new-session-btn {
-					display: flex;
-					align-items: center;
-					justify-content: center;
-					width: 100%;
+				/* ---------- tasks app ---------- */
+
+				.tasks-app { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+
+				/* .col centers one reading column at a consistent width across
+				   the topbar and the scrollable content below it, so the two
+				   stay aligned with each other instead of one being capped and
+				   the other spanning the full viewport - the mismatch that made
+				   wide windows look disjointed. */
+				.col { max-width: 900px; margin: 0 auto; box-sizing: border-box; }
+
+				.topbar { border-bottom: 1px solid var(--border); flex: none; }
+				.topbar-inner { display: flex; align-items: center; gap: 14px; padding: 16px 28px; }
+
+				.task-list-view { flex: 1; overflow-y: auto; }
+				.task-sections { padding: 22px 28px; display: flex; flex-direction: column; gap: 26px; }
+				.task-section-label { font-family: "JetBrains Mono", monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); margin-bottom: 10px; }
+				.task-grid { display: flex; flex-direction: column; gap: 8px; }
+
+				/* Each task is a card the whole time - collapsed, it's just the
+				   summary button; expanded, task-card-detail continues inside
+				   the SAME card (same background/border), rather than opening
+				   a visually distinct panel elsewhere. Status reads from the
+				   pill alone now, not a colored border. */
+				.task-card {
 					background: var(--surface);
 					border: 1px solid var(--border);
+					border-radius: 6px;
 					color: var(--text);
-					padding: 8px;
-					border-radius: 4px;
-					font-size: 12px;
+					overflow: hidden;
 				}
-				.new-session-btn:hover { border-color: var(--text-faint); }
+				.task-card:hover { border-color: var(--text-faint); }
 
-				/* ---------- main ---------- */
+				.task-card-summary {
+					display: flex;
+					flex-direction: column;
+					gap: 8px;
+					width: 100%;
+					padding: 14px 16px;
+					background: none;
+					border: none;
+					margin: 0;
+					color: inherit;
+					font: inherit;
+					text-align: left;
+					cursor: pointer;
+				}
+				.task-card-top { display: flex; align-items: baseline; gap: 12px; }
+				.task-card-def { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+				.task-card-bottom { display: flex; align-items: center; gap: 10px; }
+				.task-card-labels { display: flex; gap: 6px; flex-wrap: wrap; }
+				.task-card-meta { margin-left: auto; flex: none; font-size: 11px; color: var(--text-faint); }
+				.task-card-chevron {
+					flex: none;
+					color: var(--text-faint);
+					font-size: 10px;
+					transition: transform 0.12s ease;
+				}
+				.task-card-chevron.open { transform: rotate(90deg); }
 
-				.main { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+				/* Expand/collapse is a max-height transition, capped generously
+				   above any real content, rather than an abrupt display
+				   toggle - simpler and more reliable across browsers than
+				   animating an intrinsic ("auto") height. */
+				.task-card-detail {
+					max-height: 0;
+					overflow: hidden;
+					transition: max-height 0.25s ease;
+					border-top: 1px solid var(--border);
+				}
+				.task-card-detail.open { max-height: 3000px; }
+				.task-card-detail-inner {
+					display: flex;
+					flex-direction: column;
+					gap: 22px;
+					padding: 20px 16px;
+				}
+				@media (prefers-reduced-motion: reduce) { .task-card-detail { transition: none; } }
 
-				.main-header {
+				/* Details splits identity facts (Model, Commit - free-form
+				   strings) from planning levels (a fixed 1-5 scale) into two
+				   groups, rather than one mixed row: each reads as its own
+				   kind of information instead of a run of look-alike chips. */
+				.detail-cell { display: flex; flex-direction: column; gap: 5px; }
+				.detail-cell .name {
+					font-family: "JetBrains Mono", monospace;
+					font-size: 10px;
+					text-transform: uppercase;
+					letter-spacing: 0.06em;
+					color: var(--text-faint);
+				}
+				.detail-cell .val { font-size: 12.5px; color: var(--text-dim); font-family: "JetBrains Mono", monospace; }
+
+				.detail-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 28px; max-width: 640px; margin-bottom: 20px; }
+
+				/* A fixed 3-column grid - unlike an auto-fill grid, 6 items
+				   always fill exactly two full rows, never leaving a single
+				   item stranded alone on a ragged last row. */
+				.detail-levels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 28px; max-width: 640px; }
+
+				.session-panels { display: flex; flex-direction: column; gap: 8px; }
+				.session-panel {
+					border: 1px solid var(--border);
+					border-radius: 7px;
+					background: var(--surface);
+					overflow: hidden;
+				}
+				.session-panel-summary {
 					display: flex;
 					align-items: center;
-					justify-content: space-between;
-					padding: 16px 28px;
-					border-bottom: 1px solid var(--border);
-					flex: none;
+					gap: 12px;
+					padding: 10px 13px;
+					cursor: pointer;
 				}
-				.main-header-title { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
-				.main-header-agent { font-family: "JetBrains Mono", monospace; font-weight: 600; font-size: 15px; margin: 0; }
-				.main-header-id { font-size: 11px; color: var(--text-faint); }
+				.session-panel-summary:hover { background: var(--surface-2); }
+				.session-panel-chevron {
+					flex: none;
+					color: var(--text-faint);
+					font-size: 10px;
+					transition: transform 0.12s ease;
+				}
+				.session-panel-chevron.open { transform: rotate(90deg); }
+				.session-panel-body {
+					max-height: 0;
+					overflow: hidden;
+					transition: max-height 0.2s ease;
+					border-top: 1px solid var(--border);
+				}
+				.session-panel-body.open { max-height: 2000px; }
+				.session-panel-body-inner { padding: 10px 13px; }
+				@media (prefers-reduced-motion: reduce) { .session-panel-body { transition: none; } }
+
+				/* ---------- turn log (a dispatched session's activity - not chat) ---------- */
+
+				.log-turns { display: flex; flex-direction: column; }
+				.log-turn {
+					display: flex;
+					flex-direction: column;
+					gap: 10px;
+					padding: 14px 0;
+					border-top: 1px solid var(--border);
+				}
+				.log-turn:first-child { border-top: none; padding-top: 2px; }
+				.log-turn-label {
+					font-family: "JetBrains Mono", monospace;
+					font-size: 10px;
+					text-transform: uppercase;
+					letter-spacing: 0.08em;
+					color: var(--text-faint);
+				}
+				.log-prompt { font-size: 12.5px; font-style: italic; color: var(--text-dim); white-space: pre-wrap; line-height: 1.6; }
+				.log-text { font-size: 13px; color: var(--text); white-space: pre-wrap; line-height: 1.6; }
 
 				.status-pill {
 					display: inline-flex;
 					align-items: center;
-					gap: 5px;
 					font-family: "JetBrains Mono", monospace;
 					font-size: 10.5px;
 					text-transform: uppercase;
 					letter-spacing: 0.06em;
-					padding: 3px 8px 3px 6px;
+					padding: 3px 8px;
 					border-radius: 20px;
 				}
 				.status-pill.running { color: var(--warn); background: var(--warn-bg); }
 				.status-pill.completed { color: var(--ok); background: var(--ok-bg); }
 				.status-pill.interrupted { color: var(--bad); background: var(--bad-bg); }
 				.status-pill.neutral { color: var(--text-faint); background: var(--surface-2); }
-				.status-pill .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
-				.status-pill.running .dot { animation: pulse 1.4s ease-in-out infinite; }
-
-				@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
-				@media (prefers-reduced-motion: reduce) { .status-pill.running .dot { animation: none; } }
-
-				.main-header-meta { display: flex; gap: 18px; align-items: center; }
-				.meta-stat { text-align: right; }
-				.meta-stat .label { display: block; margin-bottom: 2px; }
-				.meta-stat .value { font-size: 12px; color: var(--text-dim); }
-
-				/* ---------- transcript ---------- */
-
-				.transcript { flex: 1; overflow-y: auto; padding: 24px 28px 12px; }
-				.transcript-inner { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
-				.turn { display: flex; flex-direction: column; gap: 10px; }
-
-				.prompt-block {
-					align-self: flex-end;
-					max-width: 88%;
-					background: var(--surface);
-					border: 1px solid var(--border);
-					border-radius: 8px 8px 2px 8px;
-					padding: 10px 13px;
-					font-size: 13px;
-					white-space: pre-wrap;
-					color: var(--text);
-				}
-
-				.response-block { font-size: 13.5px; white-space: pre-wrap; color: var(--text); }
 
 				.tool-call {
 					border: 1px solid var(--border);
@@ -303,12 +288,19 @@ templ page(title string) {
 				}
 				.tool-call-head:hover { color: var(--text); }
 				.tool-call-chevron { color: var(--text-faint); transition: transform 0.12s ease; flex: none; font-size: 10px; }
-				.tool-call.open .tool-call-chevron { transform: rotate(90deg); }
+				.tool-call-chevron.open { transform: rotate(90deg); }
 				.tool-call-name { color: var(--accent); }
 				.tool-call-arg { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 				.tool-call-status { margin-left: auto; flex: none; font-size: 10px; color: var(--text-faint); }
-				.tool-call-body { display: none; border-top: 1px solid var(--border); padding: 10px 11px 12px; font-size: 12px; }
-				.tool-call.open .tool-call-body { display: block; }
+				.tool-call-body {
+					max-height: 0;
+					overflow: hidden;
+					transition: max-height 0.2s ease;
+					border-top: 1px solid var(--border);
+				}
+				.tool-call-body.open { max-height: 1600px; }
+				@media (prefers-reduced-motion: reduce) { .tool-call-body { transition: none; } }
+				.tool-call-body-inner { padding: 10px 11px 12px; font-size: 12px; }
 				.tool-call-section-label {
 					font-family: "JetBrains Mono", monospace;
 					font-size: 9.5px;
@@ -344,56 +336,6 @@ templ page(title string) {
 				@media (prefers-reduced-motion: reduce) { .running-cursor { animation: none; opacity: 0.6; } }
 				@keyframes blink { 50% { opacity: 0; } }
 
-				.ask-card {
-					border: 1px solid var(--accent);
-					border-radius: 8px;
-					background: var(--surface);
-					padding: 14px 16px;
-					display: flex;
-					flex-direction: column;
-					gap: 12px;
-					max-width: 88%;
-				}
-				.ask-card.answered { border-color: var(--border); }
-				.ask-custom-answer {
-					font-size: 12.5px;
-					color: var(--text);
-					background: var(--surface-2);
-					border-radius: 6px;
-					padding: 8px 10px;
-				}
-				.ask-question { font-size: 13.5px; color: var(--text); }
-				.ask-options { display: flex; flex-direction: column; gap: 6px; }
-				.ask-option {
-					display: flex;
-					flex-direction: column;
-					align-items: flex-start;
-					gap: 2px;
-					text-align: left;
-					background: var(--surface-2);
-					border: 1px solid var(--border);
-					border-radius: 6px;
-					padding: 8px 11px;
-					color: var(--text);
-				}
-				.ask-option:hover { border-color: var(--text-faint); }
-				.ask-option.selected { border-color: var(--accent); background: var(--accent-dim); }
-				.ask-option-label { font-size: 12.5px; }
-				.ask-option-desc { font-size: 11px; color: var(--text-faint); }
-				.ask-custom-input {
-					background: var(--surface-2);
-					border: 1px solid var(--border);
-					border-radius: 6px;
-					color: var(--text);
-					font-family: "IBM Plex Mono", monospace;
-					font-size: 12.5px;
-					padding: 8px 10px;
-					resize: none;
-					line-height: 1.5;
-				}
-				.ask-custom-input:focus { outline: none; border-color: var(--text-faint); }
-				.ask-custom-input::placeholder { color: var(--text-faint); }
-
 				.empty-state {
 					flex: 1;
 					display: flex;
@@ -403,102 +345,125 @@ templ page(title string) {
 					font-size: 13px;
 				}
 
-				/* ---------- task detail ---------- */
+				/* Left-aligned counterpart to .empty-state for a placeholder that
+				   sits inside a section of content already reading left-to-right
+				   (e.g. a task's session list) rather than filling an entire pane. */
+				.section-empty { color: var(--text-faint); font-size: 12.5px; padding: 2px 0; }
 
-				.task-body { padding: 22px 28px; max-width: 760px; display: flex; flex-direction: column; gap: 26px; }
+				/* ---------- task card detail (expanded content) ---------- */
+
 				.section-label { font-family: "JetBrains Mono", monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); margin-bottom: 10px; }
-				.spec-block { font-size: 13px; color: var(--text); white-space: pre-wrap; line-height: 1.7; }
+				.spec-block { font-size: 13px; color: var(--text); line-height: 1.7; }
 				.labels-row { display: flex; gap: 6px; flex-wrap: wrap; }
 
-				.planning-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 22px; }
-				.planning-stat { display: flex; flex-direction: column; gap: 6px; }
-				.planning-stat-top { display: flex; justify-content: space-between; align-items: baseline; }
-				.planning-stat-name { font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--text-dim); }
-				.planning-stat-val { font-size: 11px; color: var(--text-faint); font-family: "JetBrains Mono", monospace; }
-				.meter { height: 5px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
-				.meter-fill { height: 100%; background: var(--accent); border-radius: 3px; }
+				/* ---------- markdown (task specification) ---------- */
 
-				.task-meta-row { display: flex; gap: 28px; flex-wrap: wrap; }
-				.task-meta-item .label { margin-bottom: 3px; }
-				.task-meta-item .value { font-size: 12px; color: var(--text-dim); font-family: "JetBrains Mono", monospace; }
+				.md-content { font-size: 13px; line-height: 1.7; }
+				.md-content > :first-child { margin-top: 0; }
+				.md-content > :last-child { margin-bottom: 0; }
+				.md-content p, .md-content ul, .md-content ol, .md-content blockquote, .md-content pre, .md-content table { margin: 0 0 12px; }
+				.md-content h1, .md-content h2, .md-content h3, .md-content h4 {
+					font-family: "JetBrains Mono", monospace;
+					font-weight: 600;
+					margin: 20px 0 8px;
+					line-height: 1.4;
+				}
+				.md-content h1 { font-size: 16px; }
+				.md-content h2 { font-size: 14.5px; }
+				.md-content h3, .md-content h4 { font-size: 13px; color: var(--text-dim); }
+				.md-content ul, .md-content ol { padding-left: 22px; }
+				.md-content li { margin-bottom: 4px; }
+				.md-content a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+				.md-content code {
+					font-family: "IBM Plex Mono", monospace;
+					font-size: 12px;
+					background: var(--surface-2);
+					border-radius: 3px;
+					padding: 1px 5px;
+				}
+				.md-content pre {
+					background: var(--surface-2);
+					border-radius: 6px;
+					padding: 10px 12px;
+					overflow-x: auto;
+				}
+				.md-content pre code { background: none; padding: 0; }
+				.md-content blockquote {
+					border-left: 2px solid var(--border);
+					padding-left: 12px;
+					color: var(--text-dim);
+				}
+				.md-content table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+				.md-content th, .md-content td { border: 1px solid var(--border); padding: 6px 9px; text-align: left; }
+				.md-content th { color: var(--text-dim); font-family: "JetBrains Mono", monospace; font-size: 11px; }
+				.md-content hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 
-				.sessions-list { display: flex; flex-direction: column; gap: 8px; }
-				.session-row {
-					display: flex; align-items: center; gap: 12px; padding: 10px 13px;
-					background: var(--surface); border: 1px solid var(--border); border-radius: 7px;
+				/* ---------- sessions (inline on task detail) ---------- */
+
+				.session-row-agent {
+					font-size: 9px;
+					text-transform: uppercase;
+					letter-spacing: 0.06em;
+					color: var(--text-faint);
+					border: 1px solid var(--border);
+					border-radius: 3px;
+					padding: 2px 6px;
+					flex: none;
 				}
-				.session-row:hover { border-color: var(--text-faint); }
-				.session-row-role {
-					font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint);
-					border: 1px solid var(--border); border-radius: 3px; padding: 2px 6px; flex: none;
-				}
-				.session-row-agent { font-family: "JetBrains Mono", monospace; font-size: 12px; font-weight: 500; flex: none; }
-				.session-row-preview { font-size: 11.5px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
 				.session-row-meta { display: flex; gap: 10px; font-size: 10.5px; color: var(--text-faint); flex: none; }
+				.session-row-tokens { margin-left: auto; flex: none; font-size: 10.5px; color: var(--text-faint); }
 
-				/* ---------- composer ---------- */
+				/* ---------- thinking / reasoning blocks ---------- */
 
-				.composer { flex: none; border-top: 1px solid var(--border); padding: 14px 28px 18px; }
-				.composer-inner { max-width: 760px; margin: 0 auto; }
-				.composer-box { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 10px 12px 8px; }
-				.composer-textarea {
+				.thinking-block {
+					border: 1px solid var(--border);
+					border-radius: 6px;
+					background: var(--surface);
+					margin: 4px 0;
+					overflow: hidden;
+				}
+				.thinking-summary {
+					display: flex;
+					align-items: center;
+					justify-content: space-between;
 					width: 100%;
+					padding: 7px 11px;
 					background: none;
 					border: none;
-					color: var(--text);
-					font-family: "IBM Plex Mono", monospace;
-					font-size: 13px;
-					resize: none;
-					line-height: 1.5;
-					field-sizing: content;
-					max-height: 160px;
-				}
-				.composer-textarea:focus { outline: none; }
-				.composer-textarea::placeholder { color: var(--text-faint); }
-				.composer-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
-				.agent-select {
-					background: none;
-					border: 1px solid var(--border);
-					color: var(--text-dim);
 					font-family: "JetBrains Mono", monospace;
 					font-size: 11px;
-					padding: 4px 7px;
-					border-radius: 4px;
+					font-style: italic;
+					color: var(--text-faint);
+					text-align: left;
+					cursor: pointer;
 				}
-				.send-btn {
-					background: var(--accent);
-					border: none;
-					color: var(--bg);
-					font-weight: 600;
-					font-size: 11.5px;
-					letter-spacing: 0.02em;
-					padding: 6px 14px;
-					border-radius: 5px;
+				.thinking-summary:hover { color: var(--text-dim); }
+				.thinking-chevron { color: var(--text-faint); font-size: 9px; transition: transform 0.12s ease; }
+				.thinking-chevron.open { transform: rotate(90deg); }
+				.thinking-text-wrap {
+					max-height: 0;
+					overflow: hidden;
+					transition: max-height 0.18s ease;
+					border-top: 1px solid var(--border);
 				}
-				.send-btn:hover { filter: brightness(1.08); }
+				.thinking-text-wrap.open { max-height: 1200px; }
+				@media (prefers-reduced-motion: reduce) { .thinking-text-wrap { transition: none; } }
+				.thinking-text {
+					padding: 10px 11px;
+					font-size: 12.5px;
+					font-style: italic;
+					color: var(--text-dim);
+					white-space: pre-wrap;
+					line-height: 1.6;
+				}
 
-				.rail-list::-webkit-scrollbar, .transcript::-webkit-scrollbar { width: 8px; }
-				.rail-list::-webkit-scrollbar-thumb, .transcript::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-				.rail-list::-webkit-scrollbar-track, .transcript::-webkit-scrollbar-track { background: transparent; }
+				.task-list-view::-webkit-scrollbar, .task-card-detail::-webkit-scrollbar, .session-panel-body::-webkit-scrollbar { width: 8px; }
+				.task-list-view::-webkit-scrollbar-thumb, .task-card-detail::-webkit-scrollbar-thumb, .session-panel-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+				.task-list-view::-webkit-scrollbar-track, .task-card-detail::-webkit-scrollbar-track, .session-panel-body::-webkit-scrollbar-track { background: transparent; }
 			</style>
 		</head>
 		<body>
 			{ children... }
-			<script>
-				// Keeps #transcript pinned to its latest message as turns and
-				// tool calls stream in via Datastar patches. Attached once to
-				// document.body (which - unlike #transcript itself - is never
-				// replaced by a patch) so it keeps working across every patch
-				// without needing to re-run this script.
-				(function () {
-					function scrollToBottom() {
-						var el = document.getElementById("transcript");
-						if (el) el.scrollTop = el.scrollHeight;
-					}
-					new MutationObserver(scrollToBottom).observe(document.body, { childList: true, subtree: true });
-					scrollToBottom();
-				})();
-			</script>
 		</body>
 	</html>
 }

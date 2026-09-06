@@ -1,6 +1,7 @@
-// Package api registers the web UI's HTTP routes: full-page session views
-// for direct navigation, and the Datastar actions (create session, send a
-// message) that patch them in place.
+// Package api registers the web UI's one HTTP route: the task list at "/" -
+// the whole UI (every task's full detail, each session dispatched for it,
+// and every turn of that session's activity) on one page, including the
+// Datastar action that keeps it live (see indexHandler).
 package api
 
 import (
@@ -10,22 +11,9 @@ import (
 	"github.com/mhmdkzr/loop/internal/app/routes"
 )
 
-// RegisterRoutes registers the session pages and the actions that mutate them.
+// RegisterRoutes registers the task list.
 func RegisterRoutes(a app.App) {
 	routes.RegisterRoutes(a,
 		routes.Route{Method: http.MethodGet, Path: "/", Handler: indexHandler(a)},
-		routes.Route{Method: http.MethodGet, Path: "/new", Handler: newSessionPageHandler(a)},
-		routes.Route{Method: http.MethodGet, Path: "/sessions/refresh", Handler: refreshIndexHandler(a)},
-		routes.Route{Method: http.MethodGet, Path: "/sessions/{id}", Handler: sessionPageHandler(a)},
-		routes.Route{Method: http.MethodGet, Path: "/sessions/{id}/refresh", Handler: refreshSessionHandler(a)},
-		routes.Route{Method: http.MethodPost, Path: "/sessions", Handler: createSessionHandler(a)},
-		routes.Route{Method: http.MethodPost, Path: "/sessions/{id}/messages", Handler: respondHandler(a)},
-		routes.Route{
-			Method: http.MethodPost, Path: "/sessions/{id}/asks/{ask_id}/answer", Handler: answerAskHandler(a),
-		},
-		routes.Route{Method: http.MethodGet, Path: "/tasks", Handler: tasksPageHandler(a)},
-		routes.Route{Method: http.MethodGet, Path: "/tasks/refresh", Handler: refreshTasksHandler(a)},
-		routes.Route{Method: http.MethodGet, Path: "/tasks/{id}", Handler: taskPageHandler(a)},
-		routes.Route{Method: http.MethodGet, Path: "/tasks/{id}/refresh", Handler: refreshTaskHandler(a)},
 	)
 }

@@ -3,23 +3,15 @@ package components
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/a-h/templ"
-)
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
 
-// formatTime renders an RFC3339Nano timestamp as a local HH:MM clock time for
-// display; a value that fails to parse is shown verbatim rather than hidden.
-func formatTime(iso string) string {
-	t, err := time.Parse(time.RFC3339Nano, iso)
-	if err != nil {
-		return iso
-	}
-	return t.Local().Format("15:04") //nolint:gosmopolitan // display in the operator's own local time, by design
-}
+	"github.com/mhmdkzr/loop/internal/agent/tools/task"
+)
 
 // formatTokens renders a token count with thousands separators.
 func formatTokens(n int64) string {
@@ -105,10 +97,108 @@ func statusLabel(status string) string {
 	}
 }
 
-// meterStyle renders a 1-5 planning level as an inline width style for its
-// meter fill.
-func meterStyle(level int) templ.SafeCSS {
-	return templ.SafeCSS(fmt.Sprintf("width:%d%%", level*100/5))
+// levelLabel renders a 1-5 planning level (see task.Level) as the same word
+// its own jsonschema description already uses ("very-low" .. "very-high"),
+// so Details reads as plain English rather than a bare number.
+func levelLabel(level int) string {
+	switch level {
+	case 1:
+		return "Very Low"
+	case 2:
+		return "Low"
+	case 3:
+		return "Medium"
+	case 4:
+		return "High"
+	case 5:
+		return "Very High"
+	default:
+		return itoa(level)
+	}
+}
+
+// taskTotalTokens sums the token usage of every session dispatched for a
+// task, across its whole turn history - a task's real cost, not just one
+// session's.
+func taskTotalTokens(t TaskDetailView) int64 {
+	var total int64
+	for _, row := range t.Sessions {
+		total += row.Session.TotalTokens
+	}
+	return total
+}
+
+// modelProvider guesses a model's provider from its name for display, since
+// task.Task only stores the model string itself. Unrecognized names return
+// "" so the cell is simply omitted rather than showing a wrong guess.
+func modelProvider(model string) string {
+	switch {
+	case strings.HasPrefix(model, "claude"):
+		return "Anthropic"
+	case strings.HasPrefix(model, "gpt"), strings.HasPrefix(model, "o1"),
+		strings.HasPrefix(model, "o3"), strings.HasPrefix(model, "o4"):
+		return "OpenAI"
+	case strings.HasPrefix(model, "gemini"):
+		return "Google"
+	default:
+		return ""
+	}
+}
+
+// taskRootReasoningEffort reads the reasoning effort configured on a task's
+// root session (the one a human would talk to, as opposed to one it
+// dispatches) - "" if there is no root session yet, or it didn't set one.
+func taskRootReasoningEffort(t TaskDetailView) string {
+	for _, row := range t.Sessions {
+		if row.Session.ParentSessionID == nil {
+			return row.Detail.ReasoningEffort
+		}
+	}
+	return ""
+}
+
+// taskSection is one labeled group of tasks sharing the same urgency bucket
+// (see groupTasksByState), in the order the task list renders them.
+type taskSection struct {
+	Label string
+	Tasks []TaskDetailView
+}
+
+// groupTasksByState buckets tasks by state into the order a task list should
+// read in: what needs attention first, then what's actively running, then
+// what's waiting to start, then what's finished. Tasks within a bucket keep
+// the order they arrived in (oldest first, per buildTasksView).
+func groupTasksByState(tasks []TaskDetailView) []taskSection {
+	buckets := map[string][]TaskDetailView{}
+	for _, t := range tasks {
+		key := "queued"
+		switch t.Task.State {
+		case task.TaskStateCreated:
+			key = "queued"
+		case task.TaskStateStarted:
+			key = "active"
+		case task.TaskStateBlocked, task.TaskStateFailed:
+			key = "attention"
+		case task.TaskStateCompleted, task.TaskStateCancelled:
+			key = "done"
+		}
+		buckets[key] = append(buckets[key], t)
+	}
+
+	order := []struct{ key, label string }{
+		{"attention", "Needs attention"},
+		{"active", "Active"},
+		{"queued", "Queued"},
+		{"done", "Done"},
+	}
+	sections := make([]taskSection, 0, len(order))
+	for _, o := range order {
+		if len(buckets[o.key]) == 0 {
+			continue
+		}
+		sections = append(sections, taskSection{Label: o.label, Tasks: buckets[o.key]})
+	}
+	return sections
 }
 
 // itoa renders an int for display.
@@ -125,79 +215,61 @@ func jsBool(b bool) string {
 	return "false"
 }
 
-// jsString quotes s as a JS string literal, for building Datastar attribute
-// expressions (e.g. data-signals:x) where the value must parse as JS.
-func jsString(s string) string {
-	return strconv.Quote(s)
-}
+// markdownRenderer converts task specifications (GitHub-flavored markdown -
+// lists, tables, code fences) to HTML. Raw HTML in the source is left
+// escaped rather than rendered (no html.WithUnsafe()): specs come from
+// wherever a task was created, not necessarily a trusted human at a
+// keyboard, so treat their markdown as content, not as a way to inject markup.
+var markdownRenderer = goldmark.New(goldmark.WithExtensions(extension.GFM))
 
-// sendAction is the Datastar action for submitting a message into an existing
-// session: it posts the bound "prompt" signal. The server clears it in the
-// patch response (see api.patchPage) rather than the client clearing it
-// itself, since the reply only arrives once the turn finishes. It also flips
-// $turn_running immediately (client-side, before the server has responded at
-// all) so the page's own interval poll (see pollAction) starts checking for
-// progress - most importantly a pending ask - right away, rather than only
-// after the very request it's polling about finally completes.
-func sendAction(sessionID string) string {
-	return fmt.Sprintf("$turn_running = true; @post('/sessions/%s/messages')", sessionID)
-}
-
-// sendKeydownAction submits on Enter (without Shift, which inserts a newline).
-func sendKeydownAction(sessionID string) string {
-	return fmt.Sprintf(
-		"evt.key === 'Enter' && !evt.shiftKey && (evt.preventDefault(), %s)",
-		sendAction(sessionID),
-	)
-}
-
-// createAction is the Datastar action for starting a new session: it posts
-// the bound "prompt" and "agent_name" signals.
-const createAction = "@post('/sessions')"
-
-// createKeydownAction submits on Enter (without Shift).
-const createKeydownAction = "evt.key === 'Enter' && !evt.shiftKey && (evt.preventDefault(), " + createAction + ")"
-
-// refreshAction is the Datastar action for the page's ambient background
-// poll (see the data-on-interval on #main-pane in App): it keeps the rail and
-// the active item in sync with changes made elsewhere - most importantly an
-// MCP client creating or driving a session while this page is open - without
-// the user refreshing. It always fires, not just while a turn is running,
-// since a new session or task can appear at any time. Each branch hits a
-// dedicated refresh endpoint rather than the page route itself, so the
-// response is an SSE patch like every other action, not a full HTML document.
-func refreshAction(view AppView) string {
-	switch {
-	case view.Mode == "tasks" && view.ActiveTask != nil:
-		return fmt.Sprintf("@get('/tasks/%s/refresh')", view.ActiveTask.Task.ID.String())
-	case view.Mode == "tasks":
-		return "@get('/tasks/refresh')"
-	case view.Active != nil:
-		return fmt.Sprintf("@get('/sessions/%s/refresh')", view.Active.SessionID.String())
-	default:
-		return "@get('/sessions/refresh')"
+// renderMarkdown renders src as sanitized HTML for direct embedding via
+// @templ.Raw. A source that fails to parse (which goldmark only does on an
+// I/O error from the in-memory buffer, never on malformed markdown) falls
+// back to the escaped raw text so the section still shows something.
+func renderMarkdown(src string) templ.Component {
+	var buf bytes.Buffer
+	if err := markdownRenderer.Convert([]byte(src), &buf); err != nil {
+		return templ.Raw(src)
 	}
+	return templ.Raw(buf.String())
 }
 
-// askOptionSelectedExpr reads whether option id is currently selected.
-func askOptionSelectedExpr(id int) string {
-	return fmt.Sprintf("$ask_selected.includes(%d)", id)
+// openSignal names the Datastar signal tracking whether one collapsible
+// panel (a task card or a session panel) is expanded, given some ID unique
+// to it. IDs here are UUIDs, which aren't valid JS identifiers as-is
+// (hyphens), hence the substitution.
+func openSignal(prefix, id string) string {
+	return prefix + "_" + strings.ReplaceAll(id, "-", "_")
 }
 
-// askOptionClickAction toggles option id into $ask_selected for a
-// multi-select ask, or replaces the selection for a single-select one.
-func askOptionClickAction(id int, multiSelect bool) string {
-	if multiSelect {
-		return fmt.Sprintf(
-			"$ask_selected = $ask_selected.includes(%d) ? $ask_selected.filter(x => x !== %d) : [...$ask_selected, %d]",
-			id, id, id,
-		)
-	}
-	return fmt.Sprintf("$ask_selected = [%d]", id)
+// openAttrs declares a panel's open/closed signal the first time it's
+// rendered, via the __ifmissing modifier - critical here, since the task
+// list patches itself on an ambient poll (see the data-on-interval in App)
+// and a plain (re-)declaration would otherwise reset every expanded panel
+// back to collapsed on the next tick.
+func openAttrs(prefix, id string, openByDefault bool) templ.Attributes {
+	return templ.Attributes{"data-signals:" + openSignal(prefix, id) + "__ifmissing": jsBool(openByDefault)}
 }
 
-// answerAskAction posts the bound $ask_selected/$ask_custom signals as the
-// answer to askID.
-func answerAskAction(sessionID, askID string) string {
-	return fmt.Sprintf("@post('/sessions/%s/asks/%s/answer')", sessionID, askID)
+// openExpr reads a panel's open/closed signal.
+func openExpr(prefix, id string) string {
+	return "$" + openSignal(prefix, id)
 }
+
+// toggleAction flips a panel's open/closed signal.
+func toggleAction(prefix, id string) string {
+	expr := openExpr(prefix, id)
+	return expr + " = !" + expr
+}
+
+func sessionOpenAttrs(sessionID string) templ.Attributes {
+	return openAttrs("session_open", sessionID, false)
+}
+func sessionOpenExpr(sessionID string) string     { return openExpr("session_open", sessionID) }
+func sessionToggleAction(sessionID string) string { return toggleAction("session_open", sessionID) }
+
+func taskOpenAttrs(taskID string, openByDefault bool) templ.Attributes {
+	return openAttrs("task_open", taskID, openByDefault)
+}
+func taskOpenExpr(taskID string) string     { return openExpr("task_open", taskID) }
+func taskToggleAction(taskID string) string { return toggleAction("task_open", taskID) }

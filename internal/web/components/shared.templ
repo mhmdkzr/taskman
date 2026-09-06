@@ -1,0 +1,51 @@
+package components
+
+import (
+	"github.com/mhmdkzr/loop/internal/agent/sessions"
+)
+
+templ statusPill(status string) {
+	<span class={ "status-pill", statusClass(status) }>
+		{ statusLabel(status) }
+	</span>
+}
+
+// toolCallView renders one tool call as a collapsible card. Its open/closed
+// state lives in a Datastar signal (see openAttrs) keyed by tc.ID, not a
+// plain classList toggle: the page patches itself on an ambient poll (see
+// the data-on-interval in App), which would otherwise reset a client-only
+// class back to its server-rendered (closed) state on every tick.
+templ toolCallView(tc sessions.ToolCallDetail) {
+	<div class="tool-call" { openAttrs("tool_open", tc.ID, false)... }>
+		<button
+			class="tool-call-head"
+			type="button"
+			data-on:click={ toggleAction("tool_open", tc.ID) }
+		>
+			<span class="tool-call-chevron" data-class:open={ openExpr("tool_open", tc.ID) }>▸</span>
+			<span class="tool-call-name">{ tc.Name }</span>
+			<span class="tool-call-arg">{ truncate(string(tc.Input), 80) }</span>
+			<span class="tool-call-status">
+				if tc.Error != "" {
+					error
+				} else {
+					done
+				}
+			</span>
+		</button>
+		<div class="tool-call-body" data-class:open={ openExpr("tool_open", tc.ID) }>
+			<div class="tool-call-body-inner">
+				<div class="tool-call-section-label">Input</div>
+				<pre class="tool-call-pre">{ prettyJSON(tc.Input) }</pre>
+				if tc.Output != "" {
+					<div class="tool-call-section-label">Output</div>
+					<pre class="tool-call-pre">{ prettyJSON([]byte(tc.Output)) }</pre>
+				}
+				if tc.Error != "" {
+					<div class="tool-call-section-label">Error</div>
+					<pre class="tool-call-pre err">{ tc.Error }</pre>
+				}
+			</div>
+		</div>
+	</div>
+}

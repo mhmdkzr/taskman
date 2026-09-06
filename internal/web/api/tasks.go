@@ -2,10 +2,11 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"uuid"
+	"sort"
 
 	"github.com/starfederation/datastar-go/datastar"
 
@@ -16,23 +17,35 @@ import (
 	"github.com/mhmdkzr/loop/pkg/jsonresp"
 )
 
-// tasksPageHandler renders the app shell in Tasks mode with the most
-// recently created task active, or no task active if none exist yet.
-func tasksPageHandler(a app.App) http.HandlerFunc {
+// httpStatusForError maps a domain error to its HTTP status; anything
+// unrecognized is a 500, per CLAUDE.md's error-handling conventions.
+func httpStatusForError(err error) int {
+	switch {
+	case errors.Is(err, sessions.ErrSessionNotFound), errors.Is(err, task.ErrTaskNotFound):
+		return http.StatusNotFound
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
+// indexHandler serves the entire UI at "/": every task's full detail, in
+// one page. A normal navigation (no "datastar" query param) renders the full
+// HTML document; the page's own ambient poll (see components.refreshAction)
+// hits this same route with that param set, so a plain GET and a Datastar
+// action share one handler instead of needing a second endpoint just for
+// the periodic refresh.
+func indexHandler(a app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		view, err := buildTasksView(r.Context(), a, nil)
+		view, err := buildTasksView(r.Context(), a)
 		if err != nil {
 			jsonresp.WriteHTTPError(w, httpStatusForError(err), err)
 			return
 		}
-		if len(view.Tasks) > 0 {
-			id := view.Tasks[0].ID
-			detail, err := buildTaskDetail(r.Context(), a, id)
-			if err != nil {
-				jsonresp.WriteHTTPError(w, httpStatusForError(err), err)
-				return
+		if r.URL.Query().Has(datastar.DatastarKey) {
+			if err := datastar.NewSSE(w, r).PatchElementTempl(components.App(view)); err != nil {
+				slog.Error("patch app view", "error", err)
 			}
-			view.ActiveTask = detail
+			return
 		}
 		if err := components.App(view).Render(r.Context(), w); err != nil {
 			slog.Error("render tasks page", "error", err)
@@ -40,114 +53,38 @@ func tasksPageHandler(a app.App) http.HandlerFunc {
 	}
 }
 
-// taskPageHandler renders the app shell in Tasks mode with one task active,
-// for direct navigation (a bookmarked or shared task URL).
-func taskPageHandler(a app.App) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := parseTaskID(r.PathValue("id"))
-		if err != nil {
-			jsonresp.WriteHTTPError(w, http.StatusBadRequest, err)
-			return
-		}
-		view, err := buildTasksView(r.Context(), a, &id)
-		if err != nil {
-			jsonresp.WriteHTTPError(w, httpStatusForError(err), err)
-			return
-		}
-		if err := components.App(view).Render(r.Context(), w); err != nil {
-			slog.Error("render task page", "error", err)
-		}
-	}
-}
-
-// refreshTasksHandler patches the rail with the current task list while no
-// task is active. Part of the same ambient poll as refreshIndexHandler and
-// refreshTaskHandler (see components.refreshAction) - it's what picks up a
-// task created elsewhere, most notably by a loop agent driven over MCP.
-func refreshTasksHandler(a app.App) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		view, err := buildTasksView(r.Context(), a, nil)
-		if err != nil {
-			jsonresp.WriteHTTPError(w, httpStatusForError(err), err)
-			return
-		}
-		if err := datastar.NewSSE(w, r).PatchElementTempl(components.App(view)); err != nil {
-			slog.Error("patch app view", "error", err)
-		}
-	}
-}
-
-// refreshTaskHandler patches the rail and one active task's detail. The
-// active-task counterpart to refreshTasksHandler.
-func refreshTaskHandler(a app.App) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id, err := parseTaskID(r.PathValue("id"))
-		if err != nil {
-			jsonresp.WriteHTTPError(w, http.StatusBadRequest, err)
-			return
-		}
-		view, err := buildTasksView(r.Context(), a, &id)
-		if err != nil {
-			jsonresp.WriteHTTPError(w, httpStatusForError(err), err)
-			return
-		}
-		if err := datastar.NewSSE(w, r).PatchElementTempl(components.App(view)); err != nil {
-			slog.Error("patch app view", "error", err)
-		}
-	}
-}
-
-func parseTaskID(raw string) (uuid.UUID, error) {
-	id, err := uuid.Parse(raw)
-	if err != nil {
-		return uuid.UUID{}, fmt.Errorf("parse task id: %w", err)
-	}
-	return id, nil
-}
-
-// buildTasksView loads every task for the rail, newest first, plus - when
-// activeID is non-nil - that task's full detail for the main pane.
-func buildTasksView(ctx context.Context, a app.App, activeID *uuid.UUID) (components.AppView, error) {
+// buildTasksView loads every task's full detail - specification, planning,
+// and every session dispatched for it with that session's full turn
+// history - since each task's card expands to show all of it in place
+// rather than linking out to a separate page.
+func buildTasksView(ctx context.Context, a app.App) (components.AppView, error) {
 	tasks, err := task.ListTasks(ctx, a.Deps.Store.RO(), task.TaskFilter{})
 	if err != nil {
 		return components.AppView{}, fmt.Errorf("list tasks: %w", err)
 	}
 
-	summaries := make([]components.TaskSummary, len(tasks))
+	// tasks is oldest-first (see task.ListTasks), and the list keeps that
+	// order - within each state section (see groupTasksByState), the oldest
+	// task reads at the top.
+	details := make([]components.TaskDetailView, len(tasks))
 	for i, t := range tasks {
-		sessionIDs, err := task.SessionIDsForTask(ctx, a.Deps.Store.RO(), t.ID)
+		detail, err := buildTaskDetail(ctx, a, t)
 		if err != nil {
-			return components.AppView{}, fmt.Errorf("count task sessions: %w", err)
+			return components.AppView{}, err
 		}
-		// tasks is oldest-first (see task.ListTasks); the rail shows newest
-		// first, matching the session list.
-		summaries[len(tasks)-1-i] = components.TaskSummary{Task: t, SessionCount: len(sessionIDs)}
+		details[i] = detail
 	}
 
-	view := components.AppView{Mode: "tasks", Tasks: summaries}
-	if activeID == nil {
-		return view, nil
-	}
-	detail, err := buildTaskDetail(ctx, a, *activeID)
-	if err != nil {
-		return components.AppView{}, err
-	}
-	view.ActiveTask = detail
-	return view, nil
+	return components.AppView{Tasks: details}, nil
 }
 
-// buildTaskDetail loads one task plus every session linked to it (see
-// task.SessionIDsForTask), each tagged root or child by whether it has a
-// parent session.
-func buildTaskDetail(ctx context.Context, a app.App, id uuid.UUID) (*components.TaskDetailView, error) {
-	t, err := task.GetTask(ctx, a.Deps.Store.RO(), id)
+// buildTaskDetail loads every session linked to t (see task.SessionIDsForTask)
+// plus each one's full turn history, tagging each session root or child by
+// whether it has a parent session.
+func buildTaskDetail(ctx context.Context, a app.App, t task.Task) (components.TaskDetailView, error) {
+	sessionIDs, err := task.SessionIDsForTask(ctx, a.Deps.Store.RO(), t.ID)
 	if err != nil {
-		return nil, fmt.Errorf("get task: %w", err)
-	}
-
-	sessionIDs, err := task.SessionIDsForTask(ctx, a.Deps.Store.RO(), id)
-	if err != nil {
-		return nil, fmt.Errorf("get task session ids: %w", err)
+		return components.TaskDetailView{}, fmt.Errorf("get task session ids: %w", err)
 	}
 	ids := make([]sessions.SessionID, len(sessionIDs))
 	for i, sid := range sessionIDs {
@@ -155,16 +92,22 @@ func buildTaskDetail(ctx context.Context, a app.App, id uuid.UUID) (*components.
 	}
 	summaries, err := sessions.SessionSummariesByIDs(ctx, a.Deps.Store, ids)
 	if err != nil {
-		return nil, fmt.Errorf("get task sessions: %w", err)
+		return components.TaskDetailView{}, fmt.Errorf("get task sessions: %w", err)
 	}
+	// SessionSummariesByIDs doesn't order its results (it queries by an IN
+	// list), so sort oldest first here - the order a session list should
+	// read in.
+	sort.Slice(summaries, func(i, j int) bool {
+		return summaries[i].CreatedAt < summaries[j].CreatedAt
+	})
 
 	rows := make([]components.TaskSessionRow, len(summaries))
 	for i, s := range summaries {
-		role := "root"
-		if s.ParentSessionID != nil {
-			role = "child"
+		detail, err := sessions.GetSessionDetail(ctx, a.Deps.Store, s.SessionID)
+		if err != nil {
+			return components.TaskDetailView{}, fmt.Errorf("get session detail: %w", err)
 		}
-		rows[i] = components.TaskSessionRow{Session: s, Role: role}
+		rows[i] = components.TaskSessionRow{Session: s, Detail: detail}
 	}
-	return &components.TaskDetailView{Task: t, Sessions: rows}, nil
+	return components.TaskDetailView{Task: t, Sessions: rows}, nil
 }
