@@ -35,10 +35,31 @@ type sessionConfig struct {
 }
 
 // turn is one user prompt and the full goai.TextResult it produced.
+// Result is nil for a turn still in the "running" status (see turnStatus).
 type turn struct {
 	Prompt string
 	Result *goai.TextResult
+	Status turnStatus
 }
+
+// turnStatus tracks a session_turns row's crash-recovery lifecycle.
+type turnStatus string
+
+const (
+	// turnStatusRunning marks a turn between its write-ahead insert (before
+	// the model/tool-call loop starts) and its completion update. A row still
+	// in this status after a process restart was orphaned by a crash mid-turn.
+	turnStatusRunning turnStatus = "running"
+
+	// turnStatusCompleted marks a turn whose model/tool-call loop returned
+	// normally and whose full result was persisted.
+	turnStatusCompleted turnStatus = "completed"
+
+	// turnStatusInterrupted marks a turn that boot-time reconciliation found
+	// stuck in turnStatusRunning and closed out with a synthesized partial
+	// result built from session_turn_events.
+	turnStatusInterrupted turnStatus = "interrupted"
+)
 
 // AgentConfig is a named agent's session-relevant definition: the model it
 // runs on and the prompt template its system prompt is rendered from.
@@ -56,6 +77,7 @@ type HistoryTurn struct {
 	Prompt           string
 	Reply            string
 	CreatedAt        string
+	Status           string
 }
 
 // AgentByName resolves a named agent's model and prompt template in one
@@ -143,7 +165,11 @@ func ToolNamesForAgent(ctx context.Context, st *store.Store, agentID AgentID) ([
 	return names, nil
 }
 
-func GetSessionTokenUsage(ctx context.Context, db *sql.DB, sessionID uuid.UUID) (provider.Usage, error) {
+func GetSessionTokenUsage(
+	ctx context.Context,
+	db *sql.DB,
+	sessionID uuid.UUID,
+) (provider.Usage, error) {
 	var usage provider.Usage
 	err := db.QueryRowContext(ctx, `
 		SELECT
@@ -168,7 +194,11 @@ func GetSessionTokenUsage(ctx context.Context, db *sql.DB, sessionID uuid.UUID) 
 	return usage, nil
 }
 
-func GetTotalTokenUsage(ctx context.Context, db *sql.DB, sessionIDs []uuid.UUID) (provider.Usage, error) {
+func GetTotalTokenUsage(
+	ctx context.Context,
+	db *sql.DB,
+	sessionIDs []uuid.UUID,
+) (provider.Usage, error) {
 	if len(sessionIDs) == 0 {
 		return provider.Usage{}, nil
 	}
@@ -329,40 +359,51 @@ func modelNameByID(ctx context.Context, db *sql.DB, id ModelID) (string, error) 
 	return name, nil
 }
 
-// appendTurn validates and records one user prompt and its full TextResult as a
-// new turn. It inserts a row selected against the live session, so a missing or
-// soft-deleted session inserts nothing and maps to errSessionNotFound.
-func appendTurn(ctx context.Context, db *sql.DB, id SessionID, prompt string, result *goai.TextResult) error {
-	if strings.TrimSpace(prompt) == "" {
-		return fmt.Errorf("append turn: prompt is required")
-	}
+// appendTurn validates and records one user prompt and its full TextResult as
+// a new, already-completed turn in one shot. It is a convenience wrapper
+// around startTurn+completeTurn for callers that already have the final
+// result in hand (e.g. tests); sessions.Run uses the two-step form directly
+// so a turn's row exists (in turnStatusRunning) before its model/tool-call
+// loop starts, and is only ever missing its result for the duration of that
+// loop rather than for the duration of process's entire in-memory lifetime.
+func appendTurn(
+	ctx context.Context,
+	db *sql.DB,
+	id SessionID,
+	prompt string,
+	result *goai.TextResult,
+) error {
 	if result == nil {
 		return fmt.Errorf("append turn: result is required")
 	}
-
-	resultJSON, err := json.Marshal(result)
-	if err != nil {
-		return fmt.Errorf("marshal turn result: %w", err)
-	}
-
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin append turn transaction: %w", err)
-	}
-	defer func() {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			slog.Error("rollback append turn transaction", "error", rollbackErr)
-		}
-	}()
-
 	turnID := uuid.NewV7()
+	if err := startTurn(ctx, db, id, turnID, prompt); err != nil {
+		return err
+	}
+	return completeTurn(ctx, db, id, turnID, result)
+}
+
+// startTurn inserts a turnStatusRunning row with no result: the write-ahead
+// marker for a turn about to begin its model/tool-call loop. It validates
+// against the live session, so a missing or soft-deleted session inserts
+// nothing and maps to errSessionNotFound.
+func startTurn(
+	ctx context.Context,
+	db *sql.DB,
+	id SessionID,
+	turnID uuid.UUID,
+	prompt string,
+) error {
+	if strings.TrimSpace(prompt) == "" {
+		return fmt.Errorf("start turn: prompt is required")
+	}
 	createdAt := time.Now().UTC().Format(time.RFC3339Nano)
-	res, err := tx.ExecContext(ctx, `
-		INSERT INTO session_turns (turn_id, session_id, prompt, result, created_at)
+	res, err := db.ExecContext(ctx, `
+		INSERT INTO session_turns (turn_id, session_id, prompt, status, created_at)
 			SELECT ?, session_id, ?, ?, ?
 		FROM agent_sessions
 		WHERE session_id = ? AND deleted_at IS NULL`,
-		turnID.String(), prompt, string(resultJSON), createdAt, id.String())
+		turnID.String(), prompt, string(turnStatusRunning), createdAt, id.String())
 	if err != nil {
 		return fmt.Errorf("insert session turn: %w", err)
 	}
@@ -373,11 +414,92 @@ func appendTurn(ctx context.Context, db *sql.DB, id SessionID, prompt string, re
 	if n == 0 {
 		return errSessionNotFound
 	}
+	return nil
+}
+
+// completeTurn closes out a turnStatusRunning row with its final result,
+// transitioning it to turnStatusCompleted, and records its token usage. It
+// only updates a row still in turnStatusRunning, so a turn already closed out
+// by reconcileInterruptedTurn (e.g. a caller resuming a stale in-memory
+// handle after a crash) is left alone rather than silently overwritten.
+func completeTurn(
+	ctx context.Context,
+	db *sql.DB,
+	id SessionID,
+	turnID uuid.UUID,
+	result *goai.TextResult,
+) error {
+	if result == nil {
+		return fmt.Errorf("complete turn: result is required")
+	}
+	resultJSON, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Errorf("marshal turn result: %w", err)
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin complete turn transaction: %w", err)
+	}
+	defer func() {
+		if rollbackErr := tx.Rollback(); rollbackErr != nil &&
+			!errors.Is(rollbackErr, sql.ErrTxDone) {
+			slog.Error("rollback complete turn transaction", "error", rollbackErr)
+		}
+	}()
+
+	completedAt := time.Now().UTC().Format(time.RFC3339Nano)
+	res, err := tx.ExecContext(ctx, `
+		UPDATE session_turns
+		SET result = ?, status = ?, completed_at = ?
+		WHERE turn_id = ? AND session_id = ? AND status = ?`,
+		string(resultJSON), string(turnStatusCompleted), completedAt,
+		turnID.String(), id.String(), string(turnStatusRunning))
+	if err != nil {
+		return fmt.Errorf("update session turn: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("complete turn: no running turn %s for session %s", turnID, id)
+	}
 	if err := recordSessionTokenUsage(ctx, tx, uuid.UUID(id), turnID, result.TotalUsage); err != nil {
 		return fmt.Errorf("record token usage: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit append turn transaction: %w", err)
+		return fmt.Errorf("commit complete turn transaction: %w", err)
+	}
+	return nil
+}
+
+// recordTurnEvent appends one lifecycle event for a still-running turn.
+// Called from goai hooks (see sessions.Run) as each step/tool call happens,
+// so a crash mid-turn leaves a durable trace of what was attempted - not just
+// silence until the turn would have completed. seq must be supplied by the
+// caller (a per-turn counter) rather than derived from insertion order,
+// since concurrent tool calls within one step can otherwise write out of
+// logical order.
+func recordTurnEvent(
+	ctx context.Context,
+	db *sql.DB,
+	turnID uuid.UUID,
+	seq int64,
+	eventType string,
+	payload any,
+) error {
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal turn event payload: %w", err)
+	}
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO session_turn_events (event_id, turn_id, seq, event_type, payload, created_at)
+		VALUES (?, ?, ?, ?, ?, ?)`,
+		uuid.NewV7().String(), turnID.String(), seq, eventType, string(payloadJSON),
+		time.Now().UTC().Format(time.RFC3339Nano))
+	if err != nil {
+		return fmt.Errorf("insert turn event: %w", err)
 	}
 	return nil
 }
@@ -385,7 +507,7 @@ func appendTurn(ctx context.Context, db *sql.DB, id SessionID, prompt string, re
 // turnsBySession loads a session's turns in insertion order.
 func turnsBySession(ctx context.Context, db *sql.DB, id SessionID) ([]turn, error) {
 	const query = `
-		SELECT prompt, result, created_at
+		SELECT prompt, result, status, created_at
 		FROM session_turns
 		WHERE session_id = ?
 		ORDER BY created_at, turn_id`
@@ -404,14 +526,16 @@ func turnsBySession(ctx context.Context, db *sql.DB, id SessionID) ([]turn, erro
 	for rows.Next() {
 		var (
 			t         turn
-			resultRaw []byte
+			resultRaw sql.NullString
+			status    string
 			createdAt string
 		)
-		if err := rows.Scan(&t.Prompt, &resultRaw, &createdAt); err != nil {
+		if err := rows.Scan(&t.Prompt, &resultRaw, &status, &createdAt); err != nil {
 			return nil, fmt.Errorf("scan session turn: %w", err)
 		}
-		if len(resultRaw) > 0 {
-			if err := json.Unmarshal(resultRaw, &t.Result); err != nil {
+		t.Status = turnStatus(status)
+		if resultRaw.Valid && resultRaw.String != "" {
+			if err := json.Unmarshal([]byte(resultRaw.String), &t.Result); err != nil {
 				return nil, fmt.Errorf("decode session turn result: %w", err)
 			}
 		}
@@ -460,7 +584,7 @@ func searchHistoryTurns(
 	}
 
 	rows, err := db.QueryContext(ctx, `
-		SELECT s.session_id, s.created_at, t.prompt, t.result, t.created_at
+		SELECT s.session_id, s.created_at, t.prompt, t.result, t.status, t.created_at
 		FROM session_turns t
 		JOIN agent_sessions s ON s.session_id = t.session_id
 		WHERE s.deleted_at IS NULL
@@ -483,16 +607,17 @@ func searchHistoryTurns(
 			sessionIDStr     string
 			sessionCreatedAt string
 			prompt           string
-			resultRaw        []byte
+			resultRaw        sql.NullString
+			status           string
 			createdAt        string
 		)
-		if err := rows.Scan(&sessionIDStr, &sessionCreatedAt, &prompt, &resultRaw, &createdAt); err != nil {
+		if err := rows.Scan(&sessionIDStr, &sessionCreatedAt, &prompt, &resultRaw, &status, &createdAt); err != nil {
 			return nil, fmt.Errorf("scan history turn: %w", err)
 		}
 
 		var result goai.TextResult
-		if len(resultRaw) > 0 {
-			if err := json.Unmarshal(resultRaw, &result); err != nil {
+		if resultRaw.Valid && resultRaw.String != "" {
+			if err := json.Unmarshal([]byte(resultRaw.String), &result); err != nil {
 				return nil, fmt.Errorf("decode turn result: %w", err)
 			}
 		}
@@ -513,6 +638,7 @@ func searchHistoryTurns(
 			Prompt:           prompt,
 			Reply:            result.Text,
 			CreatedAt:        createdAt,
+			Status:           status,
 		})
 		if len(turns) >= limit {
 			break

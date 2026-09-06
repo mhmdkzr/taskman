@@ -3,8 +3,11 @@ package sessions
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
+	"sync/atomic"
 	"text/template"
+	"uuid"
 
 	"github.com/zendev-sh/goai"
 	"github.com/zendev-sh/goai/provider"
@@ -41,7 +44,15 @@ func Create(
 		"store":            false,
 	}
 
-	id, err := createSession(ctx, st.RW(), agent.AgentID, agent.ModelID, sysPrompt, providerOpts, parentSessionID)
+	id, err := createSession(
+		ctx,
+		st.RW(),
+		agent.AgentID,
+		agent.ModelID,
+		sysPrompt,
+		providerOpts,
+		parentSessionID,
+	)
 	if err != nil {
 		return SessionID{}, fmt.Errorf("create session: %w", err)
 	}
@@ -101,26 +112,99 @@ func Run(
 		if providerOptions == nil {
 			providerOptions = make(map[string]any)
 		}
-		providerOptions["useResponsesAPI"] = !strings.Contains(strings.TrimRight(cfg.BaseURL, "/"), "/go/v1")
+		providerOptions["useResponsesAPI"] = !strings.Contains(
+			strings.TrimRight(cfg.BaseURL, "/"),
+			"/go/v1",
+		)
 	}
 	if _, ok := providerOptions["store"]; !ok {
 		providerOptions["store"] = false
 	}
 
+	// turnID and startTurn are the write-ahead marker: the row exists (as
+	// turnStatusRunning) before GenerateText's model/tool-call loop begins, so
+	// a crash mid-loop leaves a detectable, reconcilable row instead of no
+	// trace at all (see ReconcileInterrupted). The hooks below persist each
+	// step/tool call as it happens, not just the final result, so a
+	// reconciliation pass has real progress to replay rather than an empty log.
+	turnID := uuid.NewV7()
+	if err := startTurn(ctx, st.RW(), id, turnID, prompt); err != nil {
+		return nil, fmt.Errorf("start session turn: %w", err)
+	}
+
+	var seq atomic.Int64
+	nextSeq := func() int64 { return seq.Add(1) }
+	recordEvent := func(eventType string, payload any) {
+		if err := recordTurnEvent(ctx, st.RW(), turnID, nextSeq(), eventType, payload); err != nil {
+			// Not fatal to the tool loop: losing one event only narrows what a
+			// future crash-reconciliation pass can replay for this turn, it
+			// does not affect the live in-memory result. Must still be logged
+			// per repo convention (no silent errors).
+			slog.Error(
+				"record session turn event",
+				"error",
+				err,
+				"turn_id",
+				turnID.String(),
+				"event_type",
+				eventType,
+			)
+		}
+	}
+
 	opts := []goai.Option{
 		goai.WithSystem(stored.SystemPrompt),
 		goai.WithTools(tools...),
-		goai.WithMaxSteps(4),
 		goai.WithProviderOptions(providerOptions),
 		goai.WithMessages(msgs...),
+		goai.WithHeaders(map[string]string{"x-opencode-session": id.String()}),
+		goai.WithPromptCaching(true),
+		goai.WithMaxRetries(10),
+		goai.WithOnStepFinish(func(step goai.StepResult) {
+			payload := stepFinishPayload{
+				Step:      step.Number,
+				Text:      step.Text,
+				Reasoning: step.Reasoning,
+			}
+			for _, tc := range step.ToolCalls {
+				payload.ToolCalls = append(
+					payload.ToolCalls,
+					turnEventToolCall{ID: tc.ID, Name: tc.Name, Input: tc.Input},
+				)
+			}
+			recordEvent("step_finish", payload)
+		}),
+		goai.WithOnToolCallStart(func(info goai.ToolCallStartInfo) {
+			recordEvent("tool_call_start", toolCallStartPayload{
+				Step: info.Step, ToolCallID: info.ToolCallID, ToolName: info.ToolName,
+			})
+		}),
+		goai.WithOnToolCall(func(info goai.ToolCallInfo) {
+			payload := toolCallResultPayload{
+				Step: info.Step, ToolCallID: info.ToolCallID, ToolName: info.ToolName, Output: info.Output,
+			}
+			if info.Error != nil {
+				payload.Error = info.Error.Error()
+			}
+			recordEvent("tool_call_result", payload)
+		}),
 	}
 
-	result, err := goai.GenerateText(ctx, model, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("generate text: %w", err)
+	result, genErr := goai.GenerateText(ctx, model, opts...)
+	if genErr != nil {
+		// The loop didn't return normally, but this process is still alive -
+		// close the turn out now from whatever events the hooks above already
+		// recorded, rather than leaving it turnStatusRunning until a future
+		// boot's ReconcileInterrupted trips over it. Same synthesis path as
+		// crash recovery: every requested tool call still gets a real or
+		// synthesized result, so the stored conversation stays replayable.
+		if err := reconcileInterruptedTurn(ctx, st.RW(), turnID); err != nil {
+			slog.Error("close failed session turn", "error", err, "turn_id", turnID.String())
+		}
+		return nil, fmt.Errorf("generate text: %w", genErr)
 	}
 
-	if err := appendTurn(ctx, st.RW(), id, prompt, result); err != nil {
+	if err := completeTurn(ctx, st.RW(), id, turnID, result); err != nil {
 		return nil, fmt.Errorf("persist session turn: %w", err)
 	}
 

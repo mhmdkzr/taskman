@@ -24,7 +24,8 @@ func TestSchemaApply(t *testing.T) {
 
 	tables := []string{
 		"agent_sessions", "agent_tools", "agents", "model_providers", "models",
-		"prompt_templates", "session_todos", "session_tools", "session_turns", "tasks", "tasks_labels", "tasks_sessions", "token_usage", "tools",
+		"prompt_templates", "session_todos", "session_tools", "session_turn_events", "session_turns",
+		"tasks", "tasks_labels", "tasks_sessions", "token_usage", "tools",
 	}
 
 	list := exec.Command("sqlite3", "-noheader", dbPath,

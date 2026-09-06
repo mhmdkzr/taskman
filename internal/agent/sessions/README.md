@@ -25,12 +25,35 @@ mutable state to keep in sync; all state lives in the database.
 - `sessions.Run` reloads the session's configuration and full turn history from
   the database, appends the new user prompt, calls the configured provider via
   `goai.GenerateText`, and appends the prompt + result as a new
-  `session_turns` row. It returns the generated `*goai.TextResult`. The
-  tool-call loop is bounded by a single global `maxSteps` constant, not a
-  per-session or per-agent value.
+  `session_turns` row. It returns the generated `*goai.TextResult`.
 
 Because `Run` is stateless, resuming a session is just calling `Run` again
 with the same ID — the history is reconstructed from the database each time.
+
+## Crash recovery
+
+A `session_turns` row has a `status`: `running`, `completed`, or
+`interrupted`. `Run` inserts a row as `running` (the write-ahead marker)
+*before* calling `goai.GenerateText`, so the turn exists durably even if the
+process dies mid-loop — not just after the whole loop returns. While the loop
+runs, `goai` hooks (`OnStepFinish`, `OnToolCallStart`, `OnToolCall`) write each
+step and tool call to `session_turn_events` as it happens, so a crash mid-turn
+leaves a real trace of what was attempted, not silence. Once
+`GenerateText` returns normally, the row is updated to `completed` with the
+full result.
+
+A row still `running` was orphaned by a crash (or a same-process error, which
+`Run` closes out immediately rather than leaving `running`). `sessions.
+ReconcileInterrupted` — called once at process boot, before any session is
+resumed — finds every such row and replays its `session_turn_events` into a
+synthesized partial result: each tool call the model requested gets a real
+result (if one was recorded) or a synthesized error distinguishing "never
+attempted" from "started but its outcome is unknown, verify before retrying"
+— never a dangling tool call with no result, which would be an invalid
+message sequence for the next model call. The row is then marked
+`interrupted`. Recovery makes the stored conversation valid to resume; it does
+not undo or verify any side effects a tool call already caused before the
+crash.
 
 ## Invocation
 

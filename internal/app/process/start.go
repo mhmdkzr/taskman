@@ -11,6 +11,7 @@ import (
 	_ "modernc.org/sqlite" // Register the SQLite database driver.
 
 	"github.com/mhmdkzr/loop/internal/agent"
+	"github.com/mhmdkzr/loop/internal/agent/sessions"
 	agenttools "github.com/mhmdkzr/loop/internal/agent/tools"
 	"github.com/mhmdkzr/loop/internal/agent/tools/browser"
 	"github.com/mhmdkzr/loop/internal/agent/tools/telegram"
@@ -99,6 +100,18 @@ func Start(ctx context.Context, options StartOptions) error {
 		return fmt.Errorf("seed agent data: %w", err)
 	}
 	slog.Info("agent data seeded")
+
+	// Any session_turns row still "running" at this point was orphaned by a
+	// crash in a previous process - no live Run call can hold that status
+	// across a restart. Reconcile before any session is resumed so a crashed
+	// turn is repaired proactively (see sessions.ReconcileInterrupted).
+	reconciled, err := sessions.ReconcileInterrupted(ctx, db)
+	if err != nil {
+		return fmt.Errorf("reconcile interrupted sessions: %w", err)
+	}
+	if reconciled > 0 {
+		slog.Warn("reconciled turns interrupted by a previous crash", "count", reconciled)
+	}
 
 	a := app.App{
 		Deps: app.Deps{

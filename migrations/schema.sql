@@ -125,19 +125,58 @@ CREATE INDEX IF NOT EXISTS idx_agent_sessions_agent
 CREATE INDEX IF NOT EXISTS idx_agent_sessions_parent
     ON agent_sessions (parent_session_id) WHERE parent_session_id IS NOT NULL;
 
+-- status tracks a turn's crash-recovery lifecycle: a turn is inserted as
+-- 'running' before its model/tool-call loop starts (the write-ahead marker)
+-- and updated to 'completed' once that loop returns normally. A row still
+-- 'running' after a process restart was orphaned by a crash mid-turn; boot-time
+-- reconciliation (see sessions.ReconcileInterrupted) closes it out as
+-- 'interrupted', synthesizing a valid result from session_turn_events so the
+-- stored conversation never has a dangling tool call. result is NULL only
+-- while status='running'.
 CREATE TABLE IF NOT EXISTS session_turns (
-    turn_id    TEXT        PRIMARY KEY,
-    session_id TEXT        NOT NULL REFERENCES agent_sessions(session_id) ON DELETE RESTRICT,
-    prompt     TEXT        NOT NULL,
-    result     TEXT        NOT NULL,
-    created_at TEXT        NOT NULL,
+    turn_id      TEXT        PRIMARY KEY,
+    session_id   TEXT        NOT NULL REFERENCES agent_sessions(session_id) ON DELETE RESTRICT,
+    prompt       TEXT        NOT NULL,
+    result       TEXT,
+    status       TEXT        NOT NULL DEFAULT 'completed'
+                              CHECK (status IN ('running', 'completed', 'interrupted')),
+    created_at   TEXT        NOT NULL,
+    completed_at TEXT,
 
     CONSTRAINT session_turns_result_json_check
-        CHECK (json_valid(result))
+        CHECK (result IS NULL OR json_valid(result)),
+
+    CONSTRAINT session_turns_result_status_check
+        CHECK ((status = 'running') = (result IS NULL))
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_session_turns_session
     ON session_turns (session_id, created_at);
+
+CREATE INDEX IF NOT EXISTS idx_session_turns_status
+    ON session_turns (status) WHERE status = 'running';
+
+-- Append-only log of tool-call lifecycle events within a still-running turn,
+-- written incrementally (via goai hooks) as each step/tool call happens - not
+-- batched at turn-end. This is what lets boot-time reconciliation recover a
+-- turn orphaned by a mid-turn crash: it replays these events into a valid
+-- partial conversation instead of discarding the whole turn. seq orders events
+-- within a turn (assigned by an in-process counter, since concurrent tool
+-- calls in the same step can otherwise write out of logical order).
+CREATE TABLE IF NOT EXISTS session_turn_events (
+    event_id   TEXT    NOT NULL PRIMARY KEY,
+    turn_id    TEXT    NOT NULL REFERENCES session_turns(turn_id) ON DELETE RESTRICT,
+    seq        INTEGER NOT NULL,
+    event_type TEXT    NOT NULL CHECK (event_type IN ('step_finish', 'tool_call_start', 'tool_call_result')),
+    payload    TEXT    NOT NULL,
+    created_at TEXT    NOT NULL,
+
+    CONSTRAINT session_turn_events_payload_json_check
+        CHECK (json_valid(payload))
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS idx_session_turn_events_turn
+    ON session_turn_events (turn_id, seq);
 
 CREATE TABLE IF NOT EXISTS token_usage (
     session_id         TEXT    NOT NULL REFERENCES agent_sessions(session_id) ON DELETE RESTRICT,
