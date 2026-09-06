@@ -21,7 +21,7 @@ func TestReadDirectoryExcludesBinaryDocuments(t *testing.T) {
 		}
 	}
 
-	got, err := execute(t.Context(), input{Path: dir})
+	got, err := execute(t.Context(), Input{Path: dir})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -17,28 +17,28 @@ var (
 	errNotUnique         = errors.New("old_string matches more than once; provide more context or set replace_all")
 )
 
-type output struct {
+type Output struct {
 	Path         string `json:"path"`
 	Replacements int    `json:"replacements"`
 }
 
-func execute(_ context.Context, in input) (output, error) {
+func execute(_ context.Context, in Input) (Output, error) {
 	info, err := os.Stat(in.Path)
 	if err != nil {
-		return output{}, fmt.Errorf("edit: %w", err)
+		return Output{}, fmt.Errorf("edit: %w", err)
 	}
 
 	content, err := os.ReadFile(in.Path)
 	if err != nil {
-		return output{}, fmt.Errorf("edit: %w", err)
+		return Output{}, fmt.Errorf("edit: %w", err)
 	}
 
 	count := strings.Count(string(content), in.OldString)
 	if count == 0 {
-		return output{}, fmt.Errorf("edit: %w", errNotFound)
+		return Output{}, fmt.Errorf("edit: %w", errNotFound)
 	}
 	if count > 1 && !in.ReplaceAll {
-		return output{}, fmt.Errorf("edit: %w", errNotUnique)
+		return Output{}, fmt.Errorf("edit: %w", errNotUnique)
 	}
 
 	replacements := 1
@@ -51,8 +51,8 @@ func execute(_ context.Context, in input) (output, error) {
 
 	//nolint:gosec // The file-editing tool is explicitly designed to write the requested path.
 	if err := os.WriteFile(in.Path, []byte(updated), info.Mode()); err != nil {
-		return output{}, fmt.Errorf("edit: %w", err)
+		return Output{}, fmt.Errorf("edit: %w", err)
 	}
 
-	return output{Path: in.Path, Replacements: replacements}, nil
+	return Output{Path: in.Path, Replacements: replacements}, nil
 }

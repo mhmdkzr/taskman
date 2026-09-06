@@ -31,13 +31,23 @@ import (
 	"github.com/mhmdkzr/loop/internal/agent/tools/files/write"
 	"github.com/mhmdkzr/loop/internal/agent/tools/git"
 	golang "github.com/mhmdkzr/loop/internal/agent/tools/go"
+	"github.com/mhmdkzr/loop/internal/agent/tools/history"
 	"github.com/mhmdkzr/loop/internal/agent/tools/nats"
+	notesdelete "github.com/mhmdkzr/loop/internal/agent/tools/notes/delete"
+	notesedit "github.com/mhmdkzr/loop/internal/agent/tools/notes/edit"
+	noteslink "github.com/mhmdkzr/loop/internal/agent/tools/notes/link"
+	noteslist "github.com/mhmdkzr/loop/internal/agent/tools/notes/list"
+	notesread "github.com/mhmdkzr/loop/internal/agent/tools/notes/read"
+	notessearch "github.com/mhmdkzr/loop/internal/agent/tools/notes/search"
+	noteswrite "github.com/mhmdkzr/loop/internal/agent/tools/notes/write"
 	"github.com/mhmdkzr/loop/internal/agent/tools/psql"
-	telegramread "github.com/mhmdkzr/loop/internal/agent/tools/telegram/read"
-	telegrams "github.com/mhmdkzr/loop/internal/agent/tools/telegram/send"
-	"github.com/mhmdkzr/loop/internal/agent/tools/todowrite"
+	"github.com/mhmdkzr/loop/internal/agent/tools/query"
+	tgread "github.com/mhmdkzr/loop/internal/agent/tools/telegram/read"
+	tgsend "github.com/mhmdkzr/loop/internal/agent/tools/telegram/send"
+	"github.com/mhmdkzr/loop/internal/agent/tools/todo"
 	"github.com/mhmdkzr/loop/internal/agent/tools/websearch"
 	"github.com/mhmdkzr/loop/internal/app/config"
+	"github.com/mhmdkzr/loop/internal/store"
 )
 
 type toolSeed struct {
@@ -85,7 +95,8 @@ var providerNames = []string{
 
 // Seed writes the configured provider and model, plus the definitions for
 // every tool currently available through Tools.
-func Seed(ctx context.Context, db *sql.DB, cfg config.ProviderConfig) error {
+func Seed(ctx context.Context, st *store.Store, cfg config.ProviderConfig) error {
+	db := st.RW()
 	for _, name := range providerNames {
 		baseURL := ""
 		apiKeyEnv := ""
@@ -148,13 +159,22 @@ func toolSeeds() []toolSeed {
 		newToolSeed[rg.Input, tools.Output](rg.Name, rg.Description),
 		newToolSeed[grep.Input, grep.Output](grep.Name, grep.Description),
 		newToolSeed[psql.Input, tools.Output](psql.Name, psql.Description),
+		newToolSeed[query.Input, query.Output](query.Name, query.Description),
+		newToolSeed[history.Input, history.Output](history.Name, history.Description),
+		newToolSeed[noteswrite.Input, noteswrite.Output](noteswrite.Name, noteswrite.Description),
+		newToolSeed[notesdelete.Input, notesdelete.Output](notesdelete.Name, notesdelete.Description),
+		newToolSeed[notesedit.Input, notesedit.Output](notesedit.Name, notesedit.Description),
+		newToolSeed[noteslink.Input, noteslink.Output](noteslink.Name, noteslink.Description),
+		newToolSeed[noteslist.Input, noteslist.Output](noteslist.Name, noteslist.Description),
+		newToolSeed[notesread.Input, notesread.Output](notesread.Name, notesread.Description),
+		newToolSeed[notessearch.Input, notessearch.Output](notessearch.Name, notessearch.Description),
 		newToolSeed[git.Input, tools.Output](git.Name, git.Description),
 		newToolSeed[golang.Input, tools.Output](golang.Name, golang.Description),
 		newToolSeed[curl.Input, tools.Output](curl.Name, curl.Description),
 		newToolSeed[deno.Input, tools.Output](deno.Name, deno.Description),
 		newToolSeed[nats.Input, tools.Output](nats.Name, nats.Description),
 		newToolSeed[datetime.Input, datetime.Output](datetime.Name, datetime.Description),
-		newToolSeed[todowrite.Input, todowrite.Output](todowrite.Name, todowrite.Description),
+		newToolSeed[todo.Input, todo.Output](todo.Name, todo.Description),
 		newToolSeed[agenttool.Input, agenttool.Output](agenttool.Name, agenttool.Description),
 		newToolSeed[navigate.Input, navigate.Output](navigate.Name, navigate.Description),
 		newToolSeed[extract.Input, extract.Output](extract.Name, extract.Description),
@@ -164,8 +184,8 @@ func toolSeeds() []toolSeed {
 		newToolSeed[back.Input, back.Output](back.Name, back.Description),
 		newToolSeed[forward.Input, forward.Output](forward.Name, forward.Description),
 		newToolSeed[reset.Input, reset.Output](reset.Name, reset.Description),
-		newToolSeed[telegramread.Input, telegramread.Output](telegramread.Name, telegramread.Description),
-		newToolSeed[telegrams.Input, telegrams.Output](telegrams.Name, telegrams.Description),
+		newToolSeed[tgread.Input, tgread.Output](tgread.Name, tgread.Description),
+		newToolSeed[tgsend.Input, tgsend.Output](tgsend.Name, tgsend.Description),
 		newToolSeed[websearch.Input, websearch.Output](websearch.Name, websearch.Description),
 	}
 }

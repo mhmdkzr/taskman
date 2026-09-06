@@ -21,12 +21,12 @@ type match struct {
 	modTime time.Time
 }
 
-type output struct {
+type Output struct {
 	Paths     []string `json:"paths"`
 	Truncated bool     `json:"truncated"`
 }
 
-func execute(_ context.Context, in input) (output, error) {
+func execute(_ context.Context, in Input) (Output, error) {
 	root := in.Path
 	if root == "" {
 		root = "."
@@ -64,7 +64,7 @@ func execute(_ context.Context, in input) (output, error) {
 		return nil
 	})
 	if err != nil {
-		return output{}, fmt.Errorf("glob: %w", err)
+		return Output{}, fmt.Errorf("glob: %w", err)
 	}
 
 	sort.Slice(matches, func(i, j int) bool {
@@ -80,7 +80,7 @@ func execute(_ context.Context, in input) (output, error) {
 	for i, m := range matches {
 		paths[i] = m.path
 	}
-	return output{Paths: paths, Truncated: truncated}, nil
+	return Output{Paths: paths, Truncated: truncated}, nil
 }
 
 // matchGlob matches a slash-separated relative path against a glob pattern,

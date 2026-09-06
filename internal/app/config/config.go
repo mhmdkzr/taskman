@@ -54,7 +54,7 @@ type BrowserConfig struct {
 }
 
 type SQLiteConfig struct {
-	Path        string `env:"PATH"         envDefault:":memory:"`
+	Path        string `env:"PATH"         envDefault:"loop.db"`
 	AutoMigrate bool   `env:"AUTO_MIGRATE" envDefault:"true"`
 }
 
@@ -139,7 +139,10 @@ func (c ServerConfig) validate() error {
 
 func (c ProviderConfig) validate() error {
 	for name, value := range map[string]string{
-		"BASE_URL": c.BaseURL, "API_KEY_OPENCODE": c.APIKeyOpenCode, "MODEL": c.Model, "REASONING_EFFORT": c.ReasoningEffort,
+		"BASE_URL":         c.BaseURL,
+		"API_KEY_OPENCODE": c.APIKeyOpenCode,
+		"MODEL":            c.Model,
+		"REASONING_EFFORT": c.ReasoningEffort,
 	} {
 		if value == "" {
 			return fmt.Errorf("%s must not be empty", name)

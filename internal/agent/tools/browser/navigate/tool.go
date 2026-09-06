@@ -12,28 +12,23 @@ import (
 
 const (
 	Name        = "browser_navigate"
-	description = "Navigate the browser to a URL and wait for the page to load. Use it to open a website before extracting content or interacting with it."
+	Description = "Navigate the browser to a URL and wait for the page to load. Use it to open a website before extracting content or interacting with it."
 )
 
-const Description = description
-
-type input struct {
+type Input struct {
 	URL string `json:"url" jsonschema:"description=The URL to navigate to, e.g. https://example.com"`
 }
 
-type output struct {
+type Output struct {
 	URL   string `json:"url"`
 	Title string `json:"title,omitempty"`
 }
 
-type Input = input
-type Output = output
-
 // Tool returns the browser_navigate tool bound to c.
 func Tool(c *browser.Client) goai.Tool {
-	return tools.Tool(Name, description, func(ctx context.Context, in input) (output, error) {
+	return tools.Tool(Name, Description, func(ctx context.Context, in Input) (Output, error) {
 		return execute(ctx, c, in)
 	})
 }
 
-func (input) Validate() error { return nil }
+func (Input) Validate() error { return nil }

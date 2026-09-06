@@ -3,7 +3,6 @@ package agent
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strings"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/mhmdkzr/loop/internal/agent/sessions"
 	"github.com/mhmdkzr/loop/internal/agent/tools"
 	"github.com/mhmdkzr/loop/internal/app/config"
+	"github.com/mhmdkzr/loop/internal/store"
 )
 
 // StartSession creates a new, top-level session for the named agent — no
@@ -19,12 +19,12 @@ import (
 // prompt template into its system prompt, same as any other agent.
 func StartSession(
 	ctx context.Context,
-	db *sql.DB,
+	st *store.Store,
 	cfg config.ProviderConfig,
 	agentName string,
 	params map[string]any,
 ) (sessions.SessionID, error) {
-	id, err := sessions.Create(ctx, db, cfg, agentName, params, nil)
+	id, err := sessions.Create(ctx, st, cfg, agentName, params, nil)
 	if err != nil {
 		return sessions.SessionID{}, fmt.Errorf("start session: %w", err)
 	}
@@ -33,14 +33,14 @@ func StartSession(
 
 // CreateAgent creates a named agent using the active configured model and
 // grants it every registered tool.
-func CreateAgent(ctx context.Context, db *sql.DB, cfg config.ProviderConfig, name, prompt string) error {
+func CreateAgent(ctx context.Context, st *store.Store, cfg config.ProviderConfig, name, prompt string) error {
 	if strings.TrimSpace(name) == "" {
 		return fmt.Errorf("create agent: name is required")
 	}
 	if strings.TrimSpace(prompt) == "" {
 		return fmt.Errorf("create agent: prompt is required")
 	}
-	if err := createAgent(ctx, db, cfg.Model, name, prompt, toolSeeds()); err != nil {
+	if err := createAgent(ctx, st.RW(), cfg.Model, name, prompt, toolSeeds()); err != nil {
 		return fmt.Errorf("create agent: %w", err)
 	}
 	return nil
@@ -60,11 +60,11 @@ func Respond(
 	message string,
 ) (*goai.TextResult, error) {
 	deps.SessionID = sessionID
-	agentID, err := sessions.AgentIDFor(ctx, deps.DB, sessionID)
+	agentID, err := sessions.AgentIDFor(ctx, deps.Store, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("respond: %w", err)
 	}
-	toolNames, err := sessions.ToolNamesForAgent(ctx, deps.DB, agentID)
+	toolNames, err := sessions.ToolNamesForAgent(ctx, deps.Store, agentID)
 	if err != nil {
 		return nil, fmt.Errorf("respond: %w", err)
 	}
@@ -73,7 +73,7 @@ func Respond(
 		return nil, fmt.Errorf("respond: %w", err)
 	}
 
-	result, err := sessions.Run(ctx, deps.DB, deps.Config.Provider, sessionID, message, resolved)
+	result, err := sessions.Run(ctx, deps.Store, deps.Config.Provider, sessionID, message, resolved)
 	if err != nil {
 		return nil, fmt.Errorf("respond: %w", err)
 	}

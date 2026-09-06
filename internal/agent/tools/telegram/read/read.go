@@ -25,9 +25,9 @@ const (
 	maxLimit     = 100
 )
 
-func execute(ctx context.Context, c *telegram.Client, in input) (output, error) {
+func execute(ctx context.Context, c *telegram.Client, in Input) (Output, error) {
 	if !c.Configured() {
-		return output{}, fmt.Errorf("telegram_read: not configured: set TELEGRAM_API_KEY and TELEGRAM_CHANNEL_ID")
+		return Output{}, fmt.Errorf("telegram_read: not configured: set TELEGRAM_API_KEY and TELEGRAM_CHANNEL_ID")
 	}
 
 	limit := defaultLimit
@@ -35,12 +35,12 @@ func execute(ctx context.Context, c *telegram.Client, in input) (output, error) 
 		limit = *in.Limit
 	}
 	if limit < 1 || limit > maxLimit {
-		return output{}, fmt.Errorf("telegram_read: limit must be between 1 and %d", maxLimit)
+		return Output{}, fmt.Errorf("telegram_read: limit must be between 1 and %d", maxLimit)
 	}
 
 	updates, err := fetchUpdates(ctx, c.BaseURL, c.HTTP, c.APIKey)
 	if err != nil {
-		return output{}, fmt.Errorf("telegram_read: %w", err)
+		return Output{}, fmt.Errorf("telegram_read: %w", err)
 	}
 
 	var msgs []message
@@ -59,7 +59,7 @@ func execute(ctx context.Context, c *telegram.Client, in input) (output, error) 
 
 	if maxUpdateID > 0 {
 		if err := ackUpdates(ctx, c.BaseURL, c.HTTP, c.APIKey, maxUpdateID); err != nil {
-			return output{}, fmt.Errorf("telegram_read: ack updates: %w", err)
+			return Output{}, fmt.Errorf("telegram_read: ack updates: %w", err)
 		}
 	}
 
@@ -67,13 +67,13 @@ func execute(ctx context.Context, c *telegram.Client, in input) (output, error) 
 		msgs = msgs[len(msgs)-limit:]
 	}
 
-	result := output{Messages: make([]outputMessage, 0, len(msgs))}
+	result := Output{Messages: make([]OutputMessage, 0, len(msgs))}
 	for _, m := range msgs {
 		text := strings.TrimSpace(m.Text)
 		if text == "" {
 			text = "[media message]"
 		}
-		result.Messages = append(result.Messages, outputMessage{
+		result.Messages = append(result.Messages, OutputMessage{
 			Sender: senderName(m.From),
 			Date:   time.Unix(m.Date, 0).UTC().Format("2006-01-02 15:04"),
 			Text:   text,
@@ -99,14 +99,15 @@ type message struct {
 	Text string `json:"text"`
 }
 
-type outputMessage struct {
+type OutputMessage struct {
 	Sender string `json:"sender"`
 	Date   string `json:"date"`
 	Text   string `json:"text"`
 }
 
-type output struct {
-	Messages []outputMessage `json:"messages"`
+// Output is the result returned by telegram_read.
+type Output struct {
+	Messages []OutputMessage `json:"messages"`
 }
 
 type update struct {

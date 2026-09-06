@@ -13,7 +13,7 @@ func TestExecute(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := execute(t.Context(), input{Pattern: "TODO", Path: dir, Include: "*.go"})
+	got, err := execute(t.Context(), Input{Pattern: "TODO", Path: dir, Include: "*.go"})
 	if err != nil {
 		t.Fatal(err)
 	}

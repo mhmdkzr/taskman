@@ -53,7 +53,7 @@ func TestTool(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got output
+	var got Output
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestToolLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got output
+	var got Output
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestToolMediaMessage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var got output
+	var got Output
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatal(err)
 	}

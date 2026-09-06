@@ -10,7 +10,7 @@ import (
 
 const cmd = "temporal"
 
-func execute(ctx context.Context, in input) (tools.Output, error) {
+func execute(ctx context.Context, in Input) (tools.Output, error) {
 	result, err := tools.ExecuteCMD(ctx, tools.Input{
 		Cmd:  cmd,
 		Args: in.Args,

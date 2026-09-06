@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 
@@ -9,11 +8,12 @@ import (
 
 	"github.com/mhmdkzr/loop/internal/agent/sessions"
 	"github.com/mhmdkzr/loop/internal/app/config"
+	"github.com/mhmdkzr/loop/internal/store"
 )
 
 type (
 	Deps struct {
-		DB         *sql.DB
+		Store      *store.Store
 		SessionID  sessions.SessionID
 		Config     config.Config
 		Configured map[ToolName]goai.Tool

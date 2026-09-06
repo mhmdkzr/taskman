@@ -5,5 +5,10 @@
 Example input:
 
 ```json
-{"pattern":"TODO","path":"internal","include":"*.go","max_results":20}
+{
+  "pattern": "TODO",
+  "path": "internal",
+  "include": "*.go",
+  "max_results": 20
+}
 ```

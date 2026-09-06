@@ -22,7 +22,7 @@ const (
 
 var errPathRequired = errors.New("path is required")
 
-type output struct {
+type Output struct {
 	Content   string   `json:"content"`
 	Entries   []string `json:"entries,omitempty"`
 	Directory bool     `json:"directory"`
@@ -30,7 +30,7 @@ type output struct {
 	Truncated bool     `json:"truncated"`
 }
 
-func execute(_ context.Context, in input) (output, error) {
+func execute(_ context.Context, in Input) (Output, error) {
 	offset := in.Offset
 	if offset < 1 {
 		offset = defaultOffset
@@ -42,7 +42,7 @@ func execute(_ context.Context, in input) (output, error) {
 
 	info, err := os.Stat(in.Path)
 	if err != nil {
-		return output{}, fmt.Errorf("read: %w", err)
+		return Output{}, fmt.Errorf("read: %w", err)
 	}
 	if info.IsDir() {
 		return readDirectory(in.Path)
@@ -50,7 +50,7 @@ func execute(_ context.Context, in input) (output, error) {
 
 	file, err := os.Open(in.Path)
 	if err != nil {
-		return output{}, fmt.Errorf("read: %w", err)
+		return Output{}, fmt.Errorf("read: %w", err)
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
@@ -73,21 +73,21 @@ func execute(_ context.Context, in input) (output, error) {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return output{}, fmt.Errorf("read: %w", err)
+		return Output{}, fmt.Errorf("read: %w", err)
 	}
 
 	truncated := offset+len(lines) <= lineCount
-	return output{
+	return Output{
 		Content:   strings.Join(lines, "\n"),
 		LineCount: lineCount,
 		Truncated: truncated,
 	}, nil
 }
 
-func readDirectory(path string) (output, error) {
+func readDirectory(path string) (Output, error) {
 	entries, err := os.ReadDir(path)
 	if err != nil {
-		return output{}, fmt.Errorf("read directory: %w", err)
+		return Output{}, fmt.Errorf("read directory: %w", err)
 	}
 
 	paths := make([]string, 0, len(entries))
@@ -98,7 +98,7 @@ func readDirectory(path string) (output, error) {
 		paths = append(paths, filepath.Join(path, entry.Name()))
 	}
 	sort.Strings(paths)
-	return output{Entries: paths, Directory: true, LineCount: len(paths)}, nil
+	return Output{Entries: paths, Directory: true, LineCount: len(paths)}, nil
 }
 
 func isExcluded(name string) bool {

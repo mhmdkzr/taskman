@@ -3,11 +3,11 @@
 package app
 
 import (
-	"database/sql"
 	"net/http"
 
 	agenttools "github.com/mhmdkzr/loop/internal/agent/tools"
 	"github.com/mhmdkzr/loop/internal/app/config"
+	"github.com/mhmdkzr/loop/internal/store"
 )
 
 // App bundles the application dependencies, configuration, and HTTP mux.
@@ -19,6 +19,6 @@ type App struct {
 
 // Deps holds the shared runtime dependencies of the application.
 type Deps struct {
-	DB         *sql.DB
+	Store      *store.Store
 	AgentTools agenttools.Deps
 }

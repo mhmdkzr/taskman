@@ -12,7 +12,7 @@ import (
 
 var errPatternRequired = errors.New("pattern is required")
 
-func execute(ctx context.Context, in input) (output, error) {
+func execute(ctx context.Context, in Input) (Output, error) {
 	limit := in.MaxResults
 	if limit <= 0 {
 		limit = 100
@@ -29,7 +29,7 @@ func execute(ctx context.Context, in input) (output, error) {
 	args = append(args, "--", in.Pattern, path)
 	result, err := tools.ExecuteCMD(ctx, tools.Input{Cmd: "rg", Args: args})
 	if err != nil && result.ExitCode != 1 {
-		return output{}, fmt.Errorf("grep: %w", err)
+		return Output{}, fmt.Errorf("grep: %w", err)
 	}
 
 	lines := strings.Split(strings.TrimSuffix(result.StdOut, "\n"), "\n")
@@ -40,5 +40,5 @@ func execute(ctx context.Context, in input) (output, error) {
 	if truncated {
 		lines = lines[:limit]
 	}
-	return output{Matches: lines, Truncated: truncated}, nil
+	return Output{Matches: lines, Truncated: truncated}, nil
 }

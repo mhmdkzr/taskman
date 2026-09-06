@@ -10,24 +10,19 @@ import (
 
 const (
 	Name        = "web_search"
-	description = "Search the web using Tavily and return a list of results with title, url and a short snippet for each."
+	Description = "Search the web using Tavily and return a list of results with title, url and a short snippet for each."
 )
 
-const Description = description
-
-type input struct {
+type Input struct {
 	Query      string `json:"query"                 jsonschema:"description=The search query."`
 	MaxResults *int   `json:"max_results,omitempty" jsonschema:"description=Maximum number of results to return (default 5, max 10)."`
 }
 
-type Input = input
-type Output = output
-
 // Tool returns the web_search tool bound to c.
 func Tool(c *Client) goai.Tool {
-	return tools.Tool(Name, description, func(ctx context.Context, in input) (output, error) {
+	return tools.Tool(Name, Description, func(ctx context.Context, in Input) (Output, error) {
 		return execute(ctx, c, in)
 	})
 }
 
-func (input) Validate() error { return nil }
+func (Input) Validate() error { return nil }

@@ -12,25 +12,20 @@ import (
 
 const (
 	Name        = "browser_reset"
-	description = "Close the current browser page so the next navigation starts fresh. Keeps the browser process alive."
+	Description = "Close the current browser page so the next navigation starts fresh. Keeps the browser process alive."
 )
 
-const Description = description
+type Input struct{}
 
-type input struct{}
-
-type output struct {
+type Output struct {
 	Reset bool `json:"reset"`
 }
 
-type Input = input
-type Output = output
-
 // Tool returns the browser_reset tool bound to c.
 func Tool(c *browser.Client) goai.Tool {
-	return tools.Tool(Name, description, func(ctx context.Context, _ input) (output, error) {
+	return tools.Tool(Name, Description, func(ctx context.Context, _ Input) (Output, error) {
 		return execute(ctx, c)
 	})
 }
 
-func (input) Validate() error { return nil }
+func (Input) Validate() error { return nil }

@@ -12,6 +12,8 @@ import (
 	"uuid"
 
 	"github.com/zendev-sh/goai"
+
+	"github.com/mhmdkzr/loop/internal/store"
 )
 
 var (
@@ -45,15 +47,25 @@ type AgentConfig struct {
 	TemplateBody string
 }
 
+// HistoryTurn is one session_turns row joined with its parent session: the
+// user's prompt and the assistant's final reply text.
+type HistoryTurn struct {
+	SessionID        SessionID
+	SessionCreatedAt string
+	Prompt           string
+	Reply            string
+	CreatedAt        string
+}
+
 // AgentByName resolves a named agent's model and prompt template in one
 // round trip. agent_name is expected to be unique per deployment.
-func AgentByName(ctx context.Context, db *sql.DB, name string) (AgentConfig, error) {
+func AgentByName(ctx context.Context, st *store.Store, name string) (AgentConfig, error) {
 	var (
 		agentIDStr string
 		modelIDStr string
 		cfg        AgentConfig
 	)
-	err := db.QueryRowContext(ctx, `
+	err := st.RO().QueryRowContext(ctx, `
 		SELECT a.agent_id, a.model_id, pt.template_body
 		FROM agents a
 		JOIN prompt_templates pt ON pt.prompt_id = a.prompt_id
@@ -80,9 +92,9 @@ func AgentByName(ctx context.Context, db *sql.DB, name string) (AgentConfig, err
 }
 
 // AgentIDFor resolves a live session to the agent it runs as.
-func AgentIDFor(ctx context.Context, db *sql.DB, id SessionID) (AgentID, error) {
+func AgentIDFor(ctx context.Context, st *store.Store, id SessionID) (AgentID, error) {
 	var agentIDStr string
-	err := db.QueryRowContext(ctx, `
+	err := st.RO().QueryRowContext(ctx, `
 		SELECT agent_id FROM agent_sessions
 		WHERE session_id = ? AND deleted_at IS NULL`, id.String()).Scan(&agentIDStr)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -100,8 +112,8 @@ func AgentIDFor(ctx context.Context, db *sql.DB, id SessionID) (AgentID, error) 
 
 // ToolNamesForAgent returns the tool_name of every tool linked to agentID
 // via agent_tools. An agent with no linked tools returns an empty slice.
-func ToolNamesForAgent(ctx context.Context, db *sql.DB, agentID AgentID) ([]string, error) {
-	rows, err := db.QueryContext(ctx, `
+func ToolNamesForAgent(ctx context.Context, st *store.Store, agentID AgentID) ([]string, error) {
+	rows, err := st.RO().QueryContext(ctx, `
 		SELECT t.tool_name
 		FROM agent_tools at
 		JOIN tools t ON t.tool_id = at.tool_id
@@ -131,7 +143,7 @@ func ToolNamesForAgent(ctx context.Context, db *sql.DB, agentID AgentID) ([]stri
 }
 
 // ReplaceTodos replaces the active session's todo list atomically.
-func ReplaceTodos(ctx context.Context, db *sql.DB, id SessionID, todos []Todo) error {
+func ReplaceTodos(ctx context.Context, st *store.Store, id SessionID, todos []Todo) error {
 	for _, todo := range todos {
 		if strings.TrimSpace(todo.Content) == "" {
 			return fmt.Errorf("%w: content is required", ErrInvalidTodo)
@@ -144,7 +156,7 @@ func ReplaceTodos(ctx context.Context, db *sql.DB, id SessionID, todos []Todo) e
 		}
 	}
 
-	tx, err := db.BeginTx(ctx, nil)
+	tx, err := st.RW().BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin todo transaction: %w", err)
 	}
@@ -368,6 +380,95 @@ func turnsBySession(ctx context.Context, db *sql.DB, id SessionID) ([]turn, erro
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate session turns: %w", err)
+	}
+	return turns, nil
+}
+
+// SearchHistory returns turns across sessions, newest session first and
+// newest turn first within a session. sessionID restricts the search to one
+// session when non-nil; query matches turns whose prompt or final reply text
+// contains it (case-insensitive substring); limit bounds the number of turns
+// returned.
+func SearchHistory(ctx context.Context, st *store.Store, sessionID *SessionID, query string, limit int) ([]HistoryTurn, error) {
+	if st == nil {
+		return nil, fmt.Errorf("search history: database is required")
+	}
+	if limit < 1 {
+		return nil, fmt.Errorf("search history: limit must be positive")
+	}
+	return searchHistoryTurns(ctx, st.RO(), sessionID, query, limit)
+}
+
+// searchHistoryTurns streams session_turns newest first, decoding each
+// result and stopping once limit matching turns are collected so a broad
+// search does not require loading the whole table.
+func searchHistoryTurns(ctx context.Context, db *sql.DB, sessionID *SessionID, query string, limit int) ([]HistoryTurn, error) {
+	sessionFilter := ""
+	if sessionID != nil {
+		sessionFilter = sessionID.String()
+	}
+
+	rows, err := db.QueryContext(ctx, `
+		SELECT s.session_id, s.created_at, t.prompt, t.result, t.created_at
+		FROM session_turns t
+		JOIN agent_sessions s ON s.session_id = t.session_id
+		WHERE s.deleted_at IS NULL
+			AND (? = '' OR s.session_id = ?)
+		ORDER BY s.created_at DESC, t.created_at DESC, t.turn_id DESC`,
+		sessionFilter, sessionFilter)
+	if err != nil {
+		return nil, fmt.Errorf("query session turns: %w", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			slog.Error("close history rows", "error", err)
+		}
+	}()
+
+	query = strings.ToLower(query)
+	var turns []HistoryTurn
+	for rows.Next() {
+		var (
+			sessionIDStr     string
+			sessionCreatedAt string
+			prompt           string
+			resultRaw        []byte
+			createdAt        string
+		)
+		if err := rows.Scan(&sessionIDStr, &sessionCreatedAt, &prompt, &resultRaw, &createdAt); err != nil {
+			return nil, fmt.Errorf("scan history turn: %w", err)
+		}
+
+		var result goai.TextResult
+		if len(resultRaw) > 0 {
+			if err := json.Unmarshal(resultRaw, &result); err != nil {
+				return nil, fmt.Errorf("decode turn result: %w", err)
+			}
+		}
+
+		if query != "" &&
+			!strings.Contains(strings.ToLower(prompt), query) &&
+			!strings.Contains(strings.ToLower(result.Text), query) {
+			continue
+		}
+
+		id, err := uuid.Parse(sessionIDStr)
+		if err != nil {
+			return nil, fmt.Errorf("parse session id: %w", err)
+		}
+		turns = append(turns, HistoryTurn{
+			SessionID:        SessionID(id),
+			SessionCreatedAt: sessionCreatedAt,
+			Prompt:           prompt,
+			Reply:            result.Text,
+			CreatedAt:        createdAt,
+		})
+		if len(turns) >= limit {
+			break
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate history turns: %w", err)
 	}
 	return turns, nil
 }

@@ -8,10 +8,10 @@ import (
 )
 
 //nolint:contextcheck // Client operations use the browser's context-bound Rod session.
-func execute(_ context.Context, c *browser.Client, in input) (output, error) {
+func execute(_ context.Context, c *browser.Client, in Input) (Output, error) {
 	result, err := c.Scroll(in.Direction, in.Selector)
 	if err != nil {
-		return output{}, fmt.Errorf("browser_scroll: %w", err)
+		return Output{}, fmt.Errorf("browser_scroll: %w", err)
 	}
-	return output{Scrolled: result.Scrolled, Direction: result.Direction, Selector: result.Selector}, nil
+	return Output{Scrolled: result.Scrolled, Direction: result.Direction, Selector: result.Selector}, nil
 }

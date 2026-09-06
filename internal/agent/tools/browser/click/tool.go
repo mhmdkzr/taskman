@@ -12,29 +12,24 @@ import (
 
 const (
 	Name        = "browser_click"
-	description = "Click an element on the current browser page by CSS selector. The page must already be open via browser_navigate."
+	Description = "Click an element on the current browser page by CSS selector. The page must already be open via browser_navigate."
 )
 
-const Description = description
-
-type input struct {
+type Input struct {
 	Selector string `json:"selector" jsonschema:"description=CSS selector of the element to click, e.g. \"button.submit\" or \"#login\""`
 }
 
-type output struct {
+type Output struct {
 	Clicked string `json:"clicked"`
 	URL     string `json:"url"`
 	Title   string `json:"title,omitempty"`
 }
 
-type Input = input
-type Output = output
-
 // Tool returns the browser_click tool bound to c.
 func Tool(c *browser.Client) goai.Tool {
-	return tools.Tool(Name, description, func(ctx context.Context, in input) (output, error) {
+	return tools.Tool(Name, Description, func(ctx context.Context, in Input) (Output, error) {
 		return execute(ctx, c, in)
 	})
 }
 
-func (input) Validate() error { return nil }
+func (Input) Validate() error { return nil }

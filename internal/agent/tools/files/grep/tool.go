@@ -8,31 +8,26 @@ import (
 
 const (
 	Name        = "grep"
-	description = "Search files with a regular expression and return structured matching lines."
+	Description = "Search files with a regular expression and return structured matching lines."
 )
 
-const Description = description
-
-type input struct {
+type Input struct {
 	Pattern    string `json:"pattern" jsonschema:"description=Regular expression to search for."`
 	Path       string `json:"path,omitempty" jsonschema:"description=File or directory to search. Defaults to the current directory."`
 	Include    string `json:"include,omitempty" jsonschema:"description=Optional glob filter for file names."`
 	MaxResults int    `json:"max_results,omitempty" jsonschema:"description=Maximum number of matching lines. Defaults to 100."`
 }
 
-type output struct {
+type Output struct {
 	Matches   []string `json:"matches"`
 	Truncated bool     `json:"truncated"`
 }
 
-type Input = input
-type Output = output
-
 func Tool() goai.Tool {
-	return tools.Tool(Name, description, execute)
+	return tools.Tool(Name, Description, execute)
 }
 
-func (in input) Validate() error {
+func (in Input) Validate() error {
 	if in.Pattern == "" {
 		return errPatternRequired
 	}

@@ -29,7 +29,7 @@ type SearchResult struct {
 	Content string `json:"content"`
 }
 
-type output struct {
+type Output struct {
 	Results []SearchResult `json:"results"`
 }
 
@@ -63,13 +63,13 @@ func (c *Client) Configured() bool {
 	return c != nil && c.apiKey != ""
 }
 
-func execute(ctx context.Context, c *Client, in input) (output, error) {
+func execute(ctx context.Context, c *Client, in Input) (Output, error) {
 	query := strings.TrimSpace(in.Query)
 	if query == "" {
-		return output{}, fmt.Errorf("websearch: query is required")
+		return Output{}, fmt.Errorf("websearch: query is required")
 	}
 	if !c.Configured() {
-		return output{}, fmt.Errorf("websearch: not configured: set TAVILY_API_KEY")
+		return Output{}, fmt.Errorf("websearch: not configured: set TAVILY_API_KEY")
 	}
 
 	maxResults := defaultMaxResults
@@ -77,15 +77,15 @@ func execute(ctx context.Context, c *Client, in input) (output, error) {
 		maxResults = *in.MaxResults
 	}
 	if maxResults < 1 || maxResults > maxSearchResults {
-		return output{}, fmt.Errorf("websearch: max_results must be between 1 and %d", maxSearchResults)
+		return Output{}, fmt.Errorf("websearch: max_results must be between 1 and %d", maxSearchResults)
 	}
 
 	results, err := c.search(ctx, c.baseURL, c.http, c.apiKey, query, maxResults)
 	if err != nil {
-		return output{}, fmt.Errorf("websearch: %w", err)
+		return Output{}, fmt.Errorf("websearch: %w", err)
 	}
 
-	return output{Results: results}, nil
+	return Output{Results: results}, nil
 }
 
 // searchTavily calls the Tavily /search endpoint and returns its results.

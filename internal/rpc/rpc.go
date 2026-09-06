@@ -17,6 +17,7 @@ import (
 	"github.com/mhmdkzr/loop/internal/agent/models"
 	"github.com/mhmdkzr/loop/internal/agent/sessions"
 	"github.com/mhmdkzr/loop/internal/app"
+	"github.com/mhmdkzr/loop/internal/store"
 )
 
 const version = "2.0"
@@ -88,7 +89,7 @@ func (h *Handler) dispatch(ctx context.Context, method string, params json.RawMe
 		return names, nil
 	case "models.list":
 		var output bytes.Buffer
-		if err := models.List(ctx, h.app.Deps.DB, &output, true); err != nil {
+		if err := models.List(ctx, h.app.Deps.Store, &output, true); err != nil {
 			return nil, internalError(err)
 		}
 		var result any
@@ -97,12 +98,12 @@ func (h *Handler) dispatch(ctx context.Context, method string, params json.RawMe
 		}
 		return result, nil
 	case "models.refresh":
-		if err := models.Refresh(ctx, h.app.Deps.DB, h.app.Cfg.Provider); err != nil {
+		if err := models.Refresh(ctx, h.app.Deps.Store, h.app.Cfg.Provider); err != nil {
 			return nil, internalError(err)
 		}
 		return map[string]bool{"refreshed": true}, nil
 	case "agent.list":
-		return listAgents(ctx, h.app.Deps.DB)
+		return listAgents(ctx, h.app.Deps.Store)
 	case "agent.create":
 		var in struct {
 			Name   string `json:"name"`
@@ -111,7 +112,7 @@ func (h *Handler) dispatch(ctx context.Context, method string, params json.RawMe
 		if err := decodeParams(params, &in); err != nil || strings.TrimSpace(in.Name) == "" || strings.TrimSpace(in.Prompt) == "" {
 			return nil, invalidParams("name and prompt are required")
 		}
-		if err := agent.CreateAgent(ctx, h.app.Deps.DB, h.app.Cfg.Provider, in.Name, in.Prompt); err != nil {
+		if err := agent.CreateAgent(ctx, h.app.Deps.Store, h.app.Cfg.Provider, in.Name, in.Prompt); err != nil {
 			return nil, internalError(err)
 		}
 		return map[string]string{"name": in.Name}, nil
@@ -123,7 +124,7 @@ func (h *Handler) dispatch(ctx context.Context, method string, params json.RawMe
 		if err := decodeParams(params, &in); err != nil || strings.TrimSpace(in.Agent) == "" {
 			return nil, invalidParams("agent is required")
 		}
-		id, err := agent.StartSession(ctx, h.app.Deps.DB, h.app.Cfg.Provider, in.Agent, in.Params)
+		id, err := agent.StartSession(ctx, h.app.Deps.Store, h.app.Cfg.Provider, in.Agent, in.Params)
 		if err != nil {
 			return nil, internalError(err)
 		}
@@ -150,8 +151,8 @@ func (h *Handler) dispatch(ctx context.Context, method string, params json.RawMe
 	}
 }
 
-func listAgents(ctx context.Context, db *sql.DB) (any, *responseError) {
-	rows, err := db.QueryContext(ctx, `SELECT agent_id, agent_name, model_id FROM agents ORDER BY agent_name`)
+func listAgents(ctx context.Context, st *store.Store) (any, *responseError) {
+	rows, err := st.RO().QueryContext(ctx, `SELECT agent_id, agent_name, model_id FROM agents ORDER BY agent_name`)
 	if err != nil {
 		return nil, internalError(err)
 	}

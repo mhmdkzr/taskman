@@ -14,6 +14,7 @@ import (
 	"uuid"
 
 	"github.com/mhmdkzr/loop/internal/app/config"
+	"github.com/mhmdkzr/loop/internal/store"
 )
 
 const providerName = "opencode"
@@ -37,7 +38,7 @@ type ListedModel struct {
 // with its provider options. OpenCode's models endpoint does not publish
 // thinking capabilities, so generic models receive the standard three levels
 // and known OpenCode exceptions receive their provider-specific options.
-func Refresh(ctx context.Context, db *sql.DB, cfg config.ProviderConfig) error {
+func Refresh(ctx context.Context, st *store.Store, cfg config.ProviderConfig) error {
 	if strings.TrimSpace(cfg.BaseURL) == "" {
 		return fmt.Errorf("refresh models: base URL is required")
 	}
@@ -69,12 +70,12 @@ func Refresh(ctx context.Context, db *sql.DB, cfg config.ProviderConfig) error {
 		return fmt.Errorf("refresh models: catalog is empty")
 	}
 
-	providerID, err := providerID(ctx, db, cfg.BaseURL)
+	providerID, err := providerID(ctx, st.RW(), cfg.BaseURL)
 	if err != nil {
 		return err
 	}
 	for _, model := range catalog.Data {
-		if err := upsertModel(ctx, db, providerID, model.ID, thinkingOptions(model.ID)); err != nil {
+		if err := upsertModel(ctx, st.RW(), providerID, model.ID, thinkingOptions(model.ID)); err != nil {
 			return fmt.Errorf("refresh models: upsert %q: %w", model.ID, err)
 		}
 	}
@@ -82,8 +83,8 @@ func Refresh(ctx context.Context, db *sql.DB, cfg config.ProviderConfig) error {
 }
 
 // List writes the locally stored model catalog as JSON.
-func List(ctx context.Context, db *sql.DB, output io.Writer, jsonOutput bool) error {
-	rows, err := db.QueryContext(ctx, `
+func List(ctx context.Context, st *store.Store, output io.Writer, jsonOutput bool) error {
+	rows, err := st.RO().QueryContext(ctx, `
 		SELECT p.provider_name, m.model_name, m.thinking_options
 		FROM models m
 		JOIN model_providers p ON p.provider_id = m.provider_id

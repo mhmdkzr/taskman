@@ -24,6 +24,7 @@ func TestSchemaApply(t *testing.T) {
 
 	tables := []string{
 		"agent_sessions", "agent_tools", "agents", "model_providers", "models",
+		"notes", "notes_fts", "notes_fts_config", "notes_fts_data", "notes_fts_docsize", "notes_fts_idx", "notes_links",
 		"prompt_templates", "session_todos", "session_tools", "session_turns", "tools",
 	}
 

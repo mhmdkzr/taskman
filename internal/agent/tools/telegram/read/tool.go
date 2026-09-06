@@ -11,24 +11,19 @@ import (
 
 const (
 	Name        = "telegram_read"
-	description = "Read the most recent text messages posted in the configured Telegram channel. " +
+	Description = "Read the most recent text messages posted in the configured Telegram channel. " +
 		"The bot must be an administrator of the channel. Read messages are acknowledged and will not be returned again."
 )
 
-const Description = description
-
-type input struct {
+type Input struct {
 	Limit *int `json:"limit,omitempty" jsonschema:"description=Maximum number of messages to return (default 10)."`
 }
 
-type Input = input
-type Output = output
-
 // Tool returns the telegram_read tool bound to c.
 func Tool(c *telegram.Client) goai.Tool {
-	return tools.Tool(Name, description, func(ctx context.Context, in input) (output, error) {
+	return tools.Tool(Name, Description, func(ctx context.Context, in Input) (Output, error) {
 		return execute(ctx, c, in)
 	})
 }
 
-func (input) Validate() error { return nil }
+func (Input) Validate() error { return nil }

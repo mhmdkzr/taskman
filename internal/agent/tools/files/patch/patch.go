@@ -35,28 +35,28 @@ type change struct {
 	oldDir bool
 }
 
-func execute(_ context.Context, in input) (output, error) {
+func execute(_ context.Context, in Input) (Output, error) {
 	hunks, err := parse(in.PatchText)
 	if err != nil {
-		return output{}, fmt.Errorf("apply_patch: %w", err)
+		return Output{}, fmt.Errorf("apply_patch: %w", err)
 	}
 	if len(hunks) == 0 {
-		return output{}, fmt.Errorf("apply_patch: no hunks found")
+		return Output{}, fmt.Errorf("apply_patch: no hunks found")
 	}
 
 	changes := make([]change, 0, len(hunks))
 	for _, hunk := range hunks {
 		prepared, err := prepare(hunk)
 		if err != nil {
-			return output{}, fmt.Errorf("apply_patch: %w", err)
+			return Output{}, fmt.Errorf("apply_patch: %w", err)
 		}
 		changes = append(changes, prepared)
 	}
 
-	var result output
+	var result Output
 	for _, item := range changes {
 		if err := apply(item); err != nil {
-			return output{}, fmt.Errorf("apply_patch: %w", err)
+			return Output{}, fmt.Errorf("apply_patch: %w", err)
 		}
 		switch item.hunk.kind {
 		case "add":

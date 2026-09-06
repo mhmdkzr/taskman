@@ -7,10 +7,10 @@ import (
 	"github.com/mhmdkzr/loop/internal/agent/tools/browser"
 )
 
-func execute(_ context.Context, c *browser.Client) (output, error) {
+func execute(_ context.Context, c *browser.Client) (Output, error) {
 	result, err := c.Reset()
 	if err != nil {
-		return output{}, fmt.Errorf("browser_reset: %w", err)
+		return Output{}, fmt.Errorf("browser_reset: %w", err)
 	}
-	return output{Reset: result.Reset}, nil
+	return Output{Reset: result.Reset}, nil
 }

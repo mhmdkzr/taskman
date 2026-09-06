@@ -8,27 +8,20 @@ import (
 
 const (
 	Name        = "glob_files"
-	description = "Find files matching a glob pattern (supports ** for recursive matching), most recently modified first."
+	Description = "Find files matching a glob pattern (supports ** for recursive matching), most recently modified first."
 )
 
-const Description = description
-
-type input struct {
+type Input struct {
 	Pattern string `json:"pattern"         jsonschema:"description=Glob pattern relative to path, e.g. **/*.go or internal/**/README.md."`
 	Path    string `json:"path,omitempty"  jsonschema:"description=Directory to search from. Defaults to the current directory."`
 	Limit   int    `json:"limit,omitempty" jsonschema:"description=Maximum number of matches to return. Defaults to 200."`
 }
 
-type (
-	Input  = input
-	Output = output
-)
-
 func Tool() goai.Tool {
-	return tools.Tool(Name, description, execute)
+	return tools.Tool(Name, Description, execute)
 }
 
-func (in input) Validate() error {
+func (in Input) Validate() error {
 	if in.Pattern == "" {
 		return errPatternRequired
 	}

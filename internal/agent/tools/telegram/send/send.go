@@ -12,24 +12,24 @@ import (
 	"github.com/mhmdkzr/loop/internal/agent/tools/telegram"
 )
 
-type output struct {
+type Output struct {
 	Sent      bool  `json:"sent"`
 	ChatID    int64 `json:"chat_id"`
 	MessageID int   `json:"message_id"`
 }
 
-func execute(ctx context.Context, c *telegram.Client, in input) (output, error) {
+func execute(ctx context.Context, c *telegram.Client, in Input) (Output, error) {
 	message := strings.TrimSpace(in.Message)
 	if message == "" {
-		return output{}, fmt.Errorf("telegram_send: message is required")
+		return Output{}, fmt.Errorf("telegram_send: message is required")
 	}
 	if !c.Configured() {
-		return output{}, fmt.Errorf("telegram_send: not configured: set TELEGRAM_API_KEY and TELEGRAM_CHANNEL_ID")
+		return Output{}, fmt.Errorf("telegram_send: not configured: set TELEGRAM_API_KEY and TELEGRAM_CHANNEL_ID")
 	}
 
 	client, err := c.NewBot(c.APIKey)
 	if err != nil {
-		return output{}, fmt.Errorf("telegram_send: create bot: %w", err)
+		return Output{}, fmt.Errorf("telegram_send: create bot: %w", err)
 	}
 
 	sent, err := client.SendMessage(ctx, &bot.SendMessageParams{
@@ -37,12 +37,12 @@ func execute(ctx context.Context, c *telegram.Client, in input) (output, error) 
 		Text:   message,
 	})
 	if err != nil {
-		return output{}, fmt.Errorf("telegram_send: send message: %w", err)
+		return Output{}, fmt.Errorf("telegram_send: send message: %w", err)
 	}
 
 	messageID := 0
 	if sent != nil {
 		messageID = sent.ID
 	}
-	return output{Sent: true, ChatID: c.ChannelID, MessageID: messageID}, nil
+	return Output{Sent: true, ChatID: c.ChannelID, MessageID: messageID}, nil
 }

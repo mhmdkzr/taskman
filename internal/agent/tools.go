@@ -26,12 +26,21 @@ import (
 	"github.com/mhmdkzr/loop/internal/agent/tools/files/write"
 	"github.com/mhmdkzr/loop/internal/agent/tools/git"
 	golang "github.com/mhmdkzr/loop/internal/agent/tools/go"
+	"github.com/mhmdkzr/loop/internal/agent/tools/history"
 	"github.com/mhmdkzr/loop/internal/agent/tools/nats"
+	notesdelete "github.com/mhmdkzr/loop/internal/agent/tools/notes/delete"
+	notesedit "github.com/mhmdkzr/loop/internal/agent/tools/notes/edit"
+	noteslink "github.com/mhmdkzr/loop/internal/agent/tools/notes/link"
+	noteslist "github.com/mhmdkzr/loop/internal/agent/tools/notes/list"
+	notesread "github.com/mhmdkzr/loop/internal/agent/tools/notes/read"
+	notessearch "github.com/mhmdkzr/loop/internal/agent/tools/notes/search"
+	noteswrite "github.com/mhmdkzr/loop/internal/agent/tools/notes/write"
 	"github.com/mhmdkzr/loop/internal/agent/tools/psql"
+	"github.com/mhmdkzr/loop/internal/agent/tools/query"
 	"github.com/mhmdkzr/loop/internal/agent/tools/telegram"
 	telegramread "github.com/mhmdkzr/loop/internal/agent/tools/telegram/read"
 	telegrams "github.com/mhmdkzr/loop/internal/agent/tools/telegram/send"
-	"github.com/mhmdkzr/loop/internal/agent/tools/todowrite"
+	"github.com/mhmdkzr/loop/internal/agent/tools/todo"
 	"github.com/mhmdkzr/loop/internal/agent/tools/websearch"
 )
 
@@ -42,7 +51,7 @@ import (
 func Tools() tools.Registry {
 	return tools.Registry{
 		agenttool.Name: func(deps tools.Deps) goai.Tool {
-			return agenttool.Tool(deps.DB, deps.Config.Provider, Tools(), deps.SessionID, deps.Configured)
+			return agenttool.Tool(deps.Store, deps.Config.Provider, Tools(), deps.SessionID, deps.Configured)
 		},
 		read.Name:         func(tools.Deps) goai.Tool { return read.Tool() },
 		write.Name:        func(tools.Deps) goai.Tool { return write.Tool() },
@@ -52,13 +61,22 @@ func Tools() tools.Registry {
 		rg.Name:           func(tools.Deps) goai.Tool { return rg.Tool() },
 		grep.Name:         func(tools.Deps) goai.Tool { return grep.Tool() },
 		psql.Name:         func(tools.Deps) goai.Tool { return psql.Tool() },
+		query.Name:        func(deps tools.Deps) goai.Tool { return query.Tool(deps) },
+		history.Name:      func(deps tools.Deps) goai.Tool { return history.Tool(deps) },
+		noteswrite.Name:   func(deps tools.Deps) goai.Tool { return noteswrite.Tool(deps) },
+		notesdelete.Name:  func(deps tools.Deps) goai.Tool { return notesdelete.Tool(deps) },
+		notesedit.Name:    func(deps tools.Deps) goai.Tool { return notesedit.Tool(deps) },
+		noteslink.Name:    func(deps tools.Deps) goai.Tool { return noteslink.Tool(deps) },
+		noteslist.Name:    func(deps tools.Deps) goai.Tool { return noteslist.Tool(deps) },
+		notesread.Name:    func(deps tools.Deps) goai.Tool { return notesread.Tool(deps) },
+		notessearch.Name:  func(deps tools.Deps) goai.Tool { return notessearch.Tool(deps) },
 		git.Name:          func(tools.Deps) goai.Tool { return git.Tool() },
 		golang.Name:       func(tools.Deps) goai.Tool { return golang.Tool() },
 		curl.Name:         func(tools.Deps) goai.Tool { return curl.Tool() },
 		deno.Name:         func(tools.Deps) goai.Tool { return deno.Tool() },
 		nats.Name:         func(tools.Deps) goai.Tool { return nats.Tool() },
 		datetime.Name:     func(tools.Deps) goai.Tool { return datetime.Tool() },
-		todowrite.Name:    func(deps tools.Deps) goai.Tool { return todowrite.Tool(deps) },
+		todo.Name:         func(deps tools.Deps) goai.Tool { return todo.Tool(deps) },
 		navigate.Name:     func(deps tools.Deps) goai.Tool { return deps.Configured[navigate.Name] },
 		extract.Name:      func(deps tools.Deps) goai.Tool { return deps.Configured[extract.Name] },
 		click.Name:        func(deps tools.Deps) goai.Tool { return deps.Configured[click.Name] },

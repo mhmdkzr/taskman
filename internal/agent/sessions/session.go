@@ -2,7 +2,6 @@ package sessions
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strings"
 	"text/template"
@@ -12,6 +11,7 @@ import (
 	"github.com/zendev-sh/goai/provider/openai"
 
 	"github.com/mhmdkzr/loop/internal/app/config"
+	"github.com/mhmdkzr/loop/internal/store"
 )
 
 // Create resolves agentName to its model and prompt template, renders the
@@ -19,13 +19,13 @@ import (
 // history. parentSessionID is nil for a top-level, user-initiated session.
 func Create(
 	ctx context.Context,
-	db *sql.DB,
+	st *store.Store,
 	cfg config.ProviderConfig,
 	agentName string,
 	params map[string]any,
 	parentSessionID *SessionID,
 ) (SessionID, error) {
-	agent, err := AgentByName(ctx, db, agentName)
+	agent, err := AgentByName(ctx, st, agentName)
 	if err != nil {
 		return SessionID{}, fmt.Errorf("create session: resolve agent: %w", err)
 	}
@@ -41,7 +41,7 @@ func Create(
 		"store":            false,
 	}
 
-	id, err := createSession(ctx, db, agent.AgentID, agent.ModelID, sysPrompt, providerOpts, parentSessionID)
+	id, err := createSession(ctx, st.RW(), agent.AgentID, agent.ModelID, sysPrompt, providerOpts, parentSessionID)
 	if err != nil {
 		return SessionID{}, fmt.Errorf("create session: %w", err)
 	}
@@ -63,7 +63,7 @@ func renderPrompt(body string, params map[string]any) (string, error) {
 
 func Run(
 	ctx context.Context,
-	db *sql.DB,
+	st *store.Store,
 	cfg config.ProviderConfig,
 	id SessionID,
 	prompt string,
@@ -73,7 +73,7 @@ func Run(
 		return nil, fmt.Errorf("prompt is empty")
 	}
 
-	stored, err := sessionByID(ctx, db, id)
+	stored, err := sessionByID(ctx, st.RO(), id)
 	if err != nil {
 		return nil, fmt.Errorf("load session: %w", err)
 	}
@@ -87,7 +87,7 @@ func Run(
 	}
 	msgs = append(msgs, goai.UserMessage(prompt))
 
-	modelName, err := modelNameByID(ctx, db, stored.ModelID)
+	modelName, err := modelNameByID(ctx, st.RO(), stored.ModelID)
 	if err != nil {
 		return nil, fmt.Errorf("resolve session model: %w", err)
 	}
@@ -120,7 +120,7 @@ func Run(
 		return nil, fmt.Errorf("generate text: %w", err)
 	}
 
-	if err := appendTurn(ctx, db, id, prompt, result); err != nil {
+	if err := appendTurn(ctx, st.RW(), id, prompt, result); err != nil {
 		return nil, fmt.Errorf("persist session turn: %w", err)
 	}
 

@@ -8,10 +8,10 @@ import (
 )
 
 //nolint:contextcheck // Client operations use the browser's context-bound Rod session.
-func execute(_ context.Context, c *browser.Client, in input) (output, error) {
+func execute(_ context.Context, c *browser.Client, in Input) (Output, error) {
 	result, err := c.Fill(in.Selector, in.Text)
 	if err != nil {
-		return output{}, fmt.Errorf("browser_fill: %w", err)
+		return Output{}, fmt.Errorf("browser_fill: %w", err)
 	}
-	return output{Filled: result.Filled, Text: result.Text}, nil
+	return Output{Filled: result.Filled, Text: result.Text}, nil
 }

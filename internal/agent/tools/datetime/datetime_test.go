@@ -7,7 +7,7 @@ import (
 )
 
 func TestExecuteDefaultsToUTC(t *testing.T) {
-	result, err := executeAt(input{}, func() time.Time {
+	result, err := executeAt(Input{}, func() time.Time {
 		return time.Date(2026, time.September, 4, 12, 34, 56, 123456789, time.FixedZone("local", -7*60*60))
 	})
 	if err != nil {
@@ -21,7 +21,7 @@ func TestExecuteDefaultsToUTC(t *testing.T) {
 
 func TestExecuteNanosecondTimestampAndTimezone(t *testing.T) {
 	timestamp := int64(0)
-	result, err := execute(context.Background(), input{
+	result, err := execute(context.Background(), Input{
 		Timezone:  "America/New_York",
 		Timestamp: &timestamp,
 		Unit:      "ns",
@@ -47,7 +47,7 @@ func TestTimestampTimeInfersNanoseconds(t *testing.T) {
 }
 
 func TestExecuteRejectsInvalidTimezoneAndUnit(t *testing.T) {
-	for _, in := range []input{{Timezone: "not/a_timezone"}, {Unit: "minutes", Timestamp: func() *int64 { v := int64(1); return &v }()}} {
+	for _, in := range []Input{{Timezone: "not/a_timezone"}, {Unit: "minutes", Timestamp: func() *int64 { v := int64(1); return &v }()}} {
 		if _, err := execute(context.Background(), in); err == nil {
 			t.Fatalf("execute(%+v) returned nil error", in)
 		}

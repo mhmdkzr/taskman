@@ -8,10 +8,10 @@ import (
 )
 
 //nolint:contextcheck // Client operations use the browser's context-bound Rod session.
-func execute(_ context.Context, c *browser.Client) (output, error) {
+func execute(_ context.Context, c *browser.Client) (Output, error) {
 	result, err := c.Forward()
 	if err != nil {
-		return output{}, fmt.Errorf("browser_forward: %w", err)
+		return Output{}, fmt.Errorf("browser_forward: %w", err)
 	}
-	return output{URL: result.URL, Title: result.Title}, nil
+	return Output{URL: result.URL, Title: result.Title}, nil
 }

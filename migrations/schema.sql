@@ -164,3 +164,38 @@ CREATE TABLE IF NOT EXISTS session_tools (
 ) STRICT;
 
 --
+CREATE TABLE IF NOT EXISTS notes (
+    id         TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES agent_sessions(session_id) ON DELETE CASCADE,
+    message_id TEXT REFERENCES session_turns(turn_id) ON DELETE SET NULL,
+    name       TEXT NOT NULL UNIQUE,
+    body       TEXT NOT NULL,
+    created_at TEXT NOT NULL
+) STRICT;
+
+CREATE TABLE IF NOT EXISTS notes_links (
+    note_a       TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+    note_b       TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+    relationship TEXT,
+    created_at   TEXT NOT NULL,
+    PRIMARY KEY (note_a, note_b),
+    CHECK (note_a < note_b)
+) STRICT;
+
+CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
+    name,
+    body,
+    content='notes',
+    content_rowid='rowid'
+);
+
+CREATE TRIGGER IF NOT EXISTS notes_ai AFTER INSERT ON notes BEGIN
+    INSERT INTO notes_fts(rowid, name, body) VALUES (new.rowid, new.name, new.body);
+END;
+CREATE TRIGGER IF NOT EXISTS notes_ad AFTER DELETE ON notes BEGIN
+    INSERT INTO notes_fts(notes_fts, rowid, name, body) VALUES ('delete', old.rowid, old.name, old.body);
+END;
+CREATE TRIGGER IF NOT EXISTS notes_au AFTER UPDATE ON notes BEGIN
+    INSERT INTO notes_fts(notes_fts, rowid, name, body) VALUES ('delete', old.rowid, old.name, old.body);
+    INSERT INTO notes_fts(rowid, name, body) VALUES (new.rowid, new.name, new.body);
+END;

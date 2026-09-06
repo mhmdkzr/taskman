@@ -12,26 +12,21 @@ import (
 
 const (
 	Name        = "browser_back"
-	description = "Navigate one step back in the browser history."
+	Description = "Navigate one step back in the browser history."
 )
 
-const Description = description
+type Input struct{}
 
-type input struct{}
-
-type output struct {
+type Output struct {
 	URL   string `json:"url"`
 	Title string `json:"title,omitempty"`
 }
 
-type Input = input
-type Output = output
-
 // Tool returns the web_browser_back tool bound to c.
 func Tool(c *browser.Client) goai.Tool {
-	return tools.Tool(Name, description, func(ctx context.Context, _ input) (output, error) {
+	return tools.Tool(Name, Description, func(ctx context.Context, _ Input) (Output, error) {
 		return execute(ctx, c)
 	})
 }
 
-func (input) Validate() error { return nil }
+func (Input) Validate() error { return nil }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/mhmdkzr/loop/internal/agent/models"
 	"github.com/mhmdkzr/loop/internal/app/config"
+	"github.com/mhmdkzr/loop/internal/store"
 	"github.com/mhmdkzr/loop/pkg/logger"
 )
 
@@ -58,7 +59,7 @@ func Models(ctx context.Context, options ModelsOptions) error {
 		cfg.Database.Path = options.DBPathOverride
 	}
 
-	db, err := openDatabase(ctx, cfg.Database)
+	db, err := store.Open(cfg.Database.Path)
 	if err != nil {
 		return fmt.Errorf("open db: %w", err)
 	}

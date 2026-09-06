@@ -9,29 +9,24 @@ import (
 
 const (
 	Name        = "apply_patch"
-	description = "Apply a multi-file patch. Supports adding, updating, deleting, and moving files using the OpenCode patch format."
+	Description = "Apply a multi-file patch. Supports adding, updating, deleting, and moving files using the OpenCode patch format."
 )
 
-const Description = description
-
-type input struct {
+type Input struct {
 	PatchText string `json:"patchText" jsonschema:"description=The full patch text that describes all changes to be made."`
 }
 
-type output struct {
+type Output struct {
 	Added    []string `json:"added,omitempty"`
 	Modified []string `json:"modified,omitempty"`
 	Deleted  []string `json:"deleted,omitempty"`
 }
 
-type Input = input
-type Output = output
-
 func Tool() goai.Tool {
-	return tools.Tool(Name, description, execute)
+	return tools.Tool(Name, Description, execute)
 }
 
-func (in input) Validate() error {
+func (in Input) Validate() error {
 	if in.PatchText == "" {
 		return errPatchRequired
 	}

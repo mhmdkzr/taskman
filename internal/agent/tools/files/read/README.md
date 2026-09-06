@@ -5,5 +5,7 @@
 Example input:
 
 ```json
-{"path":"internal/agent/tools"}
+{
+  "path": "internal/agent/tools"
+}
 ```

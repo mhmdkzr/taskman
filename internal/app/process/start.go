@@ -2,7 +2,6 @@ package process
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log/slog"
 	"net"
@@ -20,6 +19,7 @@ import (
 	"github.com/mhmdkzr/loop/internal/app/config"
 	"github.com/mhmdkzr/loop/internal/app/register"
 	"github.com/mhmdkzr/loop/internal/rpc"
+	"github.com/mhmdkzr/loop/internal/store"
 	"github.com/mhmdkzr/loop/migrations"
 	"github.com/mhmdkzr/loop/pkg/logger"
 	"github.com/mhmdkzr/loop/pkg/middleware"
@@ -77,7 +77,7 @@ func Start(ctx context.Context, options StartOptions) error {
 		cfg.Server.BindAddr = net.JoinHostPort(bindHost, bindPort)
 	}
 
-	db, err := openDatabase(ctx, cfg.Database)
+	db, err := store.Open(cfg.Database.Path)
 	if err != nil {
 		return fmt.Errorf("open db: %w", err)
 	}
@@ -101,7 +101,7 @@ func Start(ctx context.Context, options StartOptions) error {
 
 	a := app.App{
 		Deps: app.Deps{
-			DB: db,
+			Store: db,
 		},
 		Cfg: cfg,
 		Mux: http.NewServeMux(),
@@ -111,7 +111,7 @@ func Start(ctx context.Context, options StartOptions) error {
 		return fmt.Errorf("initialize telegram client: %w", err)
 	}
 	a.Deps.AgentTools = agenttools.Deps{
-		DB: db, Config: cfg,
+		Store: db, Config: cfg,
 		Configured: agent.ConfiguredTools(browser.NewClientFromConfig(cfg.Browser), telegramClient, websearch.NewClientFromConfig(cfg.Tavily)),
 	}
 
@@ -169,25 +169,11 @@ func startHTTPServer(handler http.Handler, cfg config.ServerConfig) (*http.Serve
 }
 
 // runMigrations runs all pending migrations against the application database.
-func runMigrations(ctx context.Context, db *sql.DB) error {
+func runMigrations(ctx context.Context, st *store.Store) error {
 	slog.Info("running migrations")
-	if err := migrate.Migrate(ctx, db, migrations.GetMigrationsFS()); err != nil {
+	if err := migrate.Migrate(ctx, st.RW(), migrations.GetMigrationsFS()); err != nil {
 		return fmt.Errorf("run migrations: %w", err)
 	}
 	slog.Info("migrations completed")
 	return nil
-}
-
-func openDatabase(ctx context.Context, cfg config.SQLiteConfig) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", cfg.Path)
-	if err != nil {
-		return nil, fmt.Errorf("open database: %w", err)
-	}
-	if err := db.PingContext(ctx); err != nil {
-		return nil, fmt.Errorf("ping database: %w", err)
-	}
-	if cfg.Path == ":memory:" {
-		db.SetMaxOpenConns(1)
-	}
-	return db, nil
 }
