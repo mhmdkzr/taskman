@@ -8,11 +8,11 @@ const (
 	// which needs to get fixed.
 	Discovery State = "discovery"
 
-	// The What and Why - The outcome of the discovery process. Value, budget and
-	// outcome risk would be specified here, at goal level.
+	// The What and Why - The outcome of the discovery process. Value, budget,
+	// outcome risk, and deadline would be specified here, at goal level.
 	Definition State = "definition"
 
-	// The When - Weighting the importance and urgency of the discovered work.
+	// The When - Weighing the importance and urgency of the discovered work.
 	Prioritization State = "prioritization"
 
 	// The How - Finding out the implementation design and details. The unit of
@@ -26,6 +26,8 @@ const (
 	Assignment State = "assignment"
 
 	// Making the code changes based on the specification. Costs would be tracked.
+	// If the specification itself turns out to be wrong or unworkable, this exits
+	// directly back to Specification rather than consuming Verification's retry cap.
 	Implementation State = "implementation"
 
 	// Automated verification, including lints, static code analysis, tests, and
@@ -43,11 +45,17 @@ const (
 	// Deploy the code to the staging environment.
 	Deployment State = "deployment"
 
+	// Promote a staged deployment to production. Kept distinct from Deployment
+	// since production promotion may need its own approval, canary period, or
+	// additional sign-off, particularly for anything carrying elevated risk from
+	// Definition or Specification.
+	Release State = "release"
+
 	// Monitoring the behavior of the deployed system. Can result in new discoveries.
 	// Costs would be tracked.
 	Monitoring State = "monitoring"
 
-	// The feedback - Learning from results, and finding out how good the estimations
-	// were, so we can improve future estimates where possible.
-	Calibration State = "calibration"
+	// Learning from results, and finding out how good the estimations were, so we
+	// can improve future estimates where possible.
+	Feedback State = "feedback"
 )
