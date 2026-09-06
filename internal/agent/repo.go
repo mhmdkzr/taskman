@@ -13,6 +13,32 @@ func newToolID() string {
 	return uuid.NewV7().String()
 }
 
+// listAgentNames returns every agent_name in agents, alphabetically.
+func listAgentNames(ctx context.Context, db *sql.DB) ([]string, error) {
+	rows, err := db.QueryContext(ctx, `SELECT agent_name FROM agents ORDER BY agent_name`)
+	if err != nil {
+		return nil, fmt.Errorf("query agent names: %w", err)
+	}
+	defer func() {
+		if err := rows.Close(); err != nil {
+			slog.Error("close agent name rows", "error", err)
+		}
+	}()
+
+	var names []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, fmt.Errorf("scan agent name: %w", err)
+		}
+		names = append(names, name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate agent names: %w", err)
+	}
+	return names, nil
+}
+
 func upsertTools(ctx context.Context, db *sql.DB, seeds []toolSeed) error {
 	for _, seed := range seeds {
 		if _, err := db.ExecContext(ctx, `

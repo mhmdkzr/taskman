@@ -31,6 +31,15 @@ func StartSession(
 	return id, nil
 }
 
+// ListAgentNames returns every configured agent's name, alphabetically.
+func ListAgentNames(ctx context.Context, st *store.Store) ([]string, error) {
+	names, err := listAgentNames(ctx, st.RO())
+	if err != nil {
+		return nil, fmt.Errorf("list agent names: %w", err)
+	}
+	return names, nil
+}
+
 // CreateAgent creates a named agent using the active configured model and
 // grants it every registered tool.
 func CreateAgent(ctx context.Context, st *store.Store, cfg config.ProviderConfig, name, prompt string) error {

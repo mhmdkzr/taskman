@@ -81,6 +81,9 @@ CREATE TABLE IF NOT EXISTS agents (
     agent_name TEXT  NOT NULL,
     prompt_id  TEXT  NOT NULL REFERENCES prompt_templates(prompt_id) ON DELETE RESTRICT,
     model_id   TEXT  NOT NULL REFERENCES models(model_id) ON DELETE RESTRICT,
+    created_at TEXT  NOT NULL,
+    updated_at TEXT,
+    deleted_at TEXT,
 
     CONSTRAINT agents_name_length_check
         CHECK (length(agent_name) <= 255)
@@ -178,6 +181,37 @@ CREATE TABLE IF NOT EXISTS session_turn_events (
 CREATE INDEX IF NOT EXISTS idx_session_turn_events_turn
     ON session_turn_events (turn_id, seq);
 
+-- A row is inserted by the ask tool when the model asks the user a question
+-- mid-turn, blocking that tool call until answered. status is 'pending'
+-- until a human answers via the web UI, which sets selected/custom and moves
+-- it to 'answered' - the polling tool call is watching for exactly that
+-- transition (see internal/agent/tools/ask).
+CREATE TABLE IF NOT EXISTS session_asks (
+    ask_id       TEXT    NOT NULL PRIMARY KEY,
+    session_id   TEXT    NOT NULL REFERENCES agent_sessions(session_id) ON DELETE RESTRICT,
+    turn_id      TEXT    NOT NULL REFERENCES session_turns(turn_id)     ON DELETE RESTRICT,
+    question     TEXT    NOT NULL,
+    options      TEXT,
+    multi_select INTEGER NOT NULL CHECK (multi_select IN (0, 1)),
+    status       TEXT    NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'answered')),
+    selected     TEXT,
+    custom       TEXT,
+    created_at   TEXT    NOT NULL,
+    answered_at  TEXT,
+
+    CONSTRAINT session_asks_options_json_check
+        CHECK (options IS NULL OR json_valid(options)),
+
+    CONSTRAINT session_asks_selected_json_check
+        CHECK (selected IS NULL OR json_valid(selected))
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS idx_session_asks_turn
+    ON session_asks (turn_id);
+
+CREATE INDEX IF NOT EXISTS idx_session_asks_pending
+    ON session_asks (status) WHERE status = 'pending';
+
 CREATE TABLE IF NOT EXISTS token_usage (
     session_id         TEXT    NOT NULL REFERENCES agent_sessions(session_id) ON DELETE RESTRICT,
     turn_id            TEXT    NOT NULL REFERENCES session_turns(turn_id)     ON DELETE RESTRICT,
@@ -204,24 +238,6 @@ CREATE TABLE IF NOT EXISTS session_tools (
 
     PRIMARY KEY (session_id, tool_id)
 ) STRICT;
-
---
-CREATE TABLE IF NOT EXISTS session_todos (
-    todo_id    TEXT        PRIMARY KEY,
-    session_id TEXT        NOT NULL REFERENCES agent_sessions(session_id) ON DELETE RESTRICT,
-    content    TEXT        NOT NULL,
-    status     TEXT        NOT NULL CHECK (status IN ('pending', 'in_progress', 'completed', 'cancelled')),
-    priority   TEXT        NOT NULL CHECK (priority IN ('high', 'medium', 'low')),
-    position   INTEGER     NOT NULL,
-    created_at TEXT        NOT NULL,
-    updated_at TEXT,
-
-    CONSTRAINT session_todos_content_check
-        CHECK (length(content) > 0)
-) STRICT;
-
-CREATE INDEX IF NOT EXISTS idx_session_todos_session
-    ON session_todos (session_id, position);
 
 --
 CREATE TABLE IF NOT EXISTS tasks (

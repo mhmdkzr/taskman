@@ -10,7 +10,13 @@ import (
 	"github.com/zendev-sh/goai"
 
 	"github.com/mhmdkzr/loop/internal/agent/tools"
-	agenttool "github.com/mhmdkzr/loop/internal/agent/tools/agent"
+	agentcreate "github.com/mhmdkzr/loop/internal/agent/tools/agent/create"
+	agentdelete "github.com/mhmdkzr/loop/internal/agent/tools/agent/delete"
+	agentget "github.com/mhmdkzr/loop/internal/agent/tools/agent/get"
+	agentlist "github.com/mhmdkzr/loop/internal/agent/tools/agent/list"
+	agentrun "github.com/mhmdkzr/loop/internal/agent/tools/agent/run"
+	agentupdate "github.com/mhmdkzr/loop/internal/agent/tools/agent/update"
+	"github.com/mhmdkzr/loop/internal/agent/tools/ask"
 	"github.com/mhmdkzr/loop/internal/agent/tools/bash"
 	"github.com/mhmdkzr/loop/internal/agent/tools/browser/back"
 	"github.com/mhmdkzr/loop/internal/agent/tools/browser/click"
@@ -43,7 +49,8 @@ import (
 	taskupdate "github.com/mhmdkzr/loop/internal/agent/tools/task/update"
 	tgread "github.com/mhmdkzr/loop/internal/agent/tools/telegram/read"
 	tgsend "github.com/mhmdkzr/loop/internal/agent/tools/telegram/send"
-	"github.com/mhmdkzr/loop/internal/agent/tools/todo"
+	toolget "github.com/mhmdkzr/loop/internal/agent/tools/tool/get"
+	toollist "github.com/mhmdkzr/loop/internal/agent/tools/tool/list"
 	"github.com/mhmdkzr/loop/internal/agent/tools/websearch"
 	"github.com/mhmdkzr/loop/internal/app/config"
 	"github.com/mhmdkzr/loop/internal/store"
@@ -165,13 +172,20 @@ func toolSeeds() []toolSeed {
 		newToolSeed[deno.Input, tools.Output](deno.Name, deno.Description),
 		newToolSeed[nats.Input, tools.Output](nats.Name, nats.Description),
 		newToolSeed[datetime.Input, datetime.Output](datetime.Name, datetime.Description),
-		newToolSeed[todo.Input, todo.Output](todo.Name, todo.Description),
 		newToolSeed[taskcreate.Input, taskcreate.Output](taskcreate.Name, taskcreate.Description),
 		newToolSeed[taskget.Input, taskget.Output](taskget.Name, taskget.Description),
 		newToolSeed[tasklist.Input, tasklist.Output](tasklist.Name, tasklist.Description),
 		newToolSeed[taskupdate.Input, taskupdate.Output](taskupdate.Name, taskupdate.Description),
 		newToolSeed[taskdelete.Input, taskdelete.Output](taskdelete.Name, taskdelete.Description),
-		newToolSeed[agenttool.Input, agenttool.Output](agenttool.Name, agenttool.Description),
+		newToolSeed[agentrun.Input, agentrun.Output](agentrun.Name, agentrun.Description),
+		newToolSeed[agentcreate.Input, agentcreate.Output](agentcreate.Name, agentcreate.Description),
+		newToolSeed[agentget.Input, agentget.Output](agentget.Name, agentget.Description),
+		newToolSeed[agentlist.Input, agentlist.Output](agentlist.Name, agentlist.Description),
+		newToolSeed[agentupdate.Input, agentupdate.Output](agentupdate.Name, agentupdate.Description),
+		newToolSeed[agentdelete.Input, agentdelete.Output](agentdelete.Name, agentdelete.Description),
+		newToolSeed[ask.Input, ask.Output](ask.Name, ask.Description),
+		newToolSeed[toolget.Input, toolget.Output](toolget.Name, toolget.Description),
+		newToolSeed[toollist.Input, toollist.Output](toollist.Name, toollist.Description),
 		newToolSeed[navigate.Input, navigate.Output](navigate.Name, navigate.Description),
 		newToolSeed[extract.Input, extract.Output](extract.Name, extract.Description),
 		newToolSeed[click.Input, click.Output](click.Name, click.Description),

@@ -1,5 +1,5 @@
-// Package agent implements the agent-dispatch tool.
-package agent
+// Package run implements the agent-dispatch tool.
+package run
 
 import (
 	"context"

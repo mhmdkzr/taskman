@@ -4,7 +4,13 @@ import (
 	"github.com/zendev-sh/goai"
 
 	"github.com/mhmdkzr/loop/internal/agent/tools"
-	agenttool "github.com/mhmdkzr/loop/internal/agent/tools/agent"
+	agentcreate "github.com/mhmdkzr/loop/internal/agent/tools/agent/create"
+	agentdelete "github.com/mhmdkzr/loop/internal/agent/tools/agent/delete"
+	agentget "github.com/mhmdkzr/loop/internal/agent/tools/agent/get"
+	agentlist "github.com/mhmdkzr/loop/internal/agent/tools/agent/list"
+	agentrun "github.com/mhmdkzr/loop/internal/agent/tools/agent/run"
+	agentupdate "github.com/mhmdkzr/loop/internal/agent/tools/agent/update"
+	"github.com/mhmdkzr/loop/internal/agent/tools/ask"
 	"github.com/mhmdkzr/loop/internal/agent/tools/bash"
 	"github.com/mhmdkzr/loop/internal/agent/tools/browser"
 	"github.com/mhmdkzr/loop/internal/agent/tools/browser/back"
@@ -39,7 +45,8 @@ import (
 	"github.com/mhmdkzr/loop/internal/agent/tools/telegram"
 	tgread "github.com/mhmdkzr/loop/internal/agent/tools/telegram/read"
 	tgsend "github.com/mhmdkzr/loop/internal/agent/tools/telegram/send"
-	"github.com/mhmdkzr/loop/internal/agent/tools/todo"
+	toolget "github.com/mhmdkzr/loop/internal/agent/tools/tool/get"
+	toollist "github.com/mhmdkzr/loop/internal/agent/tools/tool/list"
 	"github.com/mhmdkzr/loop/internal/agent/tools/websearch"
 )
 
@@ -49,43 +56,50 @@ import (
 // (All), since it needs access to everything.
 func Tools() tools.Registry {
 	return tools.Registry{
-		agenttool.Name: func(deps tools.Deps) goai.Tool {
-			return agenttool.Tool(deps.Store, deps.Config.Provider, Tools(), deps.SessionID, deps.Configured)
+		agentrun.Name: func(deps tools.Deps) goai.Tool {
+			return agentrun.Tool(deps.Store, deps.Config.Provider, Tools(), deps.SessionID, deps.Configured)
 		},
-		read.Name:       func(tools.Deps) goai.Tool { return read.Tool() },
-		write.Name:      func(tools.Deps) goai.Tool { return write.Tool() },
-		edit.Name:       func(tools.Deps) goai.Tool { return edit.Tool() },
-		patch.Name:      func(tools.Deps) goai.Tool { return patch.Tool() },
-		glob.Name:       func(tools.Deps) goai.Tool { return glob.Tool() },
-		rg.Name:         func(tools.Deps) goai.Tool { return rg.Tool() },
-		grep.Name:       func(tools.Deps) goai.Tool { return grep.Tool() },
-		psql.Name:       func(tools.Deps) goai.Tool { return psql.Tool() },
-		bash.Name:       func(tools.Deps) goai.Tool { return bash.Tool() },
-		query.Name:      query.Tool,
-		history.Name:    history.Tool,
-		git.Name:        func(tools.Deps) goai.Tool { return git.Tool() },
-		golang.Name:     func(tools.Deps) goai.Tool { return golang.Tool() },
-		curl.Name:       func(tools.Deps) goai.Tool { return curl.Tool() },
-		deno.Name:       func(tools.Deps) goai.Tool { return deno.Tool() },
-		nats.Name:       func(tools.Deps) goai.Tool { return nats.Tool() },
-		datetime.Name:   func(tools.Deps) goai.Tool { return datetime.Tool() },
-		todo.Name:       todo.Tool,
-		taskcreate.Name: taskcreate.Tool,
-		taskget.Name:    taskget.Tool,
-		tasklist.Name:   tasklist.Tool,
-		taskupdate.Name: taskupdate.Tool,
-		taskdelete.Name: taskdelete.Tool,
-		navigate.Name:   func(deps tools.Deps) goai.Tool { return deps.Configured[navigate.Name] },
-		extract.Name:    func(deps tools.Deps) goai.Tool { return deps.Configured[extract.Name] },
-		click.Name:      func(deps tools.Deps) goai.Tool { return deps.Configured[click.Name] },
-		fill.Name:       func(deps tools.Deps) goai.Tool { return deps.Configured[fill.Name] },
-		scroll.Name:     func(deps tools.Deps) goai.Tool { return deps.Configured[scroll.Name] },
-		back.Name:       func(deps tools.Deps) goai.Tool { return deps.Configured[back.Name] },
-		forward.Name:    func(deps tools.Deps) goai.Tool { return deps.Configured[forward.Name] },
-		reset.Name:      func(deps tools.Deps) goai.Tool { return deps.Configured[reset.Name] },
-		tgread.Name:     func(deps tools.Deps) goai.Tool { return deps.Configured[tgread.Name] },
-		tgsend.Name:     func(deps tools.Deps) goai.Tool { return deps.Configured[tgsend.Name] },
-		websearch.Name:  func(deps tools.Deps) goai.Tool { return deps.Configured[websearch.Name] },
+		agentcreate.Name: agentcreate.Tool,
+		agentget.Name:    agentget.Tool,
+		agentlist.Name:   agentlist.Tool,
+		agentupdate.Name: agentupdate.Tool,
+		agentdelete.Name: agentdelete.Tool,
+		ask.Name:         ask.Tool,
+		read.Name:        func(tools.Deps) goai.Tool { return read.Tool() },
+		write.Name:       func(tools.Deps) goai.Tool { return write.Tool() },
+		edit.Name:        func(tools.Deps) goai.Tool { return edit.Tool() },
+		patch.Name:       func(tools.Deps) goai.Tool { return patch.Tool() },
+		glob.Name:        func(tools.Deps) goai.Tool { return glob.Tool() },
+		rg.Name:          func(tools.Deps) goai.Tool { return rg.Tool() },
+		grep.Name:        func(tools.Deps) goai.Tool { return grep.Tool() },
+		psql.Name:        func(tools.Deps) goai.Tool { return psql.Tool() },
+		bash.Name:        func(tools.Deps) goai.Tool { return bash.Tool() },
+		query.Name:       query.Tool,
+		history.Name:     history.Tool,
+		git.Name:         func(tools.Deps) goai.Tool { return git.Tool() },
+		golang.Name:      func(tools.Deps) goai.Tool { return golang.Tool() },
+		curl.Name:        func(tools.Deps) goai.Tool { return curl.Tool() },
+		deno.Name:        func(tools.Deps) goai.Tool { return deno.Tool() },
+		nats.Name:        func(tools.Deps) goai.Tool { return nats.Tool() },
+		datetime.Name:    func(tools.Deps) goai.Tool { return datetime.Tool() },
+		taskcreate.Name:  taskcreate.Tool,
+		taskget.Name:     taskget.Tool,
+		tasklist.Name:    tasklist.Tool,
+		taskupdate.Name:  taskupdate.Tool,
+		taskdelete.Name:  taskdelete.Tool,
+		toolget.Name:     toolget.Tool,
+		toollist.Name:    toollist.Tool,
+		navigate.Name:    func(deps tools.Deps) goai.Tool { return deps.Configured[navigate.Name] },
+		extract.Name:     func(deps tools.Deps) goai.Tool { return deps.Configured[extract.Name] },
+		click.Name:       func(deps tools.Deps) goai.Tool { return deps.Configured[click.Name] },
+		fill.Name:        func(deps tools.Deps) goai.Tool { return deps.Configured[fill.Name] },
+		scroll.Name:      func(deps tools.Deps) goai.Tool { return deps.Configured[scroll.Name] },
+		back.Name:        func(deps tools.Deps) goai.Tool { return deps.Configured[back.Name] },
+		forward.Name:     func(deps tools.Deps) goai.Tool { return deps.Configured[forward.Name] },
+		reset.Name:       func(deps tools.Deps) goai.Tool { return deps.Configured[reset.Name] },
+		tgread.Name:      func(deps tools.Deps) goai.Tool { return deps.Configured[tgread.Name] },
+		tgsend.Name:      func(deps tools.Deps) goai.Tool { return deps.Configured[tgsend.Name] },
+		websearch.Name:   func(deps tools.Deps) goai.Tool { return deps.Configured[websearch.Name] },
 	}
 }
 
