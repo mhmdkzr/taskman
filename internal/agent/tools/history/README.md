@@ -7,9 +7,14 @@ optionally restricts to one session, limits results to 50 turns, and
 truncates long prompts/replies to keep tool output bounded.
 
 ```json
-{"query": "reporting bug"}
+{
+  "query": "reporting bug"
+}
 ```
 
 ```json
-{"session_id": "0198f2b0-6f1a-7c33-9a2e-6b6f1a7c339a", "limit": 5}
+{
+  "session_id": "0198f2b0-6f1a-7c33-9a2e-6b6f1a7c339a",
+  "limit": 5
+}
 ```

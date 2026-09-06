@@ -6,5 +6,7 @@ read-only SQLite connection, limits results to 1,000 rows, and truncates long
 cells to keep tool output bounded.
 
 ```json
-{"query":"SELECT name FROM agents ORDER BY name"}
+{
+  "query": "SELECT name FROM agents ORDER BY name"
+}
 ```
