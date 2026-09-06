@@ -32,6 +32,7 @@ type Input struct {
 	Autonomy      taskrepo.Level `json:"autonomy" jsonschema:"description=Task autonomy: 1 (very-low), 2 (low), 3 (medium), 4 (high), or 5 (very-high)."`
 	Model         string         `json:"model" jsonschema:"description=Model to use for the task."`
 	CommitHash    string         `json:"commit_hash,omitempty" jsonschema:"description=Commit hash associated with the task."`
+	Branch        string         `json:"branch,omitempty" jsonschema:"description=Git branch associated with the task."`
 }
 
 type Output struct {
@@ -90,6 +91,7 @@ func execute(ctx context.Context, st *store.Store, in Input) (Output, error) {
 		Autonomy:      levelOrDefault(in.Autonomy),
 		Model:         in.Model,
 		CommitHash:    in.CommitHash,
+		Branch:        in.Branch,
 	}); err != nil {
 		return Output{}, fmt.Errorf("create task: %w", err)
 	}

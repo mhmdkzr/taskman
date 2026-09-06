@@ -34,6 +34,7 @@ type Input struct {
 	Autonomy      taskrepo.Level     `json:"autonomy"`
 	Model         string             `json:"model"`
 	CommitHash    string             `json:"commit_hash,omitempty"`
+	Branch        string             `json:"branch,omitempty"`
 }
 
 type Output struct {
@@ -84,7 +85,7 @@ func execute(ctx context.Context, st *store.Store, in Input) (Output, error) {
 		ID: id, Definition: in.Definition, Specification: in.Specification, State: in.State,
 		Labels: in.Labels, Importance: in.Importance, Urgency: in.Urgency,
 		Complexity: in.Complexity, Effort: in.Effort, Risk: in.Risk, Autonomy: in.Autonomy,
-		Model: in.Model, CommitHash: in.CommitHash,
+		Model: in.Model, CommitHash: in.CommitHash, Branch: in.Branch,
 	}
 	if err := taskrepo.UpdateTask(ctx, st.RW(), t); err != nil {
 		return Output{}, fmt.Errorf("update task: %w", err)

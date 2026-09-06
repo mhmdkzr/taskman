@@ -253,6 +253,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     autonomy      INTEGER NOT NULL CHECK (autonomy BETWEEN 1 AND 5),
     model         TEXT NOT NULL,
     commit_hash   TEXT NOT NULL,
+    branch        TEXT,
     created_at    TEXT NOT NULL,
     updated_at    TEXT,
     deleted_at    TEXT

@@ -21,6 +21,7 @@ type Task struct {
 	Autonomy      Level
 	Model         string
 	CommitHash    string
+	Branch        string
 }
 
 type Level int
@@ -56,6 +57,7 @@ type TaskFilter struct {
 	Autonomy     []Level     `json:"autonomy,omitempty"`
 	Model        []string    `json:"model,omitempty"`
 	CommitHashes []string    `json:"commit_hashes,omitempty"`
+	Branches     []string    `json:"branches,omitempty"`
 }
 
 func (l Level) Validate() error {

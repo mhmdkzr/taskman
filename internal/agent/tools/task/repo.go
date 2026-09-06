@@ -29,11 +29,11 @@ func CreateTask(ctx context.Context, db *sql.DB, t Task) error {
 		INSERT INTO tasks (
 			id, definition, specification, state,
 			importance, urgency, complexity, effort, risk, autonomy,
-			model, commit_hash, created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			model, commit_hash, branch, created_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		t.ID.String(), t.Definition, t.Specification, t.State,
 		t.Importance, t.Urgency, t.Complexity, t.Effort, t.Risk, t.Autonomy,
-		t.Model, t.CommitHash, now); err != nil {
+		t.Model, t.CommitHash, t.Branch, now); err != nil {
 		return fmt.Errorf("insert task: %w", err)
 	}
 	if err := replaceTaskLabels(ctx, tx, t.ID, t.Labels); err != nil {
@@ -48,15 +48,16 @@ func CreateTask(ctx context.Context, db *sql.DB, t Task) error {
 func GetTask(ctx context.Context, db *sql.DB, id uuid.UUID) (Task, error) {
 	var t Task
 	var idString string
+	var branch sql.NullString
 	err := db.QueryRowContext(ctx, `
 		SELECT id, definition, specification, state,
 			importance, urgency, complexity, effort, risk, autonomy,
-			model, commit_hash
+			model, commit_hash, branch
 		FROM tasks
 		WHERE id = ? AND deleted_at IS NULL`, id.String()).Scan(
 		&idString, &t.Definition, &t.Specification, &t.State,
 		&t.Importance, &t.Urgency, &t.Complexity, &t.Effort, &t.Risk, &t.Autonomy,
-		&t.Model, &t.CommitHash,
+		&t.Model, &t.CommitHash, &branch,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Task{}, ErrTaskNotFound
@@ -64,6 +65,7 @@ func GetTask(ctx context.Context, db *sql.DB, id uuid.UUID) (Task, error) {
 	if err != nil {
 		return Task{}, fmt.Errorf("query task: %w", err)
 	}
+	t.Branch = branch.String
 	t.ID, err = uuid.Parse(idString)
 	if err != nil {
 		return Task{}, fmt.Errorf("parse task id: %w", err)
@@ -139,6 +141,7 @@ func ListTasks(ctx context.Context, db *sql.DB, filter TaskFilter) ([]Task, erro
 	addIntegerValuesFilter("autonomy", levels(filter.Autonomy))
 	addValuesFilter("model", filter.Model)
 	addValuesFilter("commit_hash", filter.CommitHashes)
+	addValuesFilter("branch", filter.Branches)
 	query.WriteString(" ORDER BY created_at, id")
 
 	rows, err := db.QueryContext(ctx, query.String(), args...)
@@ -225,11 +228,11 @@ func UpdateTask(ctx context.Context, db *sql.DB, t Task) error {
 		UPDATE tasks
 		SET definition = ?, specification = ?, state = ?,
 			importance = ?, urgency = ?, complexity = ?, effort = ?, risk = ?, autonomy = ?,
-			model = ?, commit_hash = ?, updated_at = ?
+			model = ?, commit_hash = ?, branch = ?, updated_at = ?
 		WHERE id = ? AND deleted_at IS NULL`,
 		t.Definition, t.Specification, t.State,
 		t.Importance, t.Urgency, t.Complexity, t.Effort, t.Risk, t.Autonomy,
-		t.Model, t.CommitHash, time.Now().UTC().Format(time.RFC3339Nano), t.ID.String())
+		t.Model, t.CommitHash, t.Branch, time.Now().UTC().Format(time.RFC3339Nano), t.ID.String())
 	if err != nil {
 		return fmt.Errorf("update task: %w", err)
 	}
