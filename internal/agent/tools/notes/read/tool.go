@@ -3,13 +3,17 @@ package read
 import (
 	"context"
 	"fmt"
-	"github.com/mhmdkzr/loop/internal/agent/tools"
-	"github.com/zendev-sh/goai"
 	"strings"
+
+	"github.com/zendev-sh/goai"
+
+	"github.com/mhmdkzr/loop/internal/agent/tools"
 )
 
-const Name = "notes_read"
-const Description = "Read one persistent note by name, including its links."
+const (
+	Name        = "notes_read"
+	Description = "Read one persistent note by name, including its links."
+)
 
 type Input struct {
 	Name string `json:"name" jsonschema:"description=Unique name of the note."`
@@ -27,8 +31,11 @@ type Output struct {
 }
 
 func Tool(d tools.Deps) goai.Tool {
-	return tools.Tool(Name, Description, func(ctx context.Context, in Input) (Output, error) { return execute(ctx, d, in) })
+	return tools.Tool(Name, Description, func(ctx context.Context, in Input) (Output, error) {
+		return execute(ctx, d, in)
+	})
 }
+
 func (in Input) Validate() error {
 	if strings.TrimSpace(in.Name) == "" {
 		return fmt.Errorf("name is required")

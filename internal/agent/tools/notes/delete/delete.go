@@ -6,10 +6,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/mhmdkzr/loop/internal/agent/sessions"
-	"github.com/mhmdkzr/loop/internal/agent/tools"
 	"log/slog"
 	"strings"
+
+	"github.com/mhmdkzr/loop/internal/agent/sessions"
+	"github.com/mhmdkzr/loop/internal/agent/tools"
 )
 
 func execute(ctx context.Context, d tools.Deps, in Input) (Output, error) {
@@ -30,7 +31,9 @@ func execute(ctx context.Context, d tools.Deps, in Input) (Output, error) {
 		}
 	}()
 	var id string
-	err = tx.QueryRowContext(ctx, `SELECT n.id FROM notes n JOIN agent_sessions s ON s.session_id=n.session_id WHERE n.name=? AND n.session_id=? AND s.deleted_at IS NULL`, name, d.SessionID.String()).Scan(&id)
+	err = tx.QueryRowContext(ctx, `SELECT n.id
+		FROM notes n JOIN agent_sessions s ON s.session_id=n.session_id
+		WHERE n.name=? AND n.session_id=? AND s.deleted_at IS NULL`, name, d.SessionID.String()).Scan(&id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Output{}, errors.New("notes_delete: note not found")
 	}

@@ -5,9 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"strings"
+
 	"github.com/mhmdkzr/loop/internal/agent/sessions"
 	"github.com/mhmdkzr/loop/internal/agent/tools"
-	"strings"
 )
 
 func execute(ctx context.Context, d tools.Deps, in Input) (Output, error) {
@@ -21,11 +23,19 @@ func execute(ctx context.Context, d tools.Deps, in Input) (Output, error) {
 	if in.Limit != nil {
 		limit = *in.Limit
 	}
-	rows, err := d.Store.RO().QueryContext(ctx, `SELECT n.id,n.name,n.body,n.created_at FROM notes_fts f JOIN notes n ON n.rowid=f.rowid JOIN agent_sessions s ON s.session_id=n.session_id WHERE notes_fts MATCH ? AND n.session_id=? AND s.deleted_at IS NULL ORDER BY rank LIMIT ?`, strings.TrimSpace(in.Query), d.SessionID.String(), limit)
+	rows, err := d.Store.RO().QueryContext(ctx, `SELECT n.id,n.name,n.body,n.created_at
+		FROM notes_fts f JOIN notes n ON n.rowid=f.rowid
+		JOIN agent_sessions s ON s.session_id=n.session_id
+		WHERE notes_fts MATCH ? AND n.session_id=? AND s.deleted_at IS NULL
+		ORDER BY rank LIMIT ?`, strings.TrimSpace(in.Query), d.SessionID.String(), limit)
 	if err != nil {
 		return Output{}, fmt.Errorf("notes_search: query notes: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("close note search rows", "error", closeErr)
+		}
+	}()
 	out := Output{Notes: []Note{}, Limit: limit}
 	for rows.Next() {
 		var n Note

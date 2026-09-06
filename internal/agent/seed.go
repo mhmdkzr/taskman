@@ -128,7 +128,10 @@ func upsertProvider(ctx context.Context, db *sql.DB, name, baseURL, apiKeyEnv st
 			base_url = EXCLUDED.base_url,
 			api_key_env = EXCLUDED.api_key_env`,
 		uuid.NewV7().String(), name, baseURLValue, apiKeyEnvValue)
-	return err
+	if err != nil {
+		return fmt.Errorf("upsert provider: %w", err)
+	}
+	return nil
 }
 
 func upsertModel(ctx context.Context, db *sql.DB, providerName, modelName string) error {
@@ -139,14 +142,9 @@ func upsertModel(ctx context.Context, db *sql.DB, providerName, modelName string
 		WHERE provider_name = ?
 		ON CONFLICT (provider_id, model_name) DO NOTHING`,
 		uuid.NewV7().String(), modelName, providerName)
-	return err
-}
-
-func seedProviders(ctx context.Context, db *sql.DB) error {
-	return nil
-}
-
-func seedModels(ctx context.Context, db *sql.DB) error {
+	if err != nil {
+		return fmt.Errorf("upsert model: %w", err)
+	}
 	return nil
 }
 

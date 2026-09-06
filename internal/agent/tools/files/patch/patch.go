@@ -27,12 +27,11 @@ type chunk struct {
 }
 
 type change struct {
-	hunk   hunk
-	path   string
-	old    string
-	new    string
-	mode   os.FileMode
-	oldDir bool
+	hunk hunk
+	path string
+	old  string
+	new  string
+	mode os.FileMode
 }
 
 func execute(_ context.Context, in Input) (Output, error) {
@@ -75,7 +74,10 @@ func execute(_ context.Context, in Input) (Output, error) {
 }
 
 func parse(text string) ([]hunk, error) {
-	lines := strings.Split(strings.ReplaceAll(strings.ReplaceAll(strings.TrimSpace(text), "\r\n", "\n"), "\r", "\n"), "\n")
+	trimmed := strings.TrimSpace(text)
+	trimmed = strings.ReplaceAll(trimmed, "\r\n", "\n")
+	trimmed = strings.ReplaceAll(trimmed, "\r", "\n")
+	lines := strings.Split(trimmed, "\n")
 	begin, end := -1, -1
 	for i, line := range lines {
 		switch strings.TrimSpace(line) {
@@ -142,12 +144,13 @@ func header(line, prefix string) (string, string) {
 func addContents(lines []string, start, end int) (string, int) {
 	var contents strings.Builder
 	for i := start; i < end && !strings.HasPrefix(lines[i], "***"); i++ {
-		if strings.HasPrefix(lines[i], "+") {
-			contents.WriteString(strings.TrimPrefix(lines[i], "+"))
+		if after, ok := strings.CutPrefix(lines[i], "+"); ok {
+			contents.WriteString(after)
 			contents.WriteByte('\n')
 		}
 	}
-	return strings.TrimSuffix(contents.String(), "\n"), start + strings.Count(strings.Join(lines[start:end], "\n"), "\n") + 1
+	return strings.TrimSuffix(contents.String(), "\n"),
+		start + strings.Count(strings.Join(lines[start:end], "\n"), "\n") + 1
 }
 
 func updateChunks(lines []string, start, end int) ([]chunk, int, error) {
@@ -201,6 +204,9 @@ func prepare(hunk hunk) (change, error) {
 		if info.IsDir() {
 			return change{}, fmt.Errorf("path is a directory: %s", path)
 		}
+		// Patch paths are resolved by absolute, which confines them to the tool's
+		// explicitly selected filesystem target.
+		//nolint:gosec // The patch tool intentionally reads the requested target path.
 		content, err := os.ReadFile(path)
 		if err != nil {
 			return change{}, fmt.Errorf("read %s: %w", path, err)
@@ -214,6 +220,7 @@ func prepare(hunk hunk) (change, error) {
 		if info.IsDir() {
 			return change{}, fmt.Errorf("path is a directory: %s", path)
 		}
+		//nolint:gosec // The patch tool intentionally reads the requested target path.
 		content, err := os.ReadFile(path)
 		if err != nil {
 			return change{}, fmt.Errorf("read %s: %w", path, err)
@@ -237,9 +244,14 @@ func applyChunks(content string, chunks []chunk, path string) (string, error) {
 	for _, current := range chunks {
 		start := findLines(lines, current.oldLines, current.eof)
 		if start < 0 {
-			return "", fmt.Errorf("failed to find expected lines in %s:\n%s", path, strings.Join(current.oldLines, "\n"))
+			return "", fmt.Errorf(
+				"failed to find expected lines in %s:\n%s", path, strings.Join(current.oldLines, "\n"),
+			)
 		}
-		lines = append(append(append([]string{}, lines[:start]...), current.newLines...), lines[start+len(current.oldLines):]...)
+		lines = append(
+			append(append([]string{}, lines[:start]...), current.newLines...),
+			lines[start+len(current.oldLines):]...,
+		)
 	}
 	updated := strings.Join(lines, "\n")
 	if trailingNewline || updated != "" {
@@ -269,7 +281,9 @@ func findLines(lines, pattern []string, eof bool) int {
 
 func matchLines(actual, expected []string) bool {
 	for i := range actual {
-		if actual[i] == expected[i] || strings.TrimRight(actual[i], " \t") == strings.TrimRight(expected[i], " \t") || strings.TrimSpace(actual[i]) == strings.TrimSpace(expected[i]) {
+		if actual[i] == expected[i] ||
+			strings.TrimRight(actual[i], " \t") == strings.TrimRight(expected[i], " \t") ||
+			strings.TrimSpace(actual[i]) == strings.TrimSpace(expected[i]) {
 			continue
 		}
 		return false
@@ -284,7 +298,7 @@ func apply(item change) error {
 		if item.hunk.movePath != "" {
 			target = absolute(item.hunk.movePath)
 		}
-		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(target), 0o750); err != nil {
 			return fmt.Errorf("create parent directory: %w", err)
 		}
 		if err := os.WriteFile(target, []byte(item.new), item.mode); err != nil {

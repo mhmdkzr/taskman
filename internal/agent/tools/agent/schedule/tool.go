@@ -16,9 +16,9 @@ const (
 )
 
 type Input struct {
-	AgentInput   agent.Input  `json:"agent_input" jsonschema:"description=Agent input parameters."`
-	ScheduleType ScheduleType `json:"schedule_type" jsonschema:"description=Schedule type: once, delay or interval."`
-	RunAt        string       `json:"run_at,omitempty" jsonschema:"description=RFC3339 datetime (e.g. 2026-08-14T15:04:05Z) at which the agent runs once. Required unless run_after or run_every is set."`
+	AgentInput   agent.Input  `json:"agent_input"         jsonschema:"description=Agent input parameters."`
+	ScheduleType ScheduleType `json:"schedule_type"       jsonschema:"description=Schedule type: once, delay or interval."`
+	RunAt        string       `json:"run_at,omitempty"    jsonschema:"description=RFC3339 datetime (e.g. 2026-08-14T15:04:05Z) at which the agent runs once. Required unless run_after or run_every is set."`
 	RunAfter     string       `json:"run_after,omitempty" jsonschema:"description=Relative time from now (e.g. 30m, 2h, 1d) at which the agent runs once. Equivalent to run_at = now + this duration. Required unless run_at or run_every is set."`
 	RunEvery     string       `json:"run_every,omitempty" jsonschema:"description=Interval (e.g. 5m, 1h, 1d) at which the agent repeats indefinitely until cancelled. Required unless run_at or run_after is set."`
 }
@@ -33,8 +33,8 @@ const (
 
 type Output struct {
 	ScheduleID string `json:"schedule_id" jsonschema:"description=The ID of the scheduled task."`
-	Scheduled  bool   `json:"scheduled" jsonschema:"description=Whether the schedule was successfully scheduled."`
-	NextRun    string `json:"next_run"  jsonschema:"description=The next scheduled run time (RFC3339)."`
+	Scheduled  bool   `json:"scheduled"   jsonschema:"description=Whether the schedule was successfully scheduled."`
+	NextRun    string `json:"next_run"    jsonschema:"description=The next scheduled run time (RFC3339)."`
 }
 
 func Tool() goai.Tool {

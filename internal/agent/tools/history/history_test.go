@@ -21,7 +21,7 @@ import (
 // openTestStore opens a migrated Store backed by a fresh temp-file database.
 func openTestStore(t *testing.T) *store.Store {
 	t.Helper()
-	st, err := store.Open(filepath.Join(t.TempDir(), "history.sqlite"))
+	st, err := store.Open(t.Context(), filepath.Join(t.TempDir(), "history.sqlite"))
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}
@@ -54,8 +54,8 @@ func seedTurn(t *testing.T, db *sql.DB, prompt, reply string) sessions.SessionID
 	}
 
 	promptID := uuid.NewV7()
-	if _, err := db.ExecContext(ctx,
-		`INSERT INTO prompt_templates (prompt_id, prompt_name, template_body, params_schema, version) VALUES (?, ?, ?, ?, 1)`,
+	promptQuery := `INSERT INTO prompt_templates (prompt_id, prompt_name, template_body, params_schema, version) VALUES (?, ?, ?, ?, 1)`
+	if _, err := db.ExecContext(ctx, promptQuery,
 		promptID.String(), "test-prompt-"+promptID.String(), "you are a test agent", "{}"); err != nil {
 		t.Fatalf("insert prompt template: %v", err)
 	}

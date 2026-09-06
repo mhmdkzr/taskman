@@ -28,7 +28,7 @@ import (
 	"github.com/mhmdkzr/loop/pkg/migrate"
 )
 
-// Start boots the application: loads config, connects dependencies, starts the HTTP server.
+// StartOptions configures application startup.
 type StartOptions struct {
 	AddrOverride   string
 	PortOverride   int
@@ -39,6 +39,7 @@ type StartOptions struct {
 	RPC            bool
 }
 
+// Start boots the application, loads configuration, connects dependencies, and starts the HTTP server.
 func Start(ctx context.Context, options StartOptions) error {
 	slog.Info("starting application")
 
@@ -77,7 +78,7 @@ func Start(ctx context.Context, options StartOptions) error {
 		cfg.Server.BindAddr = net.JoinHostPort(bindHost, bindPort)
 	}
 
-	db, err := store.Open(cfg.Database.Path)
+	db, err := store.Open(ctx, cfg.Database.Path)
 	if err != nil {
 		return fmt.Errorf("open db: %w", err)
 	}
@@ -110,9 +111,13 @@ func Start(ctx context.Context, options StartOptions) error {
 	if err != nil {
 		return fmt.Errorf("initialize telegram client: %w", err)
 	}
+	configuredTools := agent.ConfiguredTools(
+		browser.NewClientFromConfig(cfg.Browser), telegramClient, websearch.NewClientFromConfig(cfg.Tavily),
+	)
 	a.Deps.AgentTools = agenttools.Deps{
-		Store: db, Config: cfg,
-		Configured: agent.ConfiguredTools(browser.NewClientFromConfig(cfg.Browser), telegramClient, websearch.NewClientFromConfig(cfg.Tavily)),
+		Store:      db,
+		Config:     cfg,
+		Configured: configuredTools,
 	}
 
 	register.RegisterRoutes(a)

@@ -12,9 +12,9 @@ const (
 )
 
 type Input struct {
-	Pattern    string `json:"pattern" jsonschema:"description=Regular expression to search for."`
-	Path       string `json:"path,omitempty" jsonschema:"description=File or directory to search. Defaults to the current directory."`
-	Include    string `json:"include,omitempty" jsonschema:"description=Optional glob filter for file names."`
+	Pattern    string `json:"pattern"               jsonschema:"description=Regular expression to search for."`
+	Path       string `json:"path,omitempty"        jsonschema:"description=File or directory to search. Defaults to the current directory."`
+	Include    string `json:"include,omitempty"     jsonschema:"description=Optional glob filter for file names."`
 	MaxResults int    `json:"max_results,omitempty" jsonschema:"description=Maximum number of matching lines. Defaults to 100."`
 }
 

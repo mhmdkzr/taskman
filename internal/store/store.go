@@ -3,6 +3,7 @@
 package store
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -10,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite" // Register the SQLite database driver.
 )
 
 const dirPerm = 0o700
@@ -25,20 +26,18 @@ type Store struct {
 
 // Open opens both database handles for path. The database must be file-backed;
 // a second connection to :memory: would refer to a different database.
-func Open(path string) (*Store, error) {
+func Open(ctx context.Context, path string) (*Store, error) {
 	rw, err := OpenDB(path)
 	if err != nil {
 		return nil, err
 	}
 	// sql.Open is lazy. Ping creates the file before the read-only handle opens.
-	if err := rw.Ping(); err != nil {
-		_ = rw.Close()
-		return nil, fmt.Errorf("open: %w", err)
+	if err := rw.PingContext(ctx); err != nil {
+		return nil, fmt.Errorf("open: %w", errors.Join(err, rw.Close()))
 	}
-	ro, err := OpenReadOnly(path)
+	ro, err := OpenReadOnly(ctx, path)
 	if err != nil {
-		_ = rw.Close()
-		return nil, err
+		return nil, fmt.Errorf("open read-only: %w", errors.Join(err, rw.Close()))
 	}
 	return &Store{rw: rw, ro: ro}, nil
 }
@@ -55,7 +54,10 @@ func (s *Store) Close() error {
 	if s == nil {
 		return nil
 	}
-	return errors.Join(s.rw.Close(), s.ro.Close())
+	if err := errors.Join(s.rw.Close(), s.ro.Close()); err != nil {
+		return fmt.Errorf("close store: %w", err)
+	}
+	return nil
 }
 
 // dsn configures write transactions, lock waiting, and foreign-key checks on
@@ -70,17 +72,16 @@ func dsn(path string) string {
 
 // OpenReadOnly opens a SQLite connection in mode=ro. The caller owns the
 // returned handle and must close it.
-func OpenReadOnly(path string) (*sql.DB, error) {
+func OpenReadOnly(ctx context.Context, path string) (*sql.DB, error) {
 	if path == ":memory:" {
 		return nil, fmt.Errorf("open read-only: :memory: is not supported; use a file path")
 	}
 	db, err := sql.Open("sqlite", "file:"+path+"?mode=ro&_txlock=deferred&_busy_timeout=5000&_foreign_keys=on")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open read-only database: %w", err)
 	}
-	if err := db.Ping(); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("open read-only: %w", err)
+	if err := db.PingContext(ctx); err != nil {
+		return nil, fmt.Errorf("open read-only: %w", errors.Join(err, db.Close()))
 	}
 	return db, nil
 }
@@ -95,7 +96,7 @@ func OpenDB(path string) (*sql.DB, error) {
 	}
 	db, err := sql.Open("sqlite", dsn(path))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open database: %w", err)
 	}
 	if path == ":memory:" {
 		db.SetMaxOpenConns(1)

@@ -10,7 +10,7 @@ import (
 )
 
 func TestToolQueriesReadOnlyStore(t *testing.T) {
-	st, err := store.Open(filepath.Join(t.TempDir(), "query.sqlite"))
+	st, err := store.Open(t.Context(), filepath.Join(t.TempDir(), "query.sqlite"))
 	if err != nil {
 		t.Fatalf("store.Open: %v", err)
 	}

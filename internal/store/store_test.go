@@ -7,7 +7,7 @@ import (
 )
 
 func TestOpenProvidesReadOnlyHandle(t *testing.T) {
-	st, err := Open(filepath.Join(t.TempDir(), "loop.sqlite"))
+	st, err := Open(t.Context(), filepath.Join(t.TempDir(), "loop.sqlite"))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -38,7 +38,7 @@ func TestOpenProvidesReadOnlyHandle(t *testing.T) {
 }
 
 func TestOpenReadOnlyRejectsMemoryDatabase(t *testing.T) {
-	if _, err := OpenReadOnly(":memory:"); err == nil {
+	if _, err := OpenReadOnly(t.Context(), ":memory:"); err == nil {
 		t.Fatal("OpenReadOnly(:memory:) succeeded")
 	}
 }

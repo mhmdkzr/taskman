@@ -3,16 +3,20 @@ package search
 import (
 	"context"
 	"fmt"
-	"github.com/mhmdkzr/loop/internal/agent/tools"
-	"github.com/zendev-sh/goai"
 	"strings"
+
+	"github.com/zendev-sh/goai"
+
+	"github.com/mhmdkzr/loop/internal/agent/tools"
 )
 
-const Name = "notes_search"
-const Description = "Search persistent note names and bodies for the current session."
+const (
+	Name        = "notes_search"
+	Description = "Search persistent note names and bodies for the current session."
+)
 
 type Input struct {
-	Query string `json:"query" jsonschema:"description=FTS search query."`
+	Query string `json:"query"           jsonschema:"description=FTS query."`
 	Limit *int   `json:"limit,omitempty" jsonschema:"description=Maximum notes to return (default 20, max 100)."`
 }
 type Note struct {
@@ -27,8 +31,11 @@ type Output struct {
 }
 
 func Tool(d tools.Deps) goai.Tool {
-	return tools.Tool(Name, Description, func(ctx context.Context, in Input) (Output, error) { return execute(ctx, d, in) })
+	return tools.Tool(Name, Description, func(ctx context.Context, in Input) (Output, error) {
+		return execute(ctx, d, in)
+	})
 }
+
 func (in Input) Validate() error {
 	if strings.TrimSpace(in.Query) == "" {
 		return fmt.Errorf("query is required")

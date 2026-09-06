@@ -6,11 +6,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/mhmdkzr/loop/internal/agent/sessions"
-	"github.com/mhmdkzr/loop/internal/agent/tools"
 	"log/slog"
 	"strings"
 	"time"
+
+	"github.com/mhmdkzr/loop/internal/agent/sessions"
+	"github.com/mhmdkzr/loop/internal/agent/tools"
 )
 
 func execute(ctx context.Context, d tools.Deps, in Input) (Output, error) {
@@ -31,12 +32,16 @@ func execute(ctx context.Context, d tools.Deps, in Input) (Output, error) {
 		}
 	}()
 	var a, b string
-	if err = tx.QueryRowContext(ctx, `SELECT id FROM notes WHERE name=? AND session_id=?`, from, d.SessionID.String()).Scan(&a); errors.Is(err, sql.ErrNoRows) {
+	if err = tx.QueryRowContext(ctx,
+		`SELECT id FROM notes WHERE name=? AND session_id=?`, from, d.SessionID.String(),
+	).Scan(&a); errors.Is(err, sql.ErrNoRows) {
 		return Output{}, fmt.Errorf("notes_link: note %q not found", from)
 	} else if err != nil {
 		return Output{}, fmt.Errorf("notes_link: find %q: %w", from, err)
 	}
-	if err = tx.QueryRowContext(ctx, `SELECT id FROM notes WHERE name=? AND session_id=?`, to, d.SessionID.String()).Scan(&b); errors.Is(err, sql.ErrNoRows) {
+	if err = tx.QueryRowContext(ctx,
+		`SELECT id FROM notes WHERE name=? AND session_id=?`, to, d.SessionID.String(),
+	).Scan(&b); errors.Is(err, sql.ErrNoRows) {
 		return Output{}, fmt.Errorf("notes_link: note %q not found", to)
 	} else if err != nil {
 		return Output{}, fmt.Errorf("notes_link: find %q: %w", to, err)
@@ -45,7 +50,9 @@ func execute(ctx context.Context, d tools.Deps, in Input) (Output, error) {
 		a, b = b, a
 	}
 	rel := strings.TrimSpace(in.Relationship)
-	if _, err = tx.ExecContext(ctx, `INSERT INTO notes_links(note_a,note_b,relationship,created_at) VALUES(?,?,?,?) ON CONFLICT(note_a,note_b) DO UPDATE SET relationship=excluded.relationship`, a, b, rel, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+	if _, err = tx.ExecContext(ctx, `INSERT INTO notes_links(note_a,note_b,relationship,created_at)
+		VALUES(?,?,?,?) ON CONFLICT(note_a,note_b) DO UPDATE SET relationship=excluded.relationship`,
+		a, b, rel, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
 		return Output{}, fmt.Errorf("notes_link: save link: %w", err)
 	}
 	if err = tx.Commit(); err != nil {

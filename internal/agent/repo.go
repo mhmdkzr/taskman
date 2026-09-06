@@ -63,7 +63,9 @@ func createAgent(ctx context.Context, db *sql.DB, modelName, agentName, prompt s
 	}
 	for _, seed := range seeds {
 		var toolID string
-		if err := tx.QueryRowContext(ctx, `SELECT tool_id FROM tools WHERE tool_name = ?`, seed.Name).Scan(&toolID); err != nil {
+		if err := tx.QueryRowContext(ctx,
+			`SELECT tool_id FROM tools WHERE tool_name = ?`, seed.Name,
+		).Scan(&toolID); err != nil {
 			return fmt.Errorf("resolve tool %q: %w", seed.Name, err)
 		}
 		if _, err := tx.ExecContext(ctx, `

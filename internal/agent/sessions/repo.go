@@ -178,7 +178,9 @@ func ReplaceTodos(ctx context.Context, st *store.Store, id SessionID, todos []To
 		return fmt.Errorf("check session todos: %w", err)
 	} else if affected == 0 {
 		var exists int
-		if err := tx.QueryRowContext(ctx, `SELECT 1 FROM agent_sessions WHERE session_id = ? AND deleted_at IS NULL`, id.String()).Scan(&exists); errors.Is(err, sql.ErrNoRows) {
+		if err := tx.QueryRowContext(ctx,
+			`SELECT 1 FROM agent_sessions WHERE session_id = ? AND deleted_at IS NULL`, id.String(),
+		).Scan(&exists); errors.Is(err, sql.ErrNoRows) {
 			return errSessionNotFound
 		} else if err != nil {
 			return fmt.Errorf("check session: %w", err)
@@ -389,7 +391,13 @@ func turnsBySession(ctx context.Context, db *sql.DB, id SessionID) ([]turn, erro
 // session when non-nil; query matches turns whose prompt or final reply text
 // contains it (case-insensitive substring); limit bounds the number of turns
 // returned.
-func SearchHistory(ctx context.Context, st *store.Store, sessionID *SessionID, query string, limit int) ([]HistoryTurn, error) {
+func SearchHistory(
+	ctx context.Context,
+	st *store.Store,
+	sessionID *SessionID,
+	query string,
+	limit int,
+) ([]HistoryTurn, error) {
 	if st == nil {
 		return nil, fmt.Errorf("search history: database is required")
 	}
@@ -402,7 +410,13 @@ func SearchHistory(ctx context.Context, st *store.Store, sessionID *SessionID, q
 // searchHistoryTurns streams session_turns newest first, decoding each
 // result and stopping once limit matching turns are collected so a broad
 // search does not require loading the whole table.
-func searchHistoryTurns(ctx context.Context, db *sql.DB, sessionID *SessionID, query string, limit int) ([]HistoryTurn, error) {
+func searchHistoryTurns(
+	ctx context.Context,
+	db *sql.DB,
+	sessionID *SessionID,
+	query string,
+	limit int,
+) ([]HistoryTurn, error) {
 	sessionFilter := ""
 	if sessionID != nil {
 		sessionFilter = sessionID.String()

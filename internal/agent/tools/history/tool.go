@@ -18,10 +18,10 @@ const (
 )
 
 type Input struct {
-	SessionID  string `json:"session_id,omitempty"  jsonschema:"description=Restrict to a single session by its id (empty returns turns across all sessions, newest first)."`
-	Query      string `json:"query,omitempty"       jsonschema:"description=Only return turns whose prompt or reply contains this substring (case-insensitive); empty returns the most recent turns."`
-	Limit      *int   `json:"limit,omitempty"       jsonschema:"description=Maximum number of turns to return (default 10, max 50)."`
-	MaxCellLen *int   `json:"max_cell_len,omitempty" jsonschema:"description=Maximum characters rendered per prompt or reply (default 200, max 10000)."`
+	SessionID  string `json:"session_id,omitempty"   jsonschema:"description=Session ID filter."`
+	Query      string `json:"query,omitempty"        jsonschema:"description=Substring to find in prompts or replies."`
+	Limit      *int   `json:"limit,omitempty"        jsonschema:"description=Maximum turns to return (default 10, max 50)."`
+	MaxCellLen *int   `json:"max_cell_len,omitempty" jsonschema:"description=Maximum rendered characters (default 200, max 10000)."`
 }
 
 type Output struct {

@@ -59,11 +59,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var req request
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		write(w, response{JSONRPC: version, ID: nil, Error: &responseError{Code: -32700, Message: "parse error", Data: err.Error()}})
+		write(w, response{
+			JSONRPC: version,
+			ID:      nil,
+			Error:   &responseError{Code: -32700, Message: "parse error", Data: err.Error()},
+		})
 		return
 	}
 	if req.JSONRPC != version || req.Method == "" {
-		write(w, response{JSONRPC: version, ID: req.ID, Error: &responseError{Code: -32600, Message: "invalid request"}})
+		write(w, response{
+			JSONRPC: version,
+			ID:      req.ID,
+			Error:   &responseError{Code: -32600, Message: "invalid request"},
+		})
 		return
 	}
 
@@ -109,7 +117,8 @@ func (h *Handler) dispatch(ctx context.Context, method string, params json.RawMe
 			Name   string `json:"name"`
 			Prompt string `json:"prompt"`
 		}
-		if err := decodeParams(params, &in); err != nil || strings.TrimSpace(in.Name) == "" || strings.TrimSpace(in.Prompt) == "" {
+		if err := decodeParams(params, &in); err != nil ||
+			strings.TrimSpace(in.Name) == "" || strings.TrimSpace(in.Prompt) == "" {
 			return nil, invalidParams("name and prompt are required")
 		}
 		if err := agent.CreateAgent(ctx, h.app.Deps.Store, h.app.Cfg.Provider, in.Name, in.Prompt); err != nil {
@@ -134,7 +143,8 @@ func (h *Handler) dispatch(ctx context.Context, method string, params json.RawMe
 			SessionID string `json:"session_id"`
 			Message   string `json:"message"`
 		}
-		if err := decodeParams(params, &in); err != nil || strings.TrimSpace(in.SessionID) == "" || strings.TrimSpace(in.Message) == "" {
+		if err := decodeParams(params, &in); err != nil ||
+			strings.TrimSpace(in.SessionID) == "" || strings.TrimSpace(in.Message) == "" {
 			return nil, invalidParams("session_id and message are required")
 		}
 		parsed, err := uuid.Parse(in.SessionID)

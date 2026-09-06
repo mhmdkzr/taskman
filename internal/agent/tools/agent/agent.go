@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/zendev-sh/goai"
+
 	"github.com/mhmdkzr/loop/internal/agent/sessions"
 	"github.com/mhmdkzr/loop/internal/agent/tools"
 	"github.com/mhmdkzr/loop/internal/app/config"
 	"github.com/mhmdkzr/loop/internal/store"
-	"github.com/zendev-sh/goai"
 )
 
 // deps bundles what execute needs to dispatch a named agent as a new,

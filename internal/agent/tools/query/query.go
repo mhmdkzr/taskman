@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -37,7 +38,11 @@ func execute(ctx context.Context, st *store.Store, in Input) (Output, error) {
 	if err != nil {
 		return Output{}, fmt.Errorf("query: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			slog.Error("close query rows", "error", closeErr)
+		}
+	}()
 	out, err := formatRows(rows, cellLen)
 	if err != nil {
 		return Output{}, fmt.Errorf("query: %w", err)
@@ -46,60 +51,9 @@ func execute(ctx context.Context, st *store.Store, in Input) (Output, error) {
 }
 
 func checkReadOnlyQuery(q string) error {
-	isSpace := func(b byte) bool {
-		switch b {
-		case ' ', '\t', '\r', '\n', '\v', '\f':
-			return true
-		}
-		return false
-	}
-	isIdent := func(b byte) bool {
-		return b == '_' || b == '$' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b >= '0' && b <= '9'
-	}
-	skipLine := func(i int) int {
-		for i < len(q) && q[i] != '\n' {
-			i++
-		}
-		return i
-	}
-	skipBlock := func(i int) int {
-		for i+1 < len(q) && !(q[i] == '*' && q[i+1] == '/') {
-			i++
-		}
-		return i + 2
-	}
-	skipString := func(i int) int {
-		quote := q[i]
-		for i = i + 1; i < len(q); i++ {
-			if q[i] == quote {
-				if i+1 < len(q) && q[i+1] == quote {
-					i++
-					continue
-				}
-				return i + 1
-			}
-		}
-		return i
-	}
-	skipWS := func(i int) int {
-		for i < len(q) {
-			switch {
-			case isSpace(q[i]):
-				i++
-			case q[i] == '-' && i+1 < len(q) && q[i+1] == '-':
-				i = skipLine(i + 2)
-			case q[i] == '/' && i+1 < len(q) && q[i+1] == '*':
-				i = skipBlock(i + 2)
-			default:
-				return i
-			}
-		}
-		return i
-	}
-
-	i := skipWS(0)
+	i := skipWhitespace(q, 0)
 	start := i
-	for i < len(q) && isIdent(q[i]) {
+	for i < len(q) && queryIdent(q[i]) {
 		i++
 	}
 	if i == start {
@@ -112,14 +66,14 @@ func checkReadOnlyQuery(q string) error {
 	}
 
 	for i < len(q) {
-		if i = skipWS(i); i >= len(q) {
+		if i = skipWhitespace(q, i); i >= len(q) {
 			break
 		}
 		switch q[i] {
 		case '\'', '"', '`':
-			i = skipString(i)
+			i = skipQueryString(q, i)
 		case ';':
-			if j := skipWS(i + 1); j < len(q) {
+			if j := skipWhitespace(q, i+1); j < len(q) {
 				return fmt.Errorf("query: multiple statements are not allowed")
 			}
 			return nil
@@ -128,6 +82,62 @@ func checkReadOnlyQuery(q string) error {
 		}
 	}
 	return nil
+}
+
+func querySpace(b byte) bool {
+	switch b {
+	case ' ', '\t', '\r', '\n', '\v', '\f':
+		return true
+	}
+	return false
+}
+
+func queryIdent(b byte) bool {
+	return b == '_' || b == '$' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b >= '0' && b <= '9'
+}
+
+func skipWhitespace(q string, i int) int {
+	for i < len(q) {
+		switch {
+		case querySpace(q[i]):
+			i++
+		case q[i] == '-' && i+1 < len(q) && q[i+1] == '-':
+			i = skipLineComment(q, i+2)
+		case q[i] == '/' && i+1 < len(q) && q[i+1] == '*':
+			i = skipBlockComment(q, i+2)
+		default:
+			return i
+		}
+	}
+	return i
+}
+
+func skipLineComment(q string, i int) int {
+	for i < len(q) && q[i] != '\n' {
+		i++
+	}
+	return i
+}
+
+func skipBlockComment(q string, i int) int {
+	for i+1 < len(q) && (q[i] != '*' || q[i+1] != '/') {
+		i++
+	}
+	return i + 2
+}
+
+func skipQueryString(q string, i int) int {
+	quote := q[i]
+	for i++; i < len(q); i++ {
+		if q[i] == quote {
+			if i+1 < len(q) && q[i+1] == quote {
+				i++
+				continue
+			}
+			return i + 1
+		}
+	}
+	return i
 }
 
 func formatRows(rows *sql.Rows, cellLen int) (string, error) {
@@ -220,7 +230,7 @@ func renderCell(value any) string {
 	case []byte:
 		return string(value)
 	case time.Time:
-		return value.Format("2006-01-02 15:04:05")
+		return value.Format(time.DateTime)
 	default:
 		return fmt.Sprint(value)
 	}

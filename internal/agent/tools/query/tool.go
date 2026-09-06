@@ -16,7 +16,7 @@ const (
 )
 
 type Input struct {
-	Query      string `json:"query" jsonschema:"description=Read-only SQL SELECT statement to run against the agent's database."`
+	Query      string `json:"query"                  jsonschema:"description=Read-only SQL SELECT statement."`
 	MaxCellLen *int   `json:"max_cell_len,omitempty" jsonschema:"description=Maximum characters rendered per cell (default 200, max 10000)."`
 }
 

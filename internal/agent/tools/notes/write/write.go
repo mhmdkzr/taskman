@@ -35,7 +35,9 @@ func execute(ctx context.Context, d tools.Deps, in Input) (Output, error) {
 		}
 	}()
 	var sessionExists int
-	if err := tx.QueryRowContext(ctx, `SELECT 1 FROM agent_sessions WHERE session_id = ? AND deleted_at IS NULL`, d.SessionID.String()).Scan(&sessionExists); errors.Is(err, sql.ErrNoRows) {
+	if err := tx.QueryRowContext(ctx,
+		`SELECT 1 FROM agent_sessions WHERE session_id = ? AND deleted_at IS NULL`, d.SessionID.String(),
+	).Scan(&sessionExists); errors.Is(err, sql.ErrNoRows) {
 		return Output{}, errors.New("notes_write: session not found")
 	} else if err != nil {
 		return Output{}, fmt.Errorf("notes_write: check session: %w", err)
@@ -53,13 +55,17 @@ func execute(ctx context.Context, d tools.Deps, in Input) (Output, error) {
 		return Output{}, fmt.Errorf("notes_write: save note: %w", err)
 	}
 
-	if _, err := tx.ExecContext(ctx, `DELETE FROM notes_links WHERE note_a = ? OR note_b = ?`, savedID, savedID); err != nil {
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM notes_links WHERE note_a = ? OR note_b = ?`, savedID, savedID,
+	); err != nil {
 		return Output{}, fmt.Errorf("notes_write: clear links: %w", err)
 	}
 	for _, requested := range in.Links {
 		linkName := strings.TrimSpace(requested.Name)
 		var otherID string
-		if err := tx.QueryRowContext(ctx, `SELECT id FROM notes WHERE name = ?`, linkName).Scan(&otherID); errors.Is(err, sql.ErrNoRows) {
+		if err := tx.QueryRowContext(ctx,
+			`SELECT id FROM notes WHERE name = ?`, linkName,
+		).Scan(&otherID); errors.Is(err, sql.ErrNoRows) {
 			return Output{}, fmt.Errorf("notes_write: linked note %q not found", linkName)
 		} else if err != nil {
 			return Output{}, fmt.Errorf("notes_write: find linked note %q: %w", linkName, err)
@@ -81,7 +87,10 @@ func execute(ctx context.Context, d tools.Deps, in Input) (Output, error) {
 
 	links := make([]Link, len(in.Links))
 	for i, requested := range in.Links {
-		links[i] = Link{Name: strings.TrimSpace(requested.Name), Relationship: strings.TrimSpace(requested.Relationship)}
+		links[i] = Link{
+			Name:         strings.TrimSpace(requested.Name),
+			Relationship: strings.TrimSpace(requested.Relationship),
+		}
 	}
 	return Output{ID: savedID, Name: name, Body: body, Links: links}, nil
 }

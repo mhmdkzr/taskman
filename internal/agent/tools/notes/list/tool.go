@@ -3,12 +3,16 @@ package list
 import (
 	"context"
 	"fmt"
-	"github.com/mhmdkzr/loop/internal/agent/tools"
+
 	"github.com/zendev-sh/goai"
+
+	"github.com/mhmdkzr/loop/internal/agent/tools"
 )
 
-const Name = "notes_list"
-const Description = "List persistent notes for the current session, newest first."
+const (
+	Name        = "notes_list"
+	Description = "List persistent notes for the current session, newest first."
+)
 
 type Input struct {
 	Limit *int `json:"limit,omitempty" jsonschema:"description=Maximum notes to return (default 20, max 100)."`
@@ -25,8 +29,11 @@ type Output struct {
 }
 
 func Tool(d tools.Deps) goai.Tool {
-	return tools.Tool(Name, Description, func(ctx context.Context, in Input) (Output, error) { return execute(ctx, d, in) })
+	return tools.Tool(Name, Description, func(ctx context.Context, in Input) (Output, error) {
+		return execute(ctx, d, in)
+	})
 }
+
 func (in Input) Validate() error {
 	if in.Limit != nil && (*in.Limit < 1 || *in.Limit > 100) {
 		return fmt.Errorf("limit must be between 1 and 100")

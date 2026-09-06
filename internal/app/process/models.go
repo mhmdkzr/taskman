@@ -12,8 +12,7 @@ import (
 	"github.com/mhmdkzr/loop/pkg/logger"
 )
 
-// Models runs the model catalog command. Exactly one of Refresh or List must
-// be true. Refresh synchronizes the catalog; List writes the stored catalog.
+// ModelsOptions configures the model catalog command.
 type ModelsOptions struct {
 	Refresh        bool
 	List           bool
@@ -26,6 +25,8 @@ type ModelsOptions struct {
 	JSON           bool
 }
 
+// Models runs the model catalog command. Exactly one of Refresh or List must
+// be true. Refresh synchronizes the catalog; List writes the stored catalog.
 func Models(ctx context.Context, options ModelsOptions) error {
 	if options.Refresh == options.List {
 		return fmt.Errorf("exactly one of refresh or list must be selected")
@@ -59,7 +60,7 @@ func Models(ctx context.Context, options ModelsOptions) error {
 		cfg.Database.Path = options.DBPathOverride
 	}
 
-	db, err := store.Open(cfg.Database.Path)
+	db, err := store.Open(ctx, cfg.Database.Path)
 	if err != nil {
 		return fmt.Errorf("open db: %w", err)
 	}
@@ -77,10 +78,14 @@ func Models(ctx context.Context, options ModelsOptions) error {
 		}
 	}
 	if options.Refresh {
-		if err := models.Refresh(ctx, db, cfg.Provider); err != nil {
-			return err
-		}
-		return nil
+		return wrapModelCommandError("refresh models", models.Refresh(ctx, db, cfg.Provider))
 	}
-	return models.List(ctx, db, options.Output, options.JSON)
+	return wrapModelCommandError("list models", models.List(ctx, db, options.Output, options.JSON))
+}
+
+func wrapModelCommandError(operation string, err error) error {
+	if err != nil {
+		return fmt.Errorf("%s: %w", operation, err)
+	}
+	return nil
 }

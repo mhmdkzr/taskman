@@ -1,3 +1,4 @@
+// Package todo provides the agent todo-list tool.
 package todo
 
 import (
@@ -21,7 +22,7 @@ type Input struct {
 }
 
 type Output struct {
-	Todos []sessions.Todo `json:"todos"`
+	Todos []sessions.Todo `json:"todos" jsonschema:"description=The complete current todo list. Use an empty list when no work remains."`
 }
 
 func Tool(d tools.Deps) goai.Tool {
@@ -35,7 +36,7 @@ func Tool(d tools.Deps) goai.Tool {
 		if err := sessions.ReplaceTodos(ctx, d.Store, d.SessionID, in.Todos); err != nil {
 			return Output{}, fmt.Errorf("todo: %w", err)
 		}
-		return Output{Todos: in.Todos}, nil
+		return Output(in), nil
 	})
 }
 

@@ -82,28 +82,6 @@ func (cfg *Config) LoadFrom(envFile string) error {
 	return cfg.load(envFile)
 }
 
-func (cfg *Config) load(envFile string) error {
-	if strings.ToLower(os.Getenv("SKIP_ENV_AUTO_LOAD")) != "true" {
-		var err error
-		if envFile == "" {
-			err = godotenv.Load()
-		} else {
-			err = godotenv.Load(envFile)
-		}
-		if err != nil {
-			slog.Error("error loading .env file", "error", err.Error())
-		}
-	}
-
-	opts := env.Options{RequiredIfNoDef: true}
-	if err := env.ParseWithOptions(cfg, opts); err != nil {
-		return fmt.Errorf("parse environment config: %w", err)
-	}
-
-	slog.Info("config loaded from environment variables")
-	return nil
-}
-
 // Validate returns an error if any configuration section is invalid.
 func (cfg *Config) Validate() error {
 	if err := cfg.Server.validate(); err != nil {
@@ -127,6 +105,28 @@ func (cfg *Config) Validate() error {
 	if err := cfg.Browser.validate(); err != nil {
 		return fmt.Errorf("browser: %w", err)
 	}
+	return nil
+}
+
+func (cfg *Config) load(envFile string) error {
+	if strings.ToLower(os.Getenv("SKIP_ENV_AUTO_LOAD")) != "true" {
+		var err error
+		if envFile == "" {
+			err = godotenv.Load()
+		} else {
+			err = godotenv.Load(envFile)
+		}
+		if err != nil {
+			slog.Error("error loading .env file", "error", err.Error())
+		}
+	}
+
+	opts := env.Options{RequiredIfNoDef: true}
+	if err := env.ParseWithOptions(cfg, opts); err != nil {
+		return fmt.Errorf("parse environment config: %w", err)
+	}
+
+	slog.Info("config loaded from environment variables")
 	return nil
 }
 

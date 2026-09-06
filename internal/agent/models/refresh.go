@@ -38,7 +38,7 @@ type ListedModel struct {
 // with its provider options. OpenCode's models endpoint does not publish
 // thinking capabilities, so generic models receive the standard three levels
 // and known OpenCode exceptions receive their provider-specific options.
-func Refresh(ctx context.Context, st *store.Store, cfg config.ProviderConfig) error {
+func Refresh(ctx context.Context, st *store.Store, cfg config.ProviderConfig) (err error) {
 	if strings.TrimSpace(cfg.BaseURL) == "" {
 		return fmt.Errorf("refresh models: base URL is required")
 	}
@@ -57,7 +57,11 @@ func Refresh(ctx context.Context, st *store.Store, cfg config.ProviderConfig) er
 	if err != nil {
 		return fmt.Errorf("refresh models: request catalog: %w", err)
 	}
-	defer response.Body.Close()
+	defer func() {
+		if closeErr := response.Body.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("refresh models: close catalog response: %w", closeErr)
+		}
+	}()
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		return fmt.Errorf("refresh models: catalog returned HTTP %d", response.StatusCode)
 	}
@@ -128,7 +132,9 @@ func List(ctx context.Context, st *store.Store, output io.Writer, jsonOutput boo
 		return fmt.Errorf("list models: write header: %w", err)
 	}
 	for _, model := range models {
-		if _, err := fmt.Fprintf(writer, "%s\t%s\t%d\n", model.Provider, model.Name, len(model.ThinkingOptions)); err != nil {
+		if _, err := fmt.Fprintf(
+			writer, "%s\t%s\t%d\n", model.Provider, model.Name, len(model.ThinkingOptions),
+		); err != nil {
 			return fmt.Errorf("list models: write row: %w", err)
 		}
 	}
@@ -158,7 +164,12 @@ func providerID(ctx context.Context, db *sql.DB, baseURL string) (string, error)
 	return id, nil
 }
 
-func upsertModel(ctx context.Context, db *sql.DB, providerID, modelID string, options map[string]json.RawMessage) error {
+func upsertModel(
+	ctx context.Context,
+	db *sql.DB,
+	providerID, modelID string,
+	options map[string]json.RawMessage,
+) error {
 	if strings.TrimSpace(modelID) == "" {
 		return fmt.Errorf("model id is empty")
 	}
@@ -173,7 +184,10 @@ func upsertModel(ctx context.Context, db *sql.DB, providerID, modelID string, op
 		ON CONFLICT (provider_id, model_name) DO UPDATE SET
 			thinking_options = EXCLUDED.thinking_options`,
 		uuid.NewV7().String(), providerID, modelID, string(optionsJSON))
-	return err
+	if err != nil {
+		return fmt.Errorf("upsert model: %w", err)
+	}
+	return nil
 }
 
 func thinkingOptions(modelID string) map[string]json.RawMessage {
