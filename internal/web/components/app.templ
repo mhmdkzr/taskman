@@ -85,10 +85,10 @@ templ App(view AppView) {
 		<div
 			class="main"
 			id="main-pane"
-			if view.Mode == "sessions" && view.Active != nil && view.Active.ParentSessionID == nil {
-				data-signals:turn_running={ jsBool(latestStatus(view.Active.SessionDetail) == "running") }
-				data-on-interval__duration.2s={ pollAction(view.Active.SessionID.String()) }
+			if view.Mode == "sessions" {
+				data-signals:turn_running={ jsBool(view.Active != nil && latestStatus(view.Active.SessionDetail) == "running") }
 			}
+			data-on-interval__duration.3s={ refreshAction(view) }
 		>
 			if view.Mode == "tasks" {
 				if view.ActiveTask != nil {

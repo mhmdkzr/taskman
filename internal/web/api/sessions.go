@@ -187,11 +187,11 @@ func answerAskHandler(a app.App) http.HandlerFunc {
 
 // refreshSessionHandler patches sessionID's session view without disturbing
 // anything else the page has going on. It's what the page's interval poll
-// hits (see components.pollAction) while a turn is running, so a pending ask
-// - or the turn simply finishing - shows up without the user refreshing. It
-// deliberately does not touch the composer's "prompt" signal, unlike
-// patchPage: a passive background refresh must not blow away a message the
-// user is mid-typing.
+// hits (see components.refreshAction), so a pending ask, a new session
+// appearing in the rail (most notably one created over MCP), or the turn
+// simply finishing all show up without the user refreshing. It deliberately
+// does not touch the composer's "prompt" signal, unlike patchPage: a passive
+// background refresh must not blow away a message the user is mid-typing.
 func refreshSessionHandler(a app.App) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id, err := parseSessionID(r.PathValue("id"))
@@ -214,6 +214,23 @@ func refreshSessionHandler(a app.App) http.HandlerFunc {
 		}
 		if err := sse.MarshalAndPatchSignals(map[string]any{"turn_running": running}); err != nil {
 			slog.Error("update turn_running signal", "error", err)
+		}
+	}
+}
+
+// refreshIndexHandler patches the rail with the current session list while
+// no session is active (the new-session composer, or an empty index) - the
+// no-id counterpart to refreshSessionHandler, for the same ambient poll.
+func refreshIndexHandler(a app.App) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		view, err := buildAppView(r.Context(), a, nil)
+		if err != nil {
+			jsonresp.WriteHTTPError(w, httpStatusForError(err), err)
+			return
+		}
+		sse := datastar.NewSSE(w, r)
+		if err := sse.PatchElementTempl(components.App(view)); err != nil {
+			slog.Error("patch app view", "error", err)
 		}
 	}
 }

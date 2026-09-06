@@ -158,14 +158,25 @@ const createAction = "@post('/sessions')"
 // createKeydownAction submits on Enter (without Shift).
 const createKeydownAction = "evt.key === 'Enter' && !evt.shiftKey && (evt.preventDefault(), " + createAction + ")"
 
-// pollAction patches sessionID's session view on an interval, gated by
-// $turn_running (see the data-on-interval on #main-pane in App), so a turn
-// left running - most notably one blocked on a pending ask - updates without
-// the user refreshing. It hits a dedicated refresh endpoint rather than the
-// page route itself so the response is an SSE patch like every other action,
-// not a full HTML document.
-func pollAction(sessionID string) string {
-	return fmt.Sprintf("$turn_running && @get('/sessions/%s/refresh')", sessionID)
+// refreshAction is the Datastar action for the page's ambient background
+// poll (see the data-on-interval on #main-pane in App): it keeps the rail and
+// the active item in sync with changes made elsewhere - most importantly an
+// MCP client creating or driving a session while this page is open - without
+// the user refreshing. It always fires, not just while a turn is running,
+// since a new session or task can appear at any time. Each branch hits a
+// dedicated refresh endpoint rather than the page route itself, so the
+// response is an SSE patch like every other action, not a full HTML document.
+func refreshAction(view AppView) string {
+	switch {
+	case view.Mode == "tasks" && view.ActiveTask != nil:
+		return fmt.Sprintf("@get('/tasks/%s/refresh')", view.ActiveTask.Task.ID.String())
+	case view.Mode == "tasks":
+		return "@get('/tasks/refresh')"
+	case view.Active != nil:
+		return fmt.Sprintf("@get('/sessions/%s/refresh')", view.Active.SessionID.String())
+	default:
+		return "@get('/sessions/refresh')"
+	}
 }
 
 // askOptionSelectedExpr reads whether option id is currently selected.

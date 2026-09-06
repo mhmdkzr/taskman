@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"uuid"
 
+	"github.com/starfederation/datastar-go/datastar"
+
 	"github.com/mhmdkzr/loop/internal/agent/sessions"
 	"github.com/mhmdkzr/loop/internal/agent/tools/task"
 	"github.com/mhmdkzr/loop/internal/app"
@@ -54,6 +56,43 @@ func taskPageHandler(a app.App) http.HandlerFunc {
 		}
 		if err := components.App(view).Render(r.Context(), w); err != nil {
 			slog.Error("render task page", "error", err)
+		}
+	}
+}
+
+// refreshTasksHandler patches the rail with the current task list while no
+// task is active. Part of the same ambient poll as refreshIndexHandler and
+// refreshTaskHandler (see components.refreshAction) - it's what picks up a
+// task created elsewhere, most notably by a loop agent driven over MCP.
+func refreshTasksHandler(a app.App) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		view, err := buildTasksView(r.Context(), a, nil)
+		if err != nil {
+			jsonresp.WriteHTTPError(w, httpStatusForError(err), err)
+			return
+		}
+		if err := datastar.NewSSE(w, r).PatchElementTempl(components.App(view)); err != nil {
+			slog.Error("patch app view", "error", err)
+		}
+	}
+}
+
+// refreshTaskHandler patches the rail and one active task's detail. The
+// active-task counterpart to refreshTasksHandler.
+func refreshTaskHandler(a app.App) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := parseTaskID(r.PathValue("id"))
+		if err != nil {
+			jsonresp.WriteHTTPError(w, http.StatusBadRequest, err)
+			return
+		}
+		view, err := buildTasksView(r.Context(), a, &id)
+		if err != nil {
+			jsonresp.WriteHTTPError(w, httpStatusForError(err), err)
+			return
+		}
+		if err := datastar.NewSSE(w, r).PatchElementTempl(components.App(view)); err != nil {
+			slog.Error("patch app view", "error", err)
 		}
 	}
 }

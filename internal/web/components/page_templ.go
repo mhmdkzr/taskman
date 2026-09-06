@@ -7,8 +7,10 @@ package components
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 
-import "github.com/a-h/templ"
-import templruntime "github.com/a-h/templ/runtime"
+import (
+	"github.com/a-h/templ"
+	templruntime "github.com/a-h/templ/runtime"
+)
 
 // page is the shared HTML document shell: fonts, styling, and the Datastar
 // bundle. Every route renders this around its content so a direct page load
