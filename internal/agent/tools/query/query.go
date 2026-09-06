@@ -19,7 +19,10 @@ const (
 	maxCellLen     = 10000
 )
 
-func execute(ctx context.Context, st *store.Store, in Input) (Output, error) {
+// Execute runs in's read-only query and renders the result as a table.
+// Exported so both the agent tool (see Tool) and the read-only MCP surface
+// (internal/mcp) can call it directly.
+func Execute(ctx context.Context, st *store.Store, in Input) (Output, error) {
 	if st == nil {
 		return Output{}, fmt.Errorf("database is required")
 	}

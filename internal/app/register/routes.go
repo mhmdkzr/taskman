@@ -3,6 +3,7 @@ package register
 import (
 	"github.com/mhmdkzr/loop/internal/app"
 	"github.com/mhmdkzr/loop/internal/app/routes"
+	"github.com/mhmdkzr/loop/internal/mcp"
 	"github.com/mhmdkzr/loop/internal/web"
 )
 
@@ -10,4 +11,5 @@ import (
 func RegisterRoutes(a app.App) {
 	routes.RegisterRoutes(a)
 	web.RegisterRoutes(a)
+	mcp.RegisterRoutes(a)
 }

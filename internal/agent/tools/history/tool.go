@@ -32,7 +32,7 @@ type Output struct {
 // handle. A nil store leaves the tool unconfigured and it fails on use.
 func Tool(d tools.Deps) goai.Tool {
 	return tools.Tool(Name, Description, func(ctx context.Context, in Input) (Output, error) {
-		return execute(ctx, d.Store, in)
+		return Execute(ctx, d.Store, in)
 	})
 }
 

@@ -92,7 +92,7 @@ func TestDBExecuteReturnsRecentTurns(t *testing.T) {
 	st := openTestStore(t)
 	id := seedTurn(t, st.RW(), "where did we leave off?", "we were fixing the reporting bug")
 
-	out, err := execute(t.Context(), st, Input{})
+	out, err := Execute(t.Context(), st, Input{})
 	if err != nil {
 		t.Fatalf("execute: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestDBExecuteFiltersByQuery(t *testing.T) {
 	seedTurn(t, st.RW(), "where did we leave off?", "we were fixing the reporting bug")
 	seedTurn(t, st.RW(), "summarize the deploy", "deploy is on hold until tests pass")
 
-	out, err := execute(t.Context(), st, Input{Query: "reporting"})
+	out, err := Execute(t.Context(), st, Input{Query: "reporting"})
 	if err != nil {
 		t.Fatalf("execute: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestDBExecuteFiltersBySession(t *testing.T) {
 	seedTurn(t, st.RW(), "prompt one", "reply one")
 	id2 := seedTurn(t, st.RW(), "prompt two", "reply two")
 
-	out, err := execute(t.Context(), st, Input{SessionID: id2.String()})
+	out, err := Execute(t.Context(), st, Input{SessionID: id2.String()})
 	if err != nil {
 		t.Fatalf("execute: %v", err)
 	}
@@ -149,7 +149,7 @@ func TestDBExecuteTruncatesLongMessages(t *testing.T) {
 	long := strings.Repeat("x", 500)
 	seedTurn(t, st.RW(), "long message", long)
 
-	out, err := execute(t.Context(), st, Input{})
+	out, err := Execute(t.Context(), st, Input{})
 	if err != nil {
 		t.Fatalf("execute: %v", err)
 	}
@@ -162,14 +162,14 @@ func TestDBExecuteTruncatesLongMessages(t *testing.T) {
 }
 
 func TestExecuteNilStore(t *testing.T) {
-	if _, err := execute(t.Context(), nil, Input{}); err == nil {
+	if _, err := Execute(t.Context(), nil, Input{}); err == nil {
 		t.Error("expected nil-store error")
 	}
 }
 
 func TestExecuteInvalidSessionID(t *testing.T) {
 	st := openTestStore(t)
-	if _, err := execute(t.Context(), st, Input{SessionID: "not-a-uuid"}); err == nil {
+	if _, err := Execute(t.Context(), st, Input{SessionID: "not-a-uuid"}); err == nil {
 		t.Error("expected invalid session_id error")
 	}
 }

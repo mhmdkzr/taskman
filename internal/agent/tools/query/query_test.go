@@ -22,14 +22,14 @@ func TestToolQueriesReadOnlyStore(t *testing.T) {
 		t.Fatalf("insert: %v", err)
 	}
 
-	out, err := execute(context.Background(), st, Input{Query: "SELECT value FROM values_table"})
+	out, err := Execute(context.Background(), st, Input{Query: "SELECT value FROM values_table"})
 	if err != nil {
 		t.Fatalf("execute query: %v", err)
 	}
 	if !strings.Contains(out.Table, "safe") {
 		t.Fatalf("output = %q, want safe value", out.Table)
 	}
-	if _, err := execute(context.Background(), st, Input{Query: "DELETE FROM values_table"}); err == nil {
+	if _, err := Execute(context.Background(), st, Input{Query: "DELETE FROM values_table"}); err == nil {
 		t.Fatal("write query succeeded")
 	}
 }
