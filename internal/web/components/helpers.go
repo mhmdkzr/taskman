@@ -145,18 +145,6 @@ func modelProvider(model string) string {
 	}
 }
 
-// taskRootReasoningEffort reads the reasoning effort configured on a task's
-// root session (the one a human would talk to, as opposed to one it
-// dispatches) - "" if there is no root session yet, or it didn't set one.
-func taskRootReasoningEffort(t TaskDetailView) string {
-	for _, row := range t.Sessions {
-		if row.Session.ParentSessionID == nil {
-			return row.Detail.ReasoningEffort
-		}
-	}
-	return ""
-}
-
 // taskSection is one labeled group of tasks sharing the same urgency bucket
 // (see groupTasksByState), in the order the task list renders them.
 type taskSection struct {

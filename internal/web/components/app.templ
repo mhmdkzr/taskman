@@ -28,28 +28,13 @@ type AppView struct {
 	Tasks []TaskDetailView
 }
 
-// App renders the full shell - the task list, always. There is no other
-// page and no navigation chrome beyond the topbar: every route (page loads
-// and Datastar patches alike) renders this one component so they never
-// drift apart.
+// App renders the full shell - the task list, always. There is no chrome
+// above it: every route (page loads and Datastar patches alike) renders
+// this one component so they never drift apart.
 templ App(view AppView) {
 	@page("Loop") {
 		<div class="tasks-app" id="main-pane" data-on-interval__duration.3s="@get('/')">
 			@taskListPage(view.Tasks)
 		</div>
 	}
-}
-
-// topbar is the chrome shared by every page: just the brand, which doubles
-// as the way back to the task list - there's no back button anywhere else,
-// and no page title lives here either. A task's title reads like a
-// document's, in the body content it belongs to, not in the chrome above
-// it. children, when given, renders on the bar's right side.
-templ topbar() {
-	<div class="topbar">
-		<div class="col topbar-inner">
-			<a class="brand" href="/"><span class="brand-mark"></span>loop</a>
-			{ children... }
-		</div>
-	</div>
 }

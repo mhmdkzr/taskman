@@ -6,7 +6,6 @@ import "github.com/mhmdkzr/loop/internal/agent/sessions"
 // by state - tasks needing attention float to the top - each rendered as a
 // card that expands in place to its full detail when clicked.
 templ taskListPage(tasks []TaskDetailView) {
-	@topbar()
 	<div class="task-list-view" id="task-list">
 		if len(tasks) == 0 {
 			<div class="empty-state">No tasks yet.</div>
@@ -79,10 +78,10 @@ templ taskCard(t TaskDetailView) {
 							<span class="name">Model</span>
 							<span class="val">{ t.Task.Model }</span>
 						</div>
-						if effort := taskRootReasoningEffort(t); effort != "" {
+						if t.Task.ReasoningEffort != "" {
 							<div class="detail-cell">
 								<span class="name">Thinking</span>
-								<span class="val">{ effort }</span>
+								<span class="val">{ t.Task.ReasoningEffort }</span>
 							</div>
 						}
 					</div>

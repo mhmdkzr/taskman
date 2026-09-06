@@ -77,42 +77,22 @@ templ page(title string) {
 
 				.tabular { font-variant-numeric: tabular-nums; }
 
-				.brand {
-					font-family: "JetBrains Mono", ui-monospace, monospace;
-					font-weight: 600;
-					font-size: 14px;
-					letter-spacing: 0.02em;
-					display: flex;
-					align-items: center;
-					gap: 8px;
-				}
-
-				.brand-mark {
-					width: 14px;
-					height: 14px;
-					border: 1.5px solid var(--accent);
-					border-radius: 50%;
-					border-top-color: transparent;
-					transform: rotate(45deg);
-				}
-
 				.tag { font-size: 9.5px; color: var(--text-dim); background: var(--surface-2); border-radius: 3px; padding: 1px 6px; font-family: "JetBrains Mono", monospace; }
 
 				/* ---------- tasks app ---------- */
 
 				.tasks-app { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
 
-				/* .col centers one reading column at a consistent width across
-				   the topbar and the scrollable content below it, so the two
-				   stay aligned with each other instead of one being capped and
-				   the other spanning the full viewport - the mismatch that made
-				   wide windows look disjointed. */
+				/* .col centers one reading column at a consistent width, so
+				   wide windows don't stretch content into unreadably long
+				   lines. */
 				.col { max-width: 900px; margin: 0 auto; box-sizing: border-box; }
 
-				.topbar { border-bottom: 1px solid var(--border); flex: none; }
-				.topbar-inner { display: flex; align-items: center; gap: 14px; padding: 16px 28px; }
-
-				.task-list-view { flex: 1; overflow-y: auto; }
+				/* padding-top replaces the space the topbar used to occupy
+				   (~55px, measured) now that there's no bar there - the page's
+				   content starts at the same distance from the viewport top
+				   as before, just without a rendered chrome element. */
+				.task-list-view { flex: 1; overflow-y: auto; padding-top: 40px; }
 				.task-sections { padding: 22px 28px; display: flex; flex-direction: column; gap: 26px; }
 				.task-section-label { font-family: "JetBrains Mono", monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); margin-bottom: 10px; }
 				.task-grid { display: flex; flex-direction: column; gap: 8px; }
