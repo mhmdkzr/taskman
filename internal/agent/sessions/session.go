@@ -23,9 +23,27 @@ import (
 // unbounded.
 const maxAutoSteps = 50
 
+// Overrides lets a caller override what an agent's own configuration would
+// otherwise fully determine when creating a session: which model it runs on,
+// and how hard it reasons. Both are optional - the zero value falls back to
+// the agent's configured model and cfg.ReasoningEffort respectively - so a
+// session's model and reasoning effort are parameters per call (settable per
+// task, per dispatch, whatever the caller has in scope), not fixed for every
+// session a given agent ever runs.
+type Overrides struct {
+	// Model is a model name (models.model_name, e.g. "claude-sonnet-5"); ""
+	// uses the agent's own configured model.
+	Model string
+	// ReasoningEffort is a raw provider-specific value (e.g. "low", "medium",
+	// "high"); "" uses cfg.ReasoningEffort.
+	ReasoningEffort string
+}
+
 // Create resolves agentName to its model and prompt template, renders the
 // system prompt with params, and persists a new session with an empty turn
 // history. parentSessionID is nil for a top-level, user-initiated session.
+// overrides substitutes the agent's own model and/or the configured
+// reasoning effort for this one session, when set.
 func Create(
 	ctx context.Context,
 	st *store.Store,
@@ -33,10 +51,19 @@ func Create(
 	agentName string,
 	params map[string]any,
 	parentSessionID *SessionID,
+	overrides Overrides,
 ) (SessionID, error) {
 	agent, err := AgentByName(ctx, st, agentName)
 	if err != nil {
 		return SessionID{}, fmt.Errorf("create session: resolve agent: %w", err)
+	}
+
+	modelID := agent.ModelID
+	if overrides.Model != "" {
+		modelID, err = ModelIDByName(ctx, st.RO(), overrides.Model)
+		if err != nil {
+			return SessionID{}, fmt.Errorf("create session: resolve model override: %w", err)
+		}
 	}
 
 	sysPrompt, err := renderPrompt(agent.TemplateBody, params)
@@ -44,8 +71,12 @@ func Create(
 		return SessionID{}, fmt.Errorf("create session: render prompt: %w", err)
 	}
 
+	reasoningEffort := cfg.ReasoningEffort
+	if overrides.ReasoningEffort != "" {
+		reasoningEffort = overrides.ReasoningEffort
+	}
 	providerOpts := map[string]any{
-		"reasoning_effort": cfg.ReasoningEffort,
+		"reasoning_effort": reasoningEffort,
 		"useResponsesAPI":  !strings.Contains(strings.TrimRight(cfg.BaseURL, "/"), "/go/v1"),
 		"store":            false,
 	}
@@ -54,7 +85,7 @@ func Create(
 		ctx,
 		st.RW(),
 		agent.AgentID,
-		agent.ModelID,
+		modelID,
 		sysPrompt,
 		providerOpts,
 		parentSessionID,
@@ -163,7 +194,7 @@ func Run(
 		goai.WithTools(tools...),
 		goai.WithProviderOptions(providerOptions),
 		goai.WithMessages(msgs...),
-		goai.WithHeaders(map[string]string{"x-opencode-session": id.String()}), // TODO: make it conditional, only set when provider is opencode
+		goai.WithHeaders(map[string]string{"X-Opencode-Session": id.String()}), // TODO: make it conditional, only set when provider is opencode
 		goai.WithPromptCaching(true),
 		goai.WithMaxRetries(10),
 		// goai's own default (1) runs at most one round of tool calls per

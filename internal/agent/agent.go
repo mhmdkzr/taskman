@@ -17,14 +17,17 @@ import (
 // StartSession creates a new, top-level session for the named agent — no
 // parent session, unlike a dispatched subagent. params renders the agent's
 // prompt template into its system prompt, same as any other agent.
+// overrides substitutes the agent's own model and/or reasoning effort for
+// this one session, when set (see sessions.Overrides).
 func StartSession(
 	ctx context.Context,
 	st *store.Store,
 	cfg config.ProviderConfig,
 	agentName string,
 	params map[string]any,
+	overrides sessions.Overrides,
 ) (sessions.SessionID, error) {
-	id, err := sessions.Create(ctx, st, cfg, agentName, params, nil)
+	id, err := sessions.Create(ctx, st, cfg, agentName, params, nil, overrides)
 	if err != nil {
 		return sessions.SessionID{}, fmt.Errorf("start session: %w", err)
 	}

@@ -34,7 +34,8 @@ func execute(ctx context.Context, d deps, in Input) (Output, error) {
 	// The child session must exist before its tools are resolved so its ID can
 	// be supplied to tools that need session context.
 	parent := d.ParentSessionID
-	childID, err := sessions.Create(ctx, d.Store, d.Cfg, in.AgentName, in.Params, &parent)
+	overrides := sessions.Overrides{Model: in.Model, ReasoningEffort: in.ReasoningEffort}
+	childID, err := sessions.Create(ctx, d.Store, d.Cfg, in.AgentName, in.Params, &parent, overrides)
 	if err != nil {
 		return Output{}, fmt.Errorf("agent: %w", err)
 	}

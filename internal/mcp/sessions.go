@@ -23,8 +23,9 @@ func addSessionTools(s *gomcp.Server, a app.App) {
 	gomcp.AddTool(s, &gomcp.Tool{
 		Name: "session_create",
 		Description: "Start a new top-level loop agent session and send it its first message. " +
-			"Returns immediately once the turn has started - it does not wait for the agent to " +
-			"finish, since that can take a while and the agent may ask you something first. " +
+			"Uses the agent's own configured model and reasoning effort unless model/reasoning_effort " +
+			"override them. Returns immediately once the turn has started - it does not wait for the " +
+			"agent to finish, since that can take a while and the agent may ask you something first. " +
 			"Poll session_get with the returned session_id to see progress and read the reply.",
 	}, sessionCreateHandler(a))
 
@@ -57,8 +58,10 @@ func addSessionTools(s *gomcp.Server, a app.App) {
 
 // sessionCreateInput is the input for session_create.
 type sessionCreateInput struct {
-	AgentName string `json:"agent_name" jsonschema:"The loop agent to run as (see agent_list)."`
-	Prompt    string `json:"prompt"     jsonschema:"The first message to send it."`
+	AgentName       string `json:"agent_name"                 jsonschema:"The loop agent to run as (see agent_list)."`
+	Prompt          string `json:"prompt"                     jsonschema:"The first message to send it."`
+	Model           string `json:"model,omitempty"            jsonschema:"Model to run this session on, overriding the agent's own configured model."`
+	ReasoningEffort string `json:"reasoning_effort,omitempty" jsonschema:"Reasoning effort for this session (e.g. low, medium, high), overriding the default."`
 }
 
 // sessionStartedOutput is returned by session_create and session_respond:
@@ -77,7 +80,8 @@ func sessionCreateHandler(a app.App) gomcp.ToolHandlerFor[sessionCreateInput, se
 			return nil, sessionStartedOutput{}, fmt.Errorf("prompt is required")
 		}
 
-		id, err := agent.StartSession(ctx, a.Deps.Store, a.Cfg.Provider, in.AgentName, nil)
+		overrides := sessions.Overrides{Model: in.Model, ReasoningEffort: in.ReasoningEffort}
+		id, err := agent.StartSession(ctx, a.Deps.Store, a.Cfg.Provider, in.AgentName, nil, overrides)
 		if err != nil {
 			return nil, sessionStartedOutput{}, fmt.Errorf("start session: %w", err)
 		}
@@ -193,6 +197,7 @@ type sessionDetailOutput struct {
 	SessionID       string         `json:"session_id"`
 	AgentName       string         `json:"agent_name"`
 	ModelName       string         `json:"model_name"`
+	ReasoningEffort string         `json:"reasoning_effort,omitempty"`
 	ParentSessionID string         `json:"parent_session_id,omitempty"`
 	Status          string         `json:"status"`
 	Turns           []mcpTurn      `json:"turns"`
@@ -211,10 +216,11 @@ func sessionGetHandler(a app.App) gomcp.ToolHandlerFor[sessionGetInput, sessionD
 		}
 
 		out := sessionDetailOutput{
-			SessionID: detail.SessionID.String(),
-			AgentName: detail.AgentName,
-			ModelName: detail.ModelName,
-			Status:    "new",
+			SessionID:       detail.SessionID.String(),
+			AgentName:       detail.AgentName,
+			ModelName:       detail.ModelName,
+			ReasoningEffort: detail.ReasoningEffort,
+			Status:          "new",
 		}
 		if detail.ParentSessionID != nil {
 			out.ParentSessionID = detail.ParentSessionID.String()

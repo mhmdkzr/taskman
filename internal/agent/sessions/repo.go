@@ -23,6 +23,9 @@ var (
 
 	// ErrAgentNotFound is returned when no agents row matches the requested name.
 	ErrAgentNotFound = errors.New("agent not found")
+
+	// ErrModelNotFound is returned when no models row matches the requested name.
+	ErrModelNotFound = errors.New("model not found")
 )
 
 // sessionConfig is the immutable configuration of an agent session plus its
@@ -115,6 +118,32 @@ func AgentByName(ctx context.Context, st *store.Store, name string) (AgentConfig
 	cfg.AgentID = AgentID(agentID)
 	cfg.ModelID = ModelID(modelID)
 	return cfg, nil
+}
+
+// ModelIDByName resolves a model's name (models.model_name, e.g.
+// "claude-sonnet-5") to its ID, scoped to the "opencode" provider - every
+// model this app runs sessions on is reached through that one gateway (see
+// the X-Opencode-Session header and BaseURL handling in Run). Lets a caller
+// override a session's model by name (see Overrides) without needing the
+// model's UUID.
+func ModelIDByName(ctx context.Context, db *sql.DB, name string) (ModelID, error) {
+	var modelIDStr string
+	err := db.QueryRowContext(ctx, `
+		SELECT m.model_id
+		FROM models m
+		JOIN model_providers p ON p.provider_id = m.provider_id
+		WHERE p.provider_name = 'opencode' AND m.model_name = ?`, name).Scan(&modelIDStr)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ModelID{}, ErrModelNotFound
+	}
+	if err != nil {
+		return ModelID{}, fmt.Errorf("query model by name: %w", err)
+	}
+	modelID, err := uuid.Parse(modelIDStr)
+	if err != nil {
+		return ModelID{}, fmt.Errorf("parse model id: %w", err)
+	}
+	return ModelID(modelID), nil
 }
 
 // AgentIDFor resolves a live session to the agent it runs as.
@@ -703,13 +732,14 @@ type ToolCallDetail struct {
 	Error  string
 }
 
-// TurnStepDetail is one step of a turn's model/tool-call loop: the text the
-// model produced in that step (if any) followed by the tool calls it made
-// (if any) - the order they actually happened in, so a transcript view can
-// show a tool call under the text that preceded it rather than always after
-// every tool call in the turn.
+// TurnStepDetail is one step of a turn's model/tool-call loop: the thinking
+// (if the model/provider surfaced any) and text it produced in that step
+// followed by the tool calls it made (if any) - the order they actually
+// happened in, so a transcript view can show a tool call under the text that
+// preceded it rather than always after every tool call in the turn.
 type TurnStepDetail struct {
 	Text      string
+	Reasoning string
 	ToolCalls []ToolCallDetail
 }
 
@@ -734,6 +764,7 @@ type SessionDetail struct {
 	ModelName       string
 	ParentSessionID *SessionID
 	CreatedAt       string
+	ReasoningEffort string
 	Turns           []TurnDetail
 }
 
@@ -768,20 +799,22 @@ func GetSessionDetail(ctx context.Context, st *store.Store, id SessionID) (Sessi
 	return detail, nil
 }
 
-// sessionHeader loads a live session's agent name, model name, lineage, and
-// creation time - everything GetSessionDetail needs besides the turn history.
+// sessionHeader loads a live session's agent name, model name, lineage,
+// creation time, and configured reasoning effort - everything
+// GetSessionDetail needs besides the turn history.
 func sessionHeader(ctx context.Context, db *sql.DB, id SessionID) (SessionDetail, error) {
 	var (
-		detail      SessionDetail
-		parentIDStr sql.NullString
+		detail       SessionDetail
+		parentIDStr  sql.NullString
+		providerOpts sql.NullString
 	)
 	err := db.QueryRowContext(ctx, `
-		SELECT s.parent_session_id, s.created_at, a.agent_name, m.model_name
+		SELECT s.parent_session_id, s.created_at, a.agent_name, m.model_name, s.provider_options
 		FROM agent_sessions s
 		JOIN agents a ON a.agent_id = s.agent_id
 		JOIN models m ON m.model_id = s.model_id
 		WHERE s.session_id = ? AND s.deleted_at IS NULL`, id.String()).
-		Scan(&parentIDStr, &detail.CreatedAt, &detail.AgentName, &detail.ModelName)
+		Scan(&parentIDStr, &detail.CreatedAt, &detail.AgentName, &detail.ModelName, &providerOpts)
 	if errors.Is(err, sql.ErrNoRows) {
 		return SessionDetail{}, ErrSessionNotFound
 	}
@@ -797,6 +830,15 @@ func sessionHeader(ctx context.Context, db *sql.DB, id SessionID) (SessionDetail
 		parent := SessionID(parentID)
 		detail.ParentSessionID = &parent
 	}
+	if providerOpts.Valid {
+		var opts map[string]any
+		if err := json.Unmarshal([]byte(providerOpts.String), &opts); err != nil {
+			return SessionDetail{}, fmt.Errorf("parse provider options: %w", err)
+		}
+		if effort, ok := opts["reasoning_effort"].(string); ok {
+			detail.ReasoningEffort = effort
+		}
+	}
 	return detail, nil
 }
 
@@ -807,7 +849,7 @@ func sessionHeader(ctx context.Context, db *sql.DB, id SessionID) (SessionDetail
 func turnStepDetailsFromResult(result *goai.TextResult) []TurnStepDetail {
 	steps := make([]TurnStepDetail, 0, len(result.Steps))
 	for _, step := range result.Steps {
-		sd := TurnStepDetail{Text: step.Text}
+		sd := TurnStepDetail{Text: step.Text, Reasoning: step.Reasoning}
 		for i, tc := range step.ToolCalls {
 			detail := ToolCallDetail{ID: tc.ID, Name: tc.Name, Input: tc.Input}
 			if i < len(step.ToolResults) {

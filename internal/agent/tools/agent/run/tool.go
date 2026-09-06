@@ -15,7 +15,7 @@ import (
 
 const (
 	Name        = "agent"
-	Description = "Dispatch a task to a named agent, running it as a new child session with that agent's model, system prompt, and tools. Returns the agent's final text result."
+	Description = "Dispatch a task to a named agent, running it as a new child session with that agent's system prompt and tools. Uses the agent's own configured model and reasoning effort unless model/reasoning_effort override them. Returns the agent's final text result."
 )
 
 var (
@@ -24,9 +24,11 @@ var (
 )
 
 type Input struct {
-	AgentName string         `json:"agent_name"       jsonschema:"description=Name of the agent to dispatch, e.g. explore, review, commit."`
-	Task      string         `json:"task"             jsonschema:"description=The task for the dispatched agent to perform."`
-	Params    map[string]any `json:"params,omitempty" jsonschema:"description=Named values to render into the agent's prompt template."`
+	AgentName       string         `json:"agent_name"                 jsonschema:"description=Name of the agent to dispatch, e.g. explore, review, commit."`
+	Task            string         `json:"task"                       jsonschema:"description=The task for the dispatched agent to perform."`
+	Params          map[string]any `json:"params,omitempty"           jsonschema:"description=Named values to render into the agent's prompt template."`
+	Model           string         `json:"model,omitempty"            jsonschema:"description=Model to run the dispatched session on, overriding the agent's own configured model."`
+	ReasoningEffort string         `json:"reasoning_effort,omitempty" jsonschema:"description=Reasoning effort for the dispatched session (e.g. low, medium, high), overriding the default."`
 }
 
 type Output struct {
