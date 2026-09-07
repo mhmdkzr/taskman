@@ -5,10 +5,11 @@ STATICCHECK := $(GOBIN)/staticcheck
 GOVULNCHECK := $(GOBIN)/govulncheck
 GO ?= go
 GOLANGCI_LINT ?= golangci-lint
+TEMPL := $(GOBIN)/templ
 SRC_DIRS := cmd internal pkg
 PKG_PATTERNS := $(addprefix ./, $(addsuffix /..., $(SRC_DIRS)))
 
-.PHONY: lint golangci-lint tools fmt vet staticcheck govulncheck test test-db test-e2e test-all
+.PHONY: lint golangci-lint tools fmt vet staticcheck govulncheck generate build run test test-db test-e2e test-all
 
 lint: vet staticcheck golangci-lint govulncheck
 
@@ -27,6 +28,10 @@ tools:
 		echo "missing required tool: $(GOVULNCHECK)"; \
 		exit 1; \
 	fi
+	@if [ ! -x "$(TEMPL)" ]; then \
+		echo "missing required tool: $(TEMPL)"; \
+		exit 1; \
+	fi
 
 fmt:
 	@gofmt -w $(SRC_DIRS)
@@ -42,6 +47,15 @@ staticcheck:
 
 govulncheck:
 	@$(GOVULNCHECK) $(PKG_PATTERNS)
+
+generate:
+	@$(GO) generate ./...
+
+build: generate
+	@$(GO) build -o /dev/null ./cmd/main
+
+run: generate
+	@$(GO) run ./cmd/main
 
 test:
 	@$(GO) test $(PKG_PATTERNS)
