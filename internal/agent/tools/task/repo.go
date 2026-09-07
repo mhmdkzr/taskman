@@ -29,11 +29,11 @@ func CreateTask(ctx context.Context, db *sql.DB, t Task) error {
 		INSERT INTO tasks (
 			id, definition, specification, state,
 			importance, urgency, complexity, effort, risk, autonomy,
-			model, reasoning_effort, commit_hash, branch, created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			model, reasoning_effort, commit_hash, branch, failure_reason, created_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		t.ID.String(), t.Definition, t.Specification, t.State,
 		t.Importance, t.Urgency, t.Complexity, t.Effort, t.Risk, t.Autonomy,
-		t.Model, t.ReasoningEffort, t.CommitHash, t.Branch, now); err != nil {
+		t.Model, t.ReasoningEffort, t.CommitHash, t.Branch, t.FailureReason, now); err != nil {
 		return fmt.Errorf("insert task: %w", err)
 	}
 	if err := replaceTaskLabels(ctx, tx, t.ID, t.Labels); err != nil {
@@ -48,16 +48,16 @@ func CreateTask(ctx context.Context, db *sql.DB, t Task) error {
 func GetTask(ctx context.Context, db *sql.DB, id uuid.UUID) (Task, error) {
 	var t Task
 	var idString string
-	var reasoningEffort, branch sql.NullString
+	var reasoningEffort, branch, failureReason sql.NullString
 	err := db.QueryRowContext(ctx, `
 		SELECT id, definition, specification, state,
 			importance, urgency, complexity, effort, risk, autonomy,
-			model, reasoning_effort, commit_hash, branch
+			model, reasoning_effort, commit_hash, branch, failure_reason
 		FROM tasks
 		WHERE id = ? AND deleted_at IS NULL`, id.String()).Scan(
 		&idString, &t.Definition, &t.Specification, &t.State,
 		&t.Importance, &t.Urgency, &t.Complexity, &t.Effort, &t.Risk, &t.Autonomy,
-		&t.Model, &reasoningEffort, &t.CommitHash, &branch,
+		&t.Model, &reasoningEffort, &t.CommitHash, &branch, &failureReason,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Task{}, ErrTaskNotFound
@@ -67,6 +67,7 @@ func GetTask(ctx context.Context, db *sql.DB, id uuid.UUID) (Task, error) {
 	}
 	t.ReasoningEffort = reasoningEffort.String
 	t.Branch = branch.String
+	t.FailureReason = failureReason.String
 	t.ID, err = uuid.Parse(idString)
 	if err != nil {
 		return Task{}, fmt.Errorf("parse task id: %w", err)
@@ -230,11 +231,11 @@ func UpdateTask(ctx context.Context, db *sql.DB, t Task) error {
 		UPDATE tasks
 		SET definition = ?, specification = ?, state = ?,
 			importance = ?, urgency = ?, complexity = ?, effort = ?, risk = ?, autonomy = ?,
-			model = ?, reasoning_effort = ?, commit_hash = ?, branch = ?, updated_at = ?
+			model = ?, reasoning_effort = ?, commit_hash = ?, branch = ?, failure_reason = ?, updated_at = ?
 		WHERE id = ? AND deleted_at IS NULL`,
 		t.Definition, t.Specification, t.State,
 		t.Importance, t.Urgency, t.Complexity, t.Effort, t.Risk, t.Autonomy,
-		t.Model, t.ReasoningEffort, t.CommitHash, t.Branch, time.Now().UTC().Format(time.RFC3339Nano), t.ID.String())
+		t.Model, t.ReasoningEffort, t.CommitHash, t.Branch, t.FailureReason, time.Now().UTC().Format(time.RFC3339Nano), t.ID.String())
 	if err != nil {
 		return fmt.Errorf("update task: %w", err)
 	}

@@ -23,6 +23,7 @@ type Task struct {
 	ReasoningEffort string
 	CommitHash      string
 	Branch          string
+	FailureReason   string
 }
 
 type Level int

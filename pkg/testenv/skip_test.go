@@ -8,7 +8,6 @@ func TestSkipHelpers(t *testing.T) {
 		envKey string
 		skipFn func(testing.TB)
 	}{
-		{name: "db", envKey: "RUN_DB_TESTS", skipFn: SkipIfDBTestsDisabled},
 		{name: "e2e", envKey: "RUN_E2E_TESTS", skipFn: SkipIfE2ETestsDisabled},
 	} {
 		for _, value := range []string{"", "0", "false"} {

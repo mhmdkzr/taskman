@@ -37,6 +37,7 @@ type Input struct {
 	ReasoningEffort string             `json:"reasoning_effort,omitempty"`
 	CommitHash      string             `json:"commit_hash,omitempty"`
 	Branch          string             `json:"branch,omitempty"`
+	FailureReason   string             `json:"failure_reason,omitempty" jsonschema:"description=Why the task failed (e.g. rejected review feedback or a processing error)."`
 }
 
 type Output struct {
@@ -98,6 +99,7 @@ func execute(ctx context.Context, st *store.Store, in Input) (Output, error) {
 		Labels: in.Labels, Importance: in.Importance, Urgency: in.Urgency,
 		Complexity: in.Complexity, Effort: in.Effort, Risk: in.Risk, Autonomy: in.Autonomy,
 		Model: in.Model, ReasoningEffort: in.ReasoningEffort, CommitHash: in.CommitHash, Branch: in.Branch,
+		FailureReason: in.FailureReason,
 	}
 	if err := taskrepo.UpdateTask(ctx, st.RW(), t); err != nil {
 		return Output{}, fmt.Errorf("update task: %w", err)

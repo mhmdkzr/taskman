@@ -78,7 +78,7 @@ New slices must include a `README.md` file which explains what the slice is, wha
 - Tests can load .env files if they need their values (see `pkg/testenv`).
 - Test files follow a `_test.go` / `_integration_test.go` split:
   - Pure unit tests live in `_test.go` files and run under plain `go test ./...`.
-  - Integration tests (including DB-backed tests) live in `_integration_test.go` files (e.g. `repo_integration_test.go` for repository tests) and are gated with `testenv.SkipIfDBTestsDisabled` (or the network/e2e equivalents).
+  - Integration tests (including DB-backed tests) live in `_integration_test.go` files (e.g. `repo_integration_test.go` for repository tests) and always run under plain `go test ./...`; DB-backed tests use a local SQLite database (temp file or in-memory), so no gating is required. E2E tests remain gated with `testenv.SkipIfE2ETestsDisabled`.
   - Tests that are primarily about database behavior must be named with a `TestDB` prefix so they can be run selectively via `go test -run '^TestDB'` (see `make test-db`). Since `TestDB` implies integration, do not also append `_Integration` to their names. 
 
 ---

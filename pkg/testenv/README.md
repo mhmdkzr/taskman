@@ -1,7 +1,7 @@
 # `pkg/testenv`
 
 Test environment helpers: loading `.env` files, reading environment variables
-with defaults, and skipping integration tests unless explicitly enabled.
+with defaults, and skipping e2e tests unless explicitly enabled.
 
 ## Environment resolution
 
@@ -26,20 +26,19 @@ file (empty string if absent).
 
 ## Test gating
 
-Integration tests are opt-in via environment variables; each helper skips the
-test unless its variable is exactly `1` (unset, empty, or non-truthy values such
-as `0` or `false` all skip):
+E2E tests are opt-in; the helper skips the test unless the variable is exactly
+`1` (unset, empty, or non-truthy values such as `0` or `false` all skip).
+DB-backed tests are not gated: they use a local SQLite database (temp file or
+in-memory) and always run under `go test ./...`.
 
 | Helper | Variable |
 |---|---|
-| `SkipIfDBTestsDisabled(tb)` | `RUN_DB_TESTS=1` |
 | `SkipIfE2ETestsDisabled(tb)` | `RUN_E2E_TESTS=1` |
 
 ## Usage
 
 ```go
 func TestDBThing(t *testing.T) {
-	testenv.SkipIfDBTestsDisabled(t)
 	dsn := testenv.EnvOrDefault("TEST_DATABASE_URL", defaultDSN)
 	// ...
 }

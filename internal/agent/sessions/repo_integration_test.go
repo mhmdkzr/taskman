@@ -14,7 +14,6 @@ import (
 	"github.com/mhmdkzr/loop/internal/store"
 	"github.com/mhmdkzr/loop/migrations"
 	"github.com/mhmdkzr/loop/pkg/migrate"
-	"github.com/mhmdkzr/loop/pkg/testenv"
 )
 
 // openTestStore opens a migrated Store backed by a fresh temp-file database.
@@ -60,8 +59,9 @@ func seedAgent(t *testing.T, db *sql.DB) (AgentID, ModelID) {
 
 	agentID := AgentID(uuid.NewV7())
 	if _, err := db.ExecContext(ctx,
-		`INSERT INTO agents (agent_id, agent_name, prompt_id, model_id) VALUES (?, ?, ?, ?)`,
-		agentID.String(), "test-agent-"+agentID.String(), promptID.String(), modelID.String()); err != nil {
+		`INSERT INTO agents (agent_id, agent_name, prompt_id, model_id, created_at) VALUES (?, ?, ?, ?, ?)`,
+		agentID.String(), "test-agent-"+agentID.String(), promptID.String(), modelID.String(),
+		time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
 		t.Fatalf("insert agent: %v", err)
 	}
 
@@ -69,7 +69,6 @@ func seedAgent(t *testing.T, db *sql.DB) (AgentID, ModelID) {
 }
 
 func TestDBSearchHistoryOrdersNewestFirstAcrossSessions(t *testing.T) {
-	testenv.SkipIfDBTestsDisabled(t)
 	st := openTestStore(t)
 	agentID, modelID := seedAgent(t, st.RW())
 	ctx := t.Context()
@@ -107,7 +106,6 @@ func TestDBSearchHistoryOrdersNewestFirstAcrossSessions(t *testing.T) {
 }
 
 func TestDBSearchHistoryFiltersByQuery(t *testing.T) {
-	testenv.SkipIfDBTestsDisabled(t)
 	st := openTestStore(t)
 	agentID, modelID := seedAgent(t, st.RW())
 	ctx := t.Context()
@@ -139,7 +137,6 @@ func TestDBSearchHistoryFiltersByQuery(t *testing.T) {
 }
 
 func TestDBSearchHistoryFiltersBySession(t *testing.T) {
-	testenv.SkipIfDBTestsDisabled(t)
 	st := openTestStore(t)
 	agentID, modelID := seedAgent(t, st.RW())
 	ctx := t.Context()
@@ -169,7 +166,6 @@ func TestDBSearchHistoryFiltersBySession(t *testing.T) {
 }
 
 func TestDBSearchHistoryLimit(t *testing.T) {
-	testenv.SkipIfDBTestsDisabled(t)
 	st := openTestStore(t)
 	agentID, modelID := seedAgent(t, st.RW())
 	ctx := t.Context()
@@ -203,7 +199,6 @@ func TestDBSearchHistoryLimit(t *testing.T) {
 // with a synthesized result distinguishing all three outcomes, rather than
 // leaving it stuck turnStatusRunning or losing the two real events.
 func TestDBReconcileInterruptedTurn(t *testing.T) {
-	testenv.SkipIfDBTestsDisabled(t)
 	st := openTestStore(t)
 	agentID, modelID := seedAgent(t, st.RW())
 	ctx := t.Context()
@@ -312,7 +307,6 @@ func TestDBReconcileInterruptedTurn(t *testing.T) {
 }
 
 func TestDBTokenUsage(t *testing.T) {
-	testenv.SkipIfDBTestsDisabled(t)
 	st := openTestStore(t)
 	agentID, modelID := seedAgent(t, st.RW())
 	ctx := t.Context()

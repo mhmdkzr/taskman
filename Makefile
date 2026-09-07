@@ -61,10 +61,10 @@ test:
 	@$(GO) test $(PKG_PATTERNS)
 
 test-db:
-	@RUN_DB_TESTS=1 $(GO) test -count=1 -run '^TestDB' $(PKG_PATTERNS)
+	@$(GO) test -count=1 -run '^TestDB' $(PKG_PATTERNS)
 
 test-e2e:
 	@RUN_E2E_TESTS=1 $(GO) test -count=1 $(PKG_PATTERNS)
 
 test-all:
-	@RUN_DB_TESTS=1 RUN_E2E_TESTS=1 $(GO) test -count=1 $(PKG_PATTERNS)
+	@RUN_E2E_TESTS=1 $(GO) test -count=1 $(PKG_PATTERNS)

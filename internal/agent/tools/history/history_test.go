@@ -15,7 +15,6 @@ import (
 	"github.com/mhmdkzr/loop/internal/store"
 	"github.com/mhmdkzr/loop/migrations"
 	"github.com/mhmdkzr/loop/pkg/migrate"
-	"github.com/mhmdkzr/loop/pkg/testenv"
 )
 
 // openTestStore opens a migrated Store backed by a fresh temp-file database.
@@ -62,8 +61,9 @@ func seedTurn(t *testing.T, db *sql.DB, prompt, reply string) sessions.SessionID
 
 	agentID := uuid.NewV7()
 	if _, err := db.ExecContext(ctx,
-		`INSERT INTO agents (agent_id, agent_name, prompt_id, model_id) VALUES (?, ?, ?, ?)`,
-		agentID.String(), "test-agent-"+agentID.String(), promptID.String(), modelID.String()); err != nil {
+		`INSERT INTO agents (agent_id, agent_name, prompt_id, model_id, created_at) VALUES (?, ?, ?, ?, ?)`,
+		agentID.String(), "test-agent-"+agentID.String(), promptID.String(), modelID.String(),
+		time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
 		t.Fatalf("insert agent: %v", err)
 	}
 
@@ -88,7 +88,6 @@ func seedTurn(t *testing.T, db *sql.DB, prompt, reply string) sessions.SessionID
 }
 
 func TestDBExecuteReturnsRecentTurns(t *testing.T) {
-	testenv.SkipIfDBTestsDisabled(t)
 	st := openTestStore(t)
 	id := seedTurn(t, st.RW(), "where did we leave off?", "we were fixing the reporting bug")
 
@@ -108,7 +107,6 @@ func TestDBExecuteReturnsRecentTurns(t *testing.T) {
 }
 
 func TestDBExecuteFiltersByQuery(t *testing.T) {
-	testenv.SkipIfDBTestsDisabled(t)
 	st := openTestStore(t)
 	seedTurn(t, st.RW(), "where did we leave off?", "we were fixing the reporting bug")
 	seedTurn(t, st.RW(), "summarize the deploy", "deploy is on hold until tests pass")
@@ -126,7 +124,6 @@ func TestDBExecuteFiltersByQuery(t *testing.T) {
 }
 
 func TestDBExecuteFiltersBySession(t *testing.T) {
-	testenv.SkipIfDBTestsDisabled(t)
 	st := openTestStore(t)
 	seedTurn(t, st.RW(), "prompt one", "reply one")
 	id2 := seedTurn(t, st.RW(), "prompt two", "reply two")
@@ -144,7 +141,6 @@ func TestDBExecuteFiltersBySession(t *testing.T) {
 }
 
 func TestDBExecuteTruncatesLongMessages(t *testing.T) {
-	testenv.SkipIfDBTestsDisabled(t)
 	st := openTestStore(t)
 	long := strings.Repeat("x", 500)
 	seedTurn(t, st.RW(), "long message", long)

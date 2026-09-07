@@ -255,6 +255,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     reasoning_effort TEXT,
     commit_hash      TEXT NOT NULL,
     branch           TEXT,
+    failure_reason   TEXT,
     created_at       TEXT NOT NULL,
     updated_at       TEXT,
     deleted_at       TEXT

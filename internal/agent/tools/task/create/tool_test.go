@@ -10,7 +10,6 @@ import (
 	"github.com/mhmdkzr/loop/internal/store"
 	"github.com/mhmdkzr/loop/migrations"
 	"github.com/mhmdkzr/loop/pkg/migrate"
-	"github.com/mhmdkzr/loop/pkg/testenv"
 )
 
 func openTestStore(t *testing.T) *store.Store {
@@ -72,7 +71,6 @@ func TestInputValidate(t *testing.T) {
 }
 
 func TestExecuteCreatesTask(t *testing.T) {
-	testenv.SkipIfDBTestsDisabled(t)
 	st := openTestStore(t)
 	seedModel(t, st.RW(), "test-model")
 	in := Input{

@@ -9,7 +9,6 @@ import (
 	"github.com/mhmdkzr/loop/internal/store"
 	"github.com/mhmdkzr/loop/migrations"
 	"github.com/mhmdkzr/loop/pkg/migrate"
-	"github.com/mhmdkzr/loop/pkg/testenv"
 )
 
 func openTaskTestDB(t *testing.T) *store.Store {
@@ -44,7 +43,6 @@ func testTask() Task {
 }
 
 func TestDBTaskCRUD(t *testing.T) {
-	testenv.SkipIfDBTestsDisabled(t)
 	st := openTaskTestDB(t)
 	ctx := t.Context()
 	task := testTask()
@@ -61,6 +59,9 @@ func TestDBTaskCRUD(t *testing.T) {
 		got.Complexity != task.Complexity || got.Effort != task.Effort || got.Risk != task.Risk ||
 		got.Autonomy != task.Autonomy || got.CommitHash != task.CommitHash || got.Model != task.Model {
 		t.Fatalf("GetTask = %+v, want %+v", got, task)
+	}
+	if got.FailureReason != "" {
+		t.Fatalf("FailureReason = %q, want empty", got.FailureReason)
 	}
 	if len(got.Labels) != 2 || got.Labels[0] != "backend" || got.Labels[1] != "urgent" {
 		t.Fatalf("labels = %v, want sorted labels", got.Labels)
@@ -80,6 +81,19 @@ func TestDBTaskCRUD(t *testing.T) {
 		t.Fatalf("updated task = %+v, want %+v", got, task)
 	}
 
+	task.State = TaskStateFailed
+	task.FailureReason = "review rejected after fix attempt"
+	if err := UpdateTask(ctx, st.RW(), task); err != nil {
+		t.Fatalf("UpdateTask failed state: %v", err)
+	}
+	got, err = GetTask(ctx, st.RO(), task.ID)
+	if err != nil {
+		t.Fatalf("GetTask failed task: %v", err)
+	}
+	if got.State != TaskStateFailed || got.FailureReason != task.FailureReason {
+		t.Fatalf("failed task = %+v, want state %q and reason %q", got, task.State, task.FailureReason)
+	}
+
 	if err := DeleteTask(ctx, st.RW(), task.ID); err != nil {
 		t.Fatalf("DeleteTask: %v", err)
 	}
@@ -89,7 +103,6 @@ func TestDBTaskCRUD(t *testing.T) {
 }
 
 func TestDBListTasksFilterValues(t *testing.T) {
-	testenv.SkipIfDBTestsDisabled(t)
 	st := openTaskTestDB(t)
 	ctx := t.Context()
 

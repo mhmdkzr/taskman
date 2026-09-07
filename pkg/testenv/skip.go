@@ -6,21 +6,9 @@ import (
 )
 
 const (
-	// EnvRunDBTests is the environment variable that enables database-backed tests.
-	EnvRunDBTests = "RUN_DB_TESTS"
 	// EnvRunE2ETests is the environment variable that enables end-to-end tests.
 	EnvRunE2ETests = "RUN_E2E_TESTS"
 )
-
-// SkipIfDBTestsDisabled skips the test if DB tests are not enabled. Only the
-// explicit truthy value "1" enables; unset, empty, and non-truthy values (e.g.
-// "0", "false") all skip.
-func SkipIfDBTestsDisabled(tb testing.TB) {
-	tb.Helper()
-	if os.Getenv(EnvRunDBTests) != "1" {
-		tb.Skip("skipping db-backed test; set " + EnvRunDBTests + "=1 to run")
-	}
-}
 
 // SkipIfE2ETestsDisabled skips the test if e2e tests are not enabled. Only the
 // explicit truthy value "1" enables; unset, empty, and non-truthy values (e.g.

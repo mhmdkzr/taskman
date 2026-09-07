@@ -193,6 +193,9 @@ func runMigrations(ctx context.Context, st *store.Store) error {
 	if err := migrate.EnsureColumn(ctx, st.RW(), "tasks", "reasoning_effort", "TEXT"); err != nil {
 		return fmt.Errorf("run migrations: %w", err)
 	}
+	if err := migrate.EnsureColumn(ctx, st.RW(), "tasks", "failure_reason", "TEXT"); err != nil {
+		return fmt.Errorf("run migrations: %w", err)
+	}
 	slog.Info("migrations completed")
 	return nil
 }
