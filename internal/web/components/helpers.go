@@ -33,8 +33,7 @@ func formatTokens(n int64) string {
 	return string(out)
 }
 
-// prettyJSON indents raw for display; a value that isn't valid JSON (a plain
-// string tool output, say) is shown verbatim rather than hidden.
+// prettyJSON indents raw for display; a value that isn't valid JSON is shown as is.
 func prettyJSON(raw []byte) string {
 	var buf bytes.Buffer
 	if err := json.Indent(&buf, raw, "", "  "); err != nil {
@@ -53,8 +52,8 @@ func truncate(s string, n int) string {
 	return s[:n] + "…"
 }
 
-// statusClass maps a turn/session/task status to the CSS class its dot/pill
-// uses. Turn statuses (running/completed/interrupted) and task states
+// statusClass maps a turn/session/task status to the CSS class its pill uses.
+// Turn statuses (running/completed/interrupted) and task states
 // (created/started/completed/cancelled/blocked/failed) share one vocabulary:
 // active work is amber, a good outcome is green, something needing attention
 // is red, and anything not yet or no longer active is neutral.
@@ -98,8 +97,7 @@ func statusLabel(status string) string {
 }
 
 // levelLabel renders a 1-5 planning level (see task.Level) as the same word
-// its own jsonschema description already uses ("very-low" .. "very-high"),
-// so Details reads as plain English rather than a bare number.
+// its own jsonschema description already uses ("very-low" .. "very-high").
 func levelLabel(level int) string {
 	switch level {
 	case 1:
@@ -113,13 +111,12 @@ func levelLabel(level int) string {
 	case 5:
 		return "Very High"
 	default:
-		return itoa(level)
+		return strconv.Itoa(level)
 	}
 }
 
 // taskTotalTokens sums the token usage of every session dispatched for a
-// task, across its whole turn history - a task's real cost, not just one
-// session's.
+// task, across its whole turn history.
 func taskTotalTokens(t TaskDetailView) int64 {
 	var total int64
 	for _, row := range t.Sessions {
@@ -131,7 +128,7 @@ func taskTotalTokens(t TaskDetailView) int64 {
 // modelProvider guesses a model's provider from its name for display, since
 // task.Task only stores the model string itself. Unrecognized names return
 // "" so the cell is simply omitted rather than showing a wrong guess.
-func modelProvider(model string) string {
+func modelProvider(model string) string { // TODO: complete, and find a more reliable way (db?)
 	switch {
 	case strings.HasPrefix(model, "claude"):
 		return "Anthropic"
@@ -187,11 +184,6 @@ func groupTasksByState(tasks []TaskDetailView) []taskSection {
 		sections = append(sections, taskSection{Label: o.label, Tasks: buckets[o.key]})
 	}
 	return sections
-}
-
-// itoa renders an int for display.
-func itoa(n int) string {
-	return strconv.Itoa(n)
 }
 
 // jsBool renders a bool as a JS literal, for building Datastar attribute

@@ -13,32 +13,24 @@ import (
 	"github.com/mhmdkzr/loop/internal/agent/tools/task"
 )
 
-// TaskSessionRow is one session linked to a task. Detail carries that
-// session's full turn-by-turn history so it can render inline rather than
-// linking out to a separate page.
-type TaskSessionRow struct {
-	Session sessions.SessionSummary
-	Detail  sessions.SessionDetail
-}
-
-// TaskDetailView is a task's full detail plus every session dispatched for
-// it. The task list renders one of these per task, not just a summary: every
-// task's full detail (including its sessions' full transcripts) is always in
-// the page, expanding in place under that task's own card rather than
-// linking out to a separate page.
-type TaskDetailView struct {
-	Task     task.Task
-	Sessions []TaskSessionRow
-}
-
 // AppView is everything a page render of the app shell needs: every task.
 type AppView struct {
 	Tasks []TaskDetailView
 }
 
-// App renders the full shell - the task list, always. There is no chrome
-// above it: every route (page loads and Datastar patches alike) renders
-// this one component so they never drift apart.
+// TaskDetailView is a task's full detail plus every session dispatched for it.
+type TaskDetailView struct {
+	Task     task.Task
+	Sessions []TaskSessionRow
+}
+
+// TaskSessionRow is one session linked to a task.
+type TaskSessionRow struct {
+	Session sessions.SessionSummary
+	Detail  sessions.SessionDetail
+}
+
+// App renders the full shell.
 func App(view AppView) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context

@@ -1,5 +1,7 @@
 package components
 
+import "strconv"
+
 import "github.com/mhmdkzr/loop/internal/agent/sessions"
 
 // taskListPage is the only Tasks-mode view: every task grouped into sections
@@ -13,7 +15,7 @@ templ taskListPage(tasks []TaskDetailView) {
 			<div class="col task-sections">
 				for _, section := range groupTasksByState(tasks) {
 					<div class="task-section">
-						<div class="task-section-label">{ section.Label } ({ itoa(len(section.Tasks)) })</div>
+						<div class="task-section-label">{ section.Label } ({ strconv.Itoa(len(section.Tasks)) })</div>
 						<div class="task-grid">
 							for _, t := range section.Tasks {
 								@taskCard(t)
@@ -188,7 +190,7 @@ templ sessionPanel(row TaskSessionRow) {
 // reads as a labeled log line rather than a right-aligned chat bubble.
 templ taskTurnView(t sessions.TurnDetail, index int) {
 	<div class="log-turn">
-		<div class="log-turn-label">Turn { itoa(index) }</div>
+		<div class="log-turn-label">Turn { strconv.Itoa(index) }</div>
 		<div class="log-prompt">{ t.Prompt }</div>
 		for stepIdx, step := range t.Steps {
 			if step.Reasoning != "" {
@@ -217,7 +219,7 @@ templ taskTurnView(t sessions.TurnDetail, index int) {
 // patch. stepIndex disambiguates multiple steps within the same turn -
 // turnID alone isn't unique enough since a turn can reason more than once.
 templ thinkingBlock(turnID string, stepIndex int, reasoning string) {
-	{{ id := turnID + "-" + itoa(stepIndex) }}
+	{{ id := turnID + "-" + strconv.Itoa(stepIndex) }}
 	<div class="thinking-block" { openAttrs("thinking_open", id, false)... }>
 		<button type="button" class="thinking-summary" data-on:click={ toggleAction("thinking_open", id) }>
 			<span>Thinking</span>
