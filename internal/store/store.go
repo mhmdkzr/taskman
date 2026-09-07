@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	_ "modernc.org/sqlite" // Register the SQLite database driver.
+	_ "modernc.org/sqlite"
 )
 
 const dirPerm = 0o700
@@ -42,12 +42,15 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	return &Store{rw: rw, ro: ro}, nil
 }
 
-// RW returns the read-write database handle.
-func (s *Store) RW() *sql.DB { return s.rw }
+// RW returns the database handle with read-write access.
+func (s *Store) RW() *sql.DB {
+	return s.rw
+}
 
-// RO returns the read-only database handle. SQLite rejects write statements
-// executed through this handle.
-func (s *Store) RO() *sql.DB { return s.ro }
+// RO returns the read-only database handle.
+func (s *Store) RO() *sql.DB {
+	return s.ro
+}
 
 // Close closes both database handles.
 func (s *Store) Close() error {
@@ -70,8 +73,7 @@ func dsn(path string) string {
 	return path + "?" + options
 }
 
-// OpenReadOnly opens a SQLite connection in mode=ro. The caller owns the
-// returned handle and must close it.
+// OpenReadOnly opens a SQLite connection in mode=ro. The caller must close it.
 func OpenReadOnly(ctx context.Context, path string) (*sql.DB, error) {
 	if path == ":memory:" {
 		return nil, fmt.Errorf("open read-only: :memory: is not supported; use a file path")
