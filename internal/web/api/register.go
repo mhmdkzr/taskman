@@ -14,6 +14,6 @@ import (
 // RegisterRoutes registers the task list.
 func RegisterRoutes(a app.App) {
 	routes.RegisterRoutes(a,
-		routes.Route{Method: http.MethodGet, Path: "/", Handler: indexHandler(a)},
+		routes.Route{Method: http.MethodGet, Path: "/", Handler: index(a)},
 	)
 }
