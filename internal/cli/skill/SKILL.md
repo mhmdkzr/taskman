@@ -49,7 +49,7 @@ A caller that only ever calls `task next`, does what `message` says, and reports
 | `task review record <id> --approved <bool> [--finding <file>=<text> ...]` | Report the **automated** review round's verdict. Findings carry the full detail text, not summaries. |
 | `task commit <id> [--commit <hash>]` | Report a commit you already made (see committing below). |
 | `task escalate <id> --stage <stage> --reason <text>` | Report that the dispatched agent gave up (called its escalate tool). Blocks the task. |
-| `task review approve <id> [--comment <text>]` | **Human** approval only - never call this yourself. |
+| `task review approve <id> [--comment <text>]` | **Human** approval only - never call this yourself, unless the task was created with `--auto-approve`, in which case `task next` explicitly tells you to. |
 | `task review reject <id> --reason <text>` | **Human** rejection only - never call this yourself. |
 | `task merge <id> [--commit <hash>]` | Report a merge you already made. |
 | `task abandon <id> --reason <text>` | Mark the task failed for good. Human decision. |
