@@ -9,10 +9,10 @@
 .tmp
 .test
 .claude
+.mcp.json
+.worktrees
+.sessions
 bin
-.tasks
-REVIEW.md
 loop.db
 loop.db-shm
 loop.db-wal
-.mcp.json

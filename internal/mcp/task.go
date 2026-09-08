@@ -7,14 +7,13 @@ import (
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/mhmdkzr/loop/internal/agent/tools/task"
 	"github.com/mhmdkzr/loop/internal/app"
+	"github.com/mhmdkzr/loop/internal/task"
 )
 
 // addTaskTools registers read-only lookups over loop's tasks: definition,
 // specification, planning levels, state, and labels. Not exposed here:
-// creating, updating, or deleting a task, or which sessions it's linked to
-// (see the web UI's Tasks tab for that).
+// creating, updating, or deleting a task, or which sessions it's linked to.
 func addTaskTools(s *gomcp.Server, a app.App) {
 	gomcp.AddTool(s, &gomcp.Tool{
 		Name:        "task_list",

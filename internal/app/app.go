@@ -5,7 +5,6 @@ package app
 import (
 	"net/http"
 
-	agenttools "github.com/mhmdkzr/loop/internal/agent/tools"
 	"github.com/mhmdkzr/loop/internal/app/config"
 	"github.com/mhmdkzr/loop/internal/store"
 )
@@ -19,6 +18,5 @@ type App struct {
 
 // Deps holds the shared runtime dependencies of the application.
 type Deps struct {
-	Store      *store.Store
-	AgentTools agenttools.Deps
+	Store *store.Store
 }

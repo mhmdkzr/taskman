@@ -10,12 +10,6 @@ import (
 
 	_ "modernc.org/sqlite" // Register the SQLite database driver.
 
-	"github.com/mhmdkzr/loop/internal/agent"
-	"github.com/mhmdkzr/loop/internal/agent/sessions"
-	agenttools "github.com/mhmdkzr/loop/internal/agent/tools"
-	"github.com/mhmdkzr/loop/internal/agent/tools/browser"
-	"github.com/mhmdkzr/loop/internal/agent/tools/telegram"
-	"github.com/mhmdkzr/loop/internal/agent/tools/websearch"
 	"github.com/mhmdkzr/loop/internal/app"
 	"github.com/mhmdkzr/loop/internal/app/config"
 	"github.com/mhmdkzr/loop/internal/app/register"
@@ -94,22 +88,6 @@ func Start(ctx context.Context, options StartOptions) error {
 			return fmt.Errorf("migrate db: %w", err)
 		}
 	}
-	if err := agent.Seed(ctx, db, cfg.Provider); err != nil {
-		return fmt.Errorf("seed agent data: %w", err)
-	}
-	slog.Info("agent data seeded")
-
-	// Any session_turns row still "running" at this point was orphaned by a
-	// crash in a previous process - no live Run call can hold that status
-	// across a restart. Reconcile before any session is resumed so a crashed
-	// turn is repaired proactively (see sessions.ReconcileInterrupted).
-	reconciled, err := sessions.ReconcileInterrupted(ctx, db)
-	if err != nil {
-		return fmt.Errorf("reconcile interrupted sessions: %w", err)
-	}
-	if reconciled > 0 {
-		slog.Warn("reconciled turns interrupted by a previous crash", "count", reconciled)
-	}
 
 	a := app.App{
 		Deps: app.Deps{
@@ -117,18 +95,6 @@ func Start(ctx context.Context, options StartOptions) error {
 		},
 		Cfg: cfg,
 		Mux: http.NewServeMux(),
-	}
-	telegramClient, err := telegram.NewClientFromConfig(cfg.Telegram)
-	if err != nil {
-		return fmt.Errorf("initialize telegram client: %w", err)
-	}
-	configuredTools := agent.ConfiguredTools(
-		browser.NewClientFromConfig(cfg.Browser), telegramClient, websearch.NewClientFromConfig(cfg.Tavily),
-	)
-	a.Deps.AgentTools = agenttools.Deps{
-		Store:      db,
-		Config:     cfg,
-		Configured: configuredTools,
 	}
 
 	register.RegisterRoutes(a)
@@ -194,6 +160,9 @@ func runMigrations(ctx context.Context, st *store.Store) error {
 		return fmt.Errorf("run migrations: %w", err)
 	}
 	if err := migrate.EnsureColumn(ctx, st.RW(), "tasks", "failure_reason", "TEXT"); err != nil {
+		return fmt.Errorf("run migrations: %w", err)
+	}
+	if err := migrate.EnsureColumn(ctx, st.RW(), "tasks", "pipeline_step", "TEXT NOT NULL DEFAULT ''"); err != nil {
 		return fmt.Errorf("run migrations: %w", err)
 	}
 	slog.Info("migrations completed")

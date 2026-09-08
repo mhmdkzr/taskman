@@ -1,11 +1,8 @@
-// Package mcp exposes loop's own agent sessions over the Model Context
-// Protocol, so an external agent (including one operating loop itself) can
-// drive them the same way the web UI does: create a session, prompt it,
-// answer a question it asks back, and read its progress. Every other tool
-// package under internal/agent/tools stays internal to loop's own agents -
-// this package deliberately does not expose bash, file, or other execution
-// tools to an external MCP client. Everything except the session tools is
-// read-only.
+// Package mcp exposes loop's tasks over the Model Context Protocol, so an
+// external agent harness can read and manage them the same way any other
+// caller does. loop assumes nothing about what, if anything, is on the
+// other end of this server - it's a plain task tool surface, not a session
+// or agent-execution API.
 package mcp
 
 import (
@@ -17,20 +14,11 @@ import (
 // implementation identifies this MCP server to connecting clients.
 var implementation = &mcp.Implementation{Name: "loop", Version: "0.1.0"}
 
-// NewServer builds the MCP server exposing loop's read/write session tools
-// and its read-only agent, history, query, tool, and task tools.
+// NewServer builds the MCP server exposing loop's task tools.
 func NewServer(a app.App) *mcp.Server {
 	s := mcp.NewServer(implementation, &mcp.ServerOptions{
-		Instructions: "Operate loop's own agent sessions: create a session, prompt it, " +
-			"answer any question it asks back (session_get reports a pending_ask), and " +
-			"read its progress. All other tools here (agent, history, query, tool, task) " +
-			"are read-only lookups to help you decide what to do.",
+		Instructions: "Read loop's tasks: list them, or get one by ID.",
 	})
-	addSessionTools(s, a)
-	addAgentTools(s, a)
-	addHistoryTools(s, a)
-	addQueryTools(s, a)
-	addToolTools(s, a)
 	addTaskTools(s, a)
 	return s
 }

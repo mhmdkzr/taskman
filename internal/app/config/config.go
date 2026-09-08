@@ -9,6 +9,7 @@ import (
 
 	"github.com/caarlos0/env/v11"
 	"github.com/joho/godotenv"
+
 	"github.com/mhmdkzr/loop/pkg/logger"
 )
 
@@ -18,9 +19,6 @@ type Config struct {
 	Logger   logger.Config  `envPrefix:"LOGGER_"`
 	Database SQLiteConfig   `envPrefix:"SQLITE_"`
 	Provider ProviderConfig `envPrefix:"PROVIDER_"`
-	Telegram TelegramConfig `envPrefix:"TELEGRAM_"`
-	Tavily   TavilyConfig   `envPrefix:"TAVILY_"`
-	Browser  BrowserConfig  `envPrefix:"browser_"`
 }
 
 // Validate returns an error if any configuration section is invalid.
@@ -36,15 +34,6 @@ func (cfg *Config) Validate() error {
 	}
 	if err := cfg.Provider.validate(); err != nil {
 		return fmt.Errorf("provider: %w", err)
-	}
-	if err := cfg.Telegram.validate(); err != nil {
-		return fmt.Errorf("telegram: %w", err)
-	}
-	if err := cfg.Tavily.validate(); err != nil {
-		return fmt.Errorf("tavily: %w", err)
-	}
-	if err := cfg.Browser.validate(); err != nil {
-		return fmt.Errorf("browser: %w", err)
 	}
 	return nil
 }

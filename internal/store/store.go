@@ -90,6 +90,18 @@ func OpenReadOnly(ctx context.Context, path string) (*sql.DB, error) {
 
 // OpenDB opens a read-write SQLite connection. It is kept separate from Open
 // for callers such as migrations and in-memory database tests.
+//
+// MaxOpenConns is always 1. SQLite serializes writers at the file level
+// regardless, but database/sql's default pool (unlimited connections) lets
+// concurrent callers each grab a separate physical connection - under
+// modernc.org/sqlite (a pure-Go driver, no cgo) that has been observed to
+// produce spurious "no such table" errors under concurrent write load (e.g.
+// goai's OnStepFinish/OnToolCallStart/OnToolCall hooks firing from parallel
+// tool calls in the same step, each writing to session_turn_events). Forcing
+// a single physical connection makes database/sql itself queue those writes
+// instead of handing out concurrent connections, which resolves it. This
+// also happens to be required for :memory: specifically, where a second
+// connection would otherwise refer to a different, empty database.
 func OpenDB(path string) (*sql.DB, error) {
 	if path != ":memory:" {
 		if err := os.MkdirAll(filepath.Dir(path), dirPerm); err != nil {
@@ -100,8 +112,6 @@ func OpenDB(path string) (*sql.DB, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
-	if path == ":memory:" {
-		db.SetMaxOpenConns(1)
-	}
+	db.SetMaxOpenConns(1)
 	return db, nil
 }

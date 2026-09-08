@@ -13,9 +13,21 @@ responds with the normalized usage:
 
 ```json
 {
-  "rolling":  {"status": "ok", "percent": 2, "resets_at": "2026-09-07T12:12:30.464Z"},
-  "weekly":   {"status": "ok", "percent": 0, "resets_at": "2026-09-14T00:00:00.464Z"},
-  "monthly":  {"status": "ok", "percent": 50, "resets_at": "2026-09-30T17:15:56.464Z"}
+  "rolling": {
+    "status": "ok",
+    "percent": 2,
+    "resets_at": "2026-09-07T12:12:30.464Z"
+  },
+  "weekly": {
+    "status": "ok",
+    "percent": 0,
+    "resets_at": "2026-09-14T00:00:00.464Z"
+  },
+  "monthly": {
+    "status": "ok",
+    "percent": 50,
+    "resets_at": "2026-09-30T17:15:56.464Z"
+  }
 }
 ```
 

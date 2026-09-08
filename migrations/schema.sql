@@ -6,109 +6,15 @@ PRAGMA temp_store=MEMORY;
 PRAGMA busy_timeout=5000;
 
 --
-CREATE TABLE IF NOT EXISTS model_providers (
-    provider_id   TEXT PRIMARY KEY,
-    provider_name TEXT NOT NULL UNIQUE,
-    base_url      TEXT,
-    api_key_env   TEXT,
-
-    CONSTRAINT model_providers_provider_length_check
-        CHECK (length(provider_name) <= 255)
-) STRICT;
-
-CREATE TABLE IF NOT EXISTS models (
-    model_id       TEXT    PRIMARY KEY,
-    provider_id    TEXT    NOT NULL REFERENCES model_providers(provider_id) ON DELETE RESTRICT,
-    model_name     TEXT    NOT NULL,
-    context_window INTEGER NOT NULL,
-    has_vision     INTEGER NOT NULL CHECK (has_vision IN (0, 1)),
-    thinking_options TEXT,
-
-    CONSTRAINT models_model_length_check
-        CHECK (length(model_name) <= 255),
-
-    CONSTRAINT models_provider_model_unique
-        UNIQUE (provider_id, model_name),
-
-    CONSTRAINT models_thinking_options_json_check
-        CHECK (thinking_options IS NULL OR json_valid(thinking_options))
-) STRICT;
-
---
-CREATE TABLE IF NOT EXISTS tools (
-    tool_id          TEXT  PRIMARY KEY,
-    tool_name        TEXT  NOT NULL,
-    tool_description TEXT  NOT NULL,
-    input_schema     TEXT  NOT NULL,
-    output_schema    TEXT  NOT NULL,
-
-    CONSTRAINT tools_name_length_check
-        CHECK (length(tool_name) <= 255),
-
-    CONSTRAINT tools_description_length_check
-        CHECK (length(tool_description) <= 1024),
-
-    CONSTRAINT tools_input_schema_json_check
-        CHECK (json_valid(input_schema)),
-
-    CONSTRAINT tools_output_schema_json_check
-        CHECK (json_valid(output_schema))
-) STRICT;
-
-CREATE UNIQUE INDEX IF NOT EXISTS uniq_tools_name ON tools (tool_name);
-
---
-CREATE TABLE IF NOT EXISTS prompt_templates (
-    prompt_id     TEXT    PRIMARY KEY,
-    prompt_name   TEXT    NOT NULL,
-    template_body TEXT    NOT NULL,
-    params_schema TEXT    NOT NULL,
-    version       INTEGER NOT NULL,
-
-    CONSTRAINT prompt_templates_name_length_check
-        CHECK (length(prompt_name) <= 255),
-
-    CONSTRAINT prompt_templates_version_check
-        CHECK (version > 0),
-
-    CONSTRAINT prompt_templates_params_schema_json_check
-        CHECK (json_valid(params_schema))
-) STRICT;
-
---
-CREATE TABLE IF NOT EXISTS agents (
-    agent_id   TEXT  PRIMARY KEY,
-    agent_name TEXT  NOT NULL,
-    prompt_id  TEXT  NOT NULL REFERENCES prompt_templates(prompt_id) ON DELETE RESTRICT,
-    model_id   TEXT  NOT NULL REFERENCES models(model_id) ON DELETE RESTRICT,
-    created_at TEXT  NOT NULL,
-    updated_at TEXT,
-    deleted_at TEXT,
-
-    CONSTRAINT agents_name_length_check
-        CHECK (length(agent_name) <= 255)
-) STRICT;
-
-CREATE UNIQUE INDEX IF NOT EXISTS uniq_agents_name
-    ON agents (agent_name);
-
-CREATE TABLE IF NOT EXISTS agent_tools (
-    agent_id TEXT NOT NULL REFERENCES agents(agent_id) ON DELETE RESTRICT,
-    tool_id  TEXT NOT NULL REFERENCES tools(tool_id) ON DELETE RESTRICT,
-
-    PRIMARY KEY (agent_id, tool_id)
-) STRICT;
-
---
 -- Every session runs as some agent: agent_id supplies the session's model
 -- and system prompt (rendered from the agent's prompt template) at creation
 -- time. parent_session_id links a dispatched subagent's session back to the
 -- session that spawned it; it is NULL for a top-level, user-initiated session.
-CREATE TABLE IF NOT EXISTS agent_sessions (
+CREATE TABLE IF NOT EXISTS sessions (
     session_id        TEXT        PRIMARY KEY,
     session_title     TEXT,
     agent_id          TEXT        NOT NULL REFERENCES agents(agent_id) ON DELETE RESTRICT,
-    parent_session_id TEXT        REFERENCES agent_sessions(session_id) ON DELETE RESTRICT,
+    parent_session_id TEXT        REFERENCES sessions(session_id) ON DELETE RESTRICT,
     model_id          TEXT        NOT NULL REFERENCES models(model_id) ON DELETE RESTRICT,
     system_prompt     TEXT        NOT NULL,
     provider_options  TEXT,
@@ -123,22 +29,22 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_agent_sessions_agent
-    ON agent_sessions (agent_id);
+    ON sessions (agent_id);
 
 CREATE INDEX IF NOT EXISTS idx_agent_sessions_parent
-    ON agent_sessions (parent_session_id) WHERE parent_session_id IS NOT NULL;
+    ON sessions (parent_session_id) WHERE parent_session_id IS NOT NULL;
 
 -- status tracks a turn's crash-recovery lifecycle: a turn is inserted as
 -- 'running' before its model/tool-call loop starts (the write-ahead marker)
 -- and updated to 'completed' once that loop returns normally. A row still
 -- 'running' after a process restart was orphaned by a crash mid-turn; boot-time
 -- reconciliation (see sessions.ReconcileInterrupted) closes it out as
--- 'interrupted', synthesizing a valid result from session_turn_events so the
+-- 'interrupted', synthesizing a valid result from events so the
 -- stored conversation never has a dangling tool call. result is NULL only
 -- while status='running'.
-CREATE TABLE IF NOT EXISTS session_turns (
+CREATE TABLE IF NOT EXISTS turns (
     turn_id      TEXT        PRIMARY KEY,
-    session_id   TEXT        NOT NULL REFERENCES agent_sessions(session_id) ON DELETE RESTRICT,
+    session_id   TEXT        NOT NULL REFERENCES sessions(session_id) ON DELETE RESTRICT,
     prompt       TEXT        NOT NULL,
     result       TEXT,
     status       TEXT        NOT NULL DEFAULT 'completed'
@@ -146,18 +52,18 @@ CREATE TABLE IF NOT EXISTS session_turns (
     created_at   TEXT        NOT NULL,
     completed_at TEXT,
 
-    CONSTRAINT session_turns_result_json_check
+    CONSTRAINT turns_result_json_check
         CHECK (result IS NULL OR json_valid(result)),
 
-    CONSTRAINT session_turns_result_status_check
+    CONSTRAINT turns_result_status_check
         CHECK ((status = 'running') = (result IS NULL))
 ) STRICT;
 
-CREATE INDEX IF NOT EXISTS idx_session_turns_session
-    ON session_turns (session_id, created_at);
+CREATE INDEX IF NOT EXISTS turns_session
+    ON turns (session_id, created_at);
 
-CREATE INDEX IF NOT EXISTS idx_session_turns_status
-    ON session_turns (status) WHERE status = 'running';
+CREATE INDEX IF NOT EXISTS turns_status
+    ON turns (status) WHERE status = 'running';
 
 -- Append-only log of tool-call lifecycle events within a still-running turn,
 -- written incrementally (via goai hooks) as each step/tool call happens - not
@@ -166,9 +72,9 @@ CREATE INDEX IF NOT EXISTS idx_session_turns_status
 -- partial conversation instead of discarding the whole turn. seq orders events
 -- within a turn (assigned by an in-process counter, since concurrent tool
 -- calls in the same step can otherwise write out of logical order).
-CREATE TABLE IF NOT EXISTS session_turn_events (
+CREATE TABLE IF NOT EXISTS events (
     event_id   TEXT    NOT NULL PRIMARY KEY,
-    turn_id    TEXT    NOT NULL REFERENCES session_turns(turn_id) ON DELETE RESTRICT,
+    turn_id    TEXT    NOT NULL REFERENCES turns(turn_id) ON DELETE RESTRICT,
     seq        INTEGER NOT NULL,
     event_type TEXT    NOT NULL CHECK (event_type IN ('step_finish', 'tool_call_start', 'tool_call_result')),
     payload    TEXT    NOT NULL,
@@ -179,7 +85,7 @@ CREATE TABLE IF NOT EXISTS session_turn_events (
 ) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_session_turn_events_turn
-    ON session_turn_events (turn_id, seq);
+    ON events (turn_id, seq);
 
 -- A row is inserted by the ask tool when the model asks the user a question
 -- mid-turn, blocking that tool call until answered. status is 'pending'
@@ -188,8 +94,8 @@ CREATE INDEX IF NOT EXISTS idx_session_turn_events_turn
 -- transition (see internal/agent/tools/ask).
 CREATE TABLE IF NOT EXISTS session_asks (
     ask_id       TEXT    NOT NULL PRIMARY KEY,
-    session_id   TEXT    NOT NULL REFERENCES agent_sessions(session_id) ON DELETE RESTRICT,
-    turn_id      TEXT    NOT NULL REFERENCES session_turns(turn_id)     ON DELETE RESTRICT,
+    session_id   TEXT    NOT NULL REFERENCES sessions(session_id) ON DELETE RESTRICT,
+    turn_id      TEXT    NOT NULL REFERENCES turns(turn_id)     ON DELETE RESTRICT,
     question     TEXT    NOT NULL,
     options      TEXT,
     multi_select INTEGER NOT NULL CHECK (multi_select IN (0, 1)),
@@ -213,8 +119,8 @@ CREATE INDEX IF NOT EXISTS idx_session_asks_pending
     ON session_asks (status) WHERE status = 'pending';
 
 CREATE TABLE IF NOT EXISTS token_usage (
-    session_id         TEXT    NOT NULL REFERENCES agent_sessions(session_id) ON DELETE RESTRICT,
-    turn_id            TEXT    NOT NULL REFERENCES session_turns(turn_id)     ON DELETE RESTRICT,
+    session_id         TEXT    NOT NULL REFERENCES sessions(session_id) ON DELETE RESTRICT,
+    turn_id            TEXT    NOT NULL REFERENCES turns(turn_id)     ON DELETE RESTRICT,
     input_tokens       INTEGER NOT NULL,
     output_tokens      INTEGER NOT NULL,
     total_tokens       INTEGER NOT NULL,
@@ -233,7 +139,7 @@ CREATE INDEX IF NOT EXISTS idx_token_usage_turn
     ON token_usage (turn_id);
 
 CREATE TABLE IF NOT EXISTS session_tools (
-    session_id TEXT NOT NULL REFERENCES agent_sessions(session_id) ON DELETE RESTRICT,
+    session_id TEXT NOT NULL REFERENCES sessions(session_id) ON DELETE RESTRICT,
     tool_id    TEXT NOT NULL REFERENCES tools(tool_id) ON DELETE RESTRICT,
 
     PRIMARY KEY (session_id, tool_id)
@@ -256,6 +162,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     commit_hash      TEXT NOT NULL,
     branch           TEXT,
     failure_reason   TEXT,
+    pipeline_step    TEXT NOT NULL DEFAULT '',
     created_at       TEXT NOT NULL,
     updated_at       TEXT,
     deleted_at       TEXT
@@ -273,7 +180,44 @@ CREATE TABLE IF NOT EXISTS tasks_labels (
 
 CREATE TABLE IF NOT EXISTS tasks_sessions (
     task_id       TEXT NOT NULL REFERENCES tasks(id) ON DELETE RESTRICT,
-    session_id    TEXT NOT NULL REFERENCES agent_sessions(session_id) ON DELETE RESTRICT,
+    session_id    TEXT NOT NULL REFERENCES sessions(session_id) ON DELETE RESTRICT,
 
     PRIMARY KEY (task_id, session_id)
+) STRICT;
+
+-- One row per review attempt made against a task by the pipeline's
+-- pipeline-review agent - an append-only log, never updated in place, so a
+-- crash between a review finishing and the next pipeline stage never loses
+-- what the review found (see internal/pipeline). attempt orders attempts
+-- for a task starting at 1.
+CREATE TABLE IF NOT EXISTS task_review_results (
+    id          TEXT    PRIMARY KEY,
+    task_id     TEXT    NOT NULL REFERENCES tasks(id) ON DELETE RESTRICT,
+    session_id  TEXT    REFERENCES sessions(session_id) ON DELETE RESTRICT,
+    attempt     INTEGER NOT NULL CHECK (attempt > 0),
+    approved    INTEGER NOT NULL CHECK (approved IN (0, 1)),
+    findings    TEXT    NOT NULL,
+    created_at  TEXT    NOT NULL,
+
+    CONSTRAINT task_review_results_findings_json_check
+        CHECK (json_valid(findings)),
+
+    CONSTRAINT task_review_results_task_attempt_unique
+        UNIQUE (task_id, attempt)
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS idx_task_review_results_task
+    ON task_review_results (task_id, attempt);
+
+-- Maps a GitHub issue to the task the pipeline created for it, so a later
+-- Start call resumes that existing task (see internal/pipeline.Start)
+-- instead of creating a duplicate for the same still-open, still-labeled
+-- issue. One row per issue the pipeline has ever picked up.
+CREATE TABLE IF NOT EXISTS pipeline_issue_tasks (
+    owner        TEXT    NOT NULL,
+    repo         TEXT    NOT NULL,
+    issue_number INTEGER NOT NULL,
+    task_id      TEXT    NOT NULL REFERENCES tasks(id) ON DELETE RESTRICT,
+
+    PRIMARY KEY (owner, repo, issue_number)
 ) STRICT;
