@@ -5,7 +5,6 @@ STATICCHECK := $(GOBIN)/staticcheck
 GOVULNCHECK := $(GOBIN)/govulncheck
 GO ?= go
 GOLANGCI_LINT ?= golangci-lint
-TEMPL := $(GOBIN)/templ
 SRC_DIRS := cmd internal
 PKG_PATTERNS := $(addprefix ./, $(addsuffix /..., $(SRC_DIRS)))
 
@@ -26,10 +25,6 @@ tools:
 	fi
 	@if [ ! -x "$(GOVULNCHECK)" ]; then \
 		echo "missing required tool: $(GOVULNCHECK)"; \
-		exit 1; \
-	fi
-	@if [ ! -x "$(TEMPL)" ]; then \
-		echo "missing required tool: $(TEMPL)"; \
 		exit 1; \
 	fi
 
