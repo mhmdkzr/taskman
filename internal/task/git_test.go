@@ -103,6 +103,42 @@ func TestGitClientCreateWorktreeAndReadCommit(t *testing.T) {
 	}
 }
 
+func TestGitClientUseTrunk(t *testing.T) {
+	dir := newTestRepo(t)
+	git := NewGit(dir)
+	ctx := context.Background()
+
+	worktree, branch, err := git.UseTrunk(ctx)
+	if err != nil {
+		t.Fatalf("use trunk: %v", err)
+	}
+	if worktree != dir {
+		t.Errorf("worktree = %q, want %q", worktree, dir)
+	}
+	if branch != "main" && branch != "master" {
+		t.Errorf("branch = %q, want main or master", branch)
+	}
+}
+
+func TestGitClientUseTrunkDetachedHEAD(t *testing.T) {
+	dir := newTestRepo(t)
+	git := NewGit(dir)
+	ctx := context.Background()
+	run := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	run("checkout", "-q", "--detach", "HEAD")
+
+	if _, _, err := git.UseTrunk(ctx); err == nil {
+		t.Fatal("use trunk in detached HEAD: want error, got nil")
+	}
+}
+
 func TestGitClientReadCommitNoConventionalPrefix(t *testing.T) {
 	dir := newTestRepo(t)
 	git := NewGit(dir)

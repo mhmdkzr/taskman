@@ -77,6 +77,36 @@ func TestCreateSuccessful(t *testing.T) {
 	}
 }
 
+func TestCreateTrunk(t *testing.T) {
+	gitDir := newTestRepo(t)
+	tasksDir := filepath.Join(gitDir, ".tasks")
+	worktreesDir := filepath.Join(gitDir, ".worktrees")
+
+	got, err := Create(
+		context.Background(),
+		tasksDir,
+		worktreesDir,
+		task.NewGit(gitDir),
+		Request{
+			Definition: "test task",
+			Title:      "Test Task",
+			Trunk:      true,
+		},
+	)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if got.Git.Worktree != gitDir {
+		t.Fatalf("worktree = %q, want %q", got.Git.Worktree, gitDir)
+	}
+	if got.Git.Branch == "" {
+		t.Fatalf("branch is empty")
+	}
+	if _, err := os.Stat(filepath.Join(worktreesDir, got.ID)); err == nil {
+		t.Fatalf("worktree directory was created under %q, want none in trunk mode", worktreesDir)
+	}
+}
+
 func TestCreateDirtyWorkingTree(t *testing.T) {
 	gitDir := newTestRepo(t)
 	tasksDir := filepath.Join(gitDir, ".tasks")

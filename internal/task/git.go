@@ -44,6 +44,22 @@ func (g *GitClient) CreateWorktree(ctx context.Context, worktreesDir, id string)
 	return worktree, branch, nil
 }
 
+// UseTrunk returns the repo root at g.dir and the name of its currently
+// checked-out branch, for `task create --trunk` (design.md §5): it skips
+// CreateWorktree entirely and works the task directly on the caller's
+// current branch instead of an isolated worktree/branch pair.
+func (g *GitClient) UseTrunk(ctx context.Context) (string, string, error) {
+	out, err := g.run(ctx, g.dir, "rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return "", "", err
+	}
+	branch := strings.TrimSpace(out)
+	if branch == "HEAD" {
+		return "", "", fmt.Errorf("use trunk: repository is in detached HEAD state")
+	}
+	return g.dir, branch, nil
+}
+
 // conventionalType matches a leading conventional-commit type prefix, e.g.
 // "feat:", "fix(scope):", "feat!:".
 var conventionalType = regexp.MustCompile(`^([a-zA-Z]+)(\([^)]*\))?!?:\s`)

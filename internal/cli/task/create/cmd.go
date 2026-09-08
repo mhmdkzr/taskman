@@ -13,7 +13,7 @@ import (
 func Command() *cli.Command {
 	return &cli.Command{
 		Name:  "create",
-		Usage: "create a task and its worktree/branch",
+		Usage: "create a task and its worktree/branch (or --trunk to work it on the current branch)",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "definition", Required: true, Usage: "what the task should accomplish"},
 			&cli.StringFlag{Name: "id", Usage: "use this id instead of generating one"},
@@ -25,6 +25,10 @@ func Command() *cli.Command {
 				Usage: "skip straight to implementation by providing the specification up front (requires --done-when)",
 			},
 			&cli.StringFlag{Name: "done-when", Usage: "acceptance criteria - required together with --specification"},
+			&cli.BoolFlag{
+				Name:  "trunk",
+				Usage: "work this task on the current branch instead of creating a worktree and branch",
+			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			labels, err := support.SplitKV(cmd.StringSlice("label"))
@@ -44,6 +48,7 @@ func Command() *cli.Command {
 					References:    cmd.StringSlice("reference"),
 					Specification: cmd.String("specification"),
 					DoneWhen:      cmd.String("done-when"),
+					Trunk:         cmd.Bool("trunk"),
 				},
 			)
 			if err != nil {

@@ -64,6 +64,22 @@ func TestCommandCreate(t *testing.T) {
 	}
 }
 
+func TestCommandCreateTrunk(t *testing.T) {
+	gitDir := newTestRepo(t)
+	worktreesDir := filepath.Join(gitDir, ".worktrees")
+
+	out, err := runCmd(t, gitDir, "--definition", "test task", "--title", "Test Task", "--trunk")
+	if err != nil {
+		t.Fatalf("create --trunk: %v\noutput:\n%s", err, out)
+	}
+	if !strings.Contains(out, gitDir) {
+		t.Fatalf("output should report the repo root as the worktree, got:\n%s", out)
+	}
+	if _, err := os.Stat(worktreesDir); err == nil {
+		t.Fatalf("--worktrees-dir was created despite --trunk")
+	}
+}
+
 func TestCommandMissingDefinition(t *testing.T) {
 	gitDir := newTestRepo(t)
 

@@ -42,7 +42,7 @@ A caller that only ever calls `task next`, does what `message` says, and reports
 
 | Command | Purpose |
 |---|---|
-| `task create --definition <text> [--title <text>] [--id <id>] [--label k=v ...] [--reference <ref> ...] [--specification <text> --done-when <text>]` | Create a task. Requires a **clean working tree**. Creates the worktree `.worktrees/<id>` on branch `task/<id>` itself - the one thing taskman executes. `.worktrees/` must be gitignored first. With `--specification`/`--done-when`, the specify stage is skipped. |
+| `task create --definition <text> [--title <text>] [--id <id>] [--label k=v ...] [--reference <ref> ...] [--specification <text> --done-when <text>] [--trunk]` | Create a task. Requires a **clean working tree**. Creates the worktree `.worktrees/<id>` on branch `task/<id>` itself - the one thing taskman executes. `.worktrees/` must be gitignored first. With `--trunk`, skips the worktree/branch and records the repo root and current branch instead - the task is worked in place. With `--specification`/`--done-when`, the specify stage is skipped. |
 | `task next <id>` | Ask what to do next (see core loop). |
 | `task get <id>` / `task list [--state <state> ...] [--label k=v ...]` | Read tasks. Never parse the YAML by hand for decisions. |
 | `task update <id> [--title ...] [--label k=v ...] [--unset-label k ...] [--reference <ref> ...] [--clear-references]` | Patch metadata only - safe on tasks in any state. |
@@ -63,8 +63,10 @@ A caller that only ever calls `task next`, does what `message` says, and reports
 Stages run `definition → specification → implementation → verification → review → merge`.
 
 - **Never edit `.tasks/*.yaml` by hand.** Every write goes through a taskman command.
-- **Work in the worktree** `.worktrees/<id>` on branch `task/<id>` - created by `task create`,
-  left in place for the task's whole life.
+- **Work in the worktree named by the task's `git.worktree`/`git.branch` fields** (`task get <id>`
+  or any command's output names them) - `.worktrees/<id>` on branch `task/<id>` by default, created
+  by `task create` and left in place for the task's whole life; the repo root on the current branch
+  if the task was created with `--trunk`. Don't assume the default path - read it from the task.
 - **Verification loop** (two automated rounds max): run build checks → `task verify`. Pass →
   dispatch an automated reviewer with the task's `specification` and `done_when` as acceptance
   criteria → `task review record`. Rejected → dispatch a fix agent with the failure output or
@@ -83,8 +85,9 @@ Stages run `definition → specification → implementation → verification →
 - **Review-reject recovery**: on a human rejection, fix, re-verify, make **another new commit**,
   and `task commit` again. This cycle skips the automated reviewer - the human is now the
   reviewer. Each cycle adds one commit; never amend.
-- **Merge**: `task next` says `run` - merge branch `task/<id>` into the base branch yourself,
-  then `task merge <id>`.
+- **Merge**: `task next` says `run` - merge the task's branch into the base branch yourself (a
+  no-op if the task was created with `--trunk`, since it's already on the target branch), then
+  `task merge <id>`.
 
 ## Errors and exit codes
 

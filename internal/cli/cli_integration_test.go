@@ -131,6 +131,51 @@ func TestCLIFullLifecycle(t *testing.T) {
 	}
 }
 
+// TestCLIFullLifecycleTrunk mirrors TestCLIFullLifecycle, but with --trunk:
+// the task works directly on gitDir/the current branch instead of an
+// isolated worktree, so there's no separate branch to git-merge back in.
+func TestCLIFullLifecycleTrunk(t *testing.T) {
+	dir := newTestRepo(t)
+
+	created := runTaskman(t, dir, "task", "create",
+		"--definition", "Fix doc drift", "--title", "Fix Doc Drift", "--trunk")
+	if !strings.Contains(created, "Created task") {
+		t.Fatalf("create output = %q", created)
+	}
+
+	id := onlyTaskID(t, dir)
+
+	before := getTaskJSON(t, dir, id)
+	if before.Git.Worktree != dir {
+		t.Fatalf("worktree = %q, want %q (the repo root)", before.Git.Worktree, dir)
+	}
+	if before.Git.Branch == "" {
+		t.Fatalf("branch is empty")
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".worktrees")); err == nil {
+		t.Fatalf("--worktrees-dir was created despite --trunk")
+	}
+
+	runTaskman(t, dir, "task", "specify", id, "--result", "Update the README", "--done-when", "README reflects reality")
+	runTaskman(t, dir, "task", "implement", id)
+	runTaskman(t, dir, "task", "verify", id, "--check", "vet=ok")
+	runTaskman(t, dir, "task", "review", "record", id, "--approved=true")
+
+	gitCommit(t, dir, "docs: update readme")
+
+	runTaskman(t, dir, "task", "commit", id)
+	runTaskman(t, dir, "task", "review", "approve", id, "--comment", "LGTM")
+	runTaskman(t, dir, "task", "merge", id)
+
+	final := getTaskJSON(t, dir, id)
+	if final.State != task.StateCompleted {
+		t.Fatalf("final state = %v, want completed", final.State)
+	}
+	if final.Status.Merge.State != task.StageDone {
+		t.Fatalf("merge status = %+v, want done", final.Status.Merge)
+	}
+}
+
 func TestCLIDirtyWorkingTreeRefused(t *testing.T) {
 	dir := newTestRepo(t)
 	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("dirty\n"), 0o644); err != nil {

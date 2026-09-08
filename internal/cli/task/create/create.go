@@ -19,11 +19,14 @@ type Request struct {
 	References    []string
 	Specification string
 	DoneWhen      string
+	Trunk         bool
 }
 
 // Create makes a new task file, and - the one exception to "taskman
 // executes nothing itself" - the task's worktree and branch, guarded by a
-// clean-working-tree precondition. See design.md §5.
+// clean-working-tree precondition. With req.Trunk, it skips worktree/branch
+// creation and records the repo root and current branch instead, so the
+// task is worked in place. See design.md §5.
 func Create(ctx context.Context, tasksDir, worktreesDir string, git *task.GitClient, req Request) (task.Task, error) {
 	if req.Definition == "" {
 		return task.Task{}, fmt.Errorf("create task: definition is required")
@@ -45,9 +48,17 @@ func Create(ctx context.Context, tasksDir, worktreesDir string, git *task.GitCli
 		id = task.GenerateID(req.Title)
 	}
 
-	worktree, branch, err := git.CreateWorktree(ctx, worktreesDir, id)
-	if err != nil {
-		return task.Task{}, fmt.Errorf("create worktree: %w", err)
+	var worktree, branch string
+	if req.Trunk {
+		worktree, branch, err = git.UseTrunk(ctx)
+		if err != nil {
+			return task.Task{}, fmt.Errorf("use trunk: %w", err)
+		}
+	} else {
+		worktree, branch, err = git.CreateWorktree(ctx, worktreesDir, id)
+		if err != nil {
+			return task.Task{}, fmt.Errorf("create worktree: %w", err)
+		}
 	}
 
 	t := task.Task{

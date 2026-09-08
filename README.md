@@ -19,6 +19,10 @@ refuses to run against a dirty working tree (§5), and the worktree it creates i
 which would make every task after the first fail that check. `.tasks/*.yaml` is meant to be
 tracked and committed, not ignored.
 
+Pass `--trunk` to `task create` to skip the worktree/branch entirely and work the task directly on
+the current branch - useful for solo, sequential work where per-task isolation is overhead rather
+than a benefit. See design.md §5 for the tradeoffs.
+
 From there, `task next <id>` tells you (or whatever agent you're driving) what to do next at every
 step - see `notes/design/design.md` §6/§7 for the full command reference and state machine.
 
