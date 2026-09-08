@@ -152,6 +152,9 @@ func TestCLIFullLifecycleTrunk(t *testing.T) {
 	if before.Git.Branch == "" {
 		t.Fatalf("branch is empty")
 	}
+	if !before.Git.Trunk {
+		t.Fatalf("Git.Trunk = false, want true for a --trunk task")
+	}
 	if _, err := os.Stat(filepath.Join(dir, ".worktrees")); err == nil {
 		t.Fatalf("--worktrees-dir was created despite --trunk")
 	}
@@ -165,6 +168,12 @@ func TestCLIFullLifecycleTrunk(t *testing.T) {
 
 	runTaskman(t, dir, "task", "commit", id)
 	runTaskman(t, dir, "task", "review", "approve", id, "--comment", "LGTM")
+
+	preMerge := runTaskman(t, dir, "task", "next", id)
+	if !strings.Contains(preMerge, "nothing to merge") {
+		t.Fatalf("next before merge = %q, want it to say there's nothing to merge in trunk mode", preMerge)
+	}
+
 	runTaskman(t, dir, "task", "merge", id)
 
 	final := getTaskJSON(t, dir, id)
@@ -173,6 +182,14 @@ func TestCLIFullLifecycleTrunk(t *testing.T) {
 	}
 	if final.Status.Merge.State != task.StageDone {
 		t.Fatalf("merge status = %+v, want done", final.Status.Merge)
+	}
+
+	done := runTaskman(t, dir, "task", "next", id)
+	if !strings.Contains(done, "already on branch") {
+		t.Fatalf("next after merge = %q, want it to say already on branch, not that it merged", done)
+	}
+	if strings.Contains(done, "merged into main") {
+		t.Fatalf("next after merge = %q, should not claim a merge into main", done)
 	}
 }
 

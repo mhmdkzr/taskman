@@ -67,9 +67,15 @@ type StageStatus struct {
 
 // Git holds the task's worktree/branch and its recorded commit, if any.
 type Git struct {
-	Worktree string     `json:"worktree,omitempty" yaml:"worktree,omitempty"`
-	Branch   string     `json:"branch,omitempty"   yaml:"branch,omitempty"`
-	Commit   *GitCommit `json:"commit,omitempty"   yaml:"commit,omitempty"`
+	Worktree string `json:"worktree,omitempty" yaml:"worktree,omitempty"`
+	Branch   string `json:"branch,omitempty"   yaml:"branch,omitempty"`
+	// Trunk records whether this task was created with --trunk: Worktree is
+	// the repo root and Branch is whatever was checked out at create time,
+	// rather than an isolated worktree/branch pair task next's merge-stage
+	// guidance (design.md §5/§7) reads this to know there's nothing to
+	// actually merge.
+	Trunk  bool       `json:"trunk,omitempty"  yaml:"trunk,omitempty"`
+	Commit *GitCommit `json:"commit,omitempty" yaml:"commit,omitempty"`
 }
 
 // GitCommit is what task commit reads back from the worktree via git log - see

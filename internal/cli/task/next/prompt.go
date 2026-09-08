@@ -85,11 +85,13 @@ type runVerify struct {
 
 func (p runVerify) Render() string { return render(runVerifyTmpl, p) }
 
-// runMerge tells the caller to run the merge itself and report it.
+// runMerge tells the caller to run the merge itself and report it - or, for
+// a task created with --trunk, that there's nothing to merge at all.
 type runMerge struct {
 	TaskID   string
 	Worktree string
 	Branch   string
+	Trunk    bool
 }
 
 func (p runMerge) Render() string { return render(runMergeTmpl, p) }
@@ -120,11 +122,14 @@ type waitBlocked struct {
 
 func (p waitBlocked) Render() string { return render(waitBlockedTmpl, p) }
 
-// doneMerged briefs the caller that a task completed via merge.
+// doneMerged briefs the caller that a task completed via merge - or, for a
+// task created with --trunk, that it completed in place with no merge.
 type doneMerged struct {
 	TaskID     string
 	Title      string
+	Branch     string
 	CommitHash string
+	Trunk      bool
 }
 
 func (p doneMerged) Render() string { return render(doneMergedTmpl, p) }

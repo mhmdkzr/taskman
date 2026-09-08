@@ -68,7 +68,7 @@ func Create(ctx context.Context, tasksDir, worktreesDir string, git *task.GitCli
 		Labels:     req.Labels,
 		Definition: req.Definition,
 		References: req.References,
-		Git:        task.Git{Worktree: worktree, Branch: branch},
+		Git:        task.Git{Worktree: worktree, Branch: branch, Trunk: req.Trunk},
 		Status: task.Status{
 			Definition:     task.StageStatus{State: task.StageDone, CompletedAt: new(task.Now())},
 			Specification:  task.StageStatus{State: task.StagePending},

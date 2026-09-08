@@ -276,6 +276,78 @@ func TestNextMergeAndDone(t *testing.T) {
 	if g.Action != ActionDone {
 		t.Fatalf("next after merge = %+v, want done", g)
 	}
+	if strings.Contains(g.Message, "nothing to merge") || strings.Contains(g.Message, "no merge was needed") {
+		t.Fatalf("next after non-trunk merge = %q, should not claim trunk mode", g.Message)
+	}
+}
+
+// TestNextMergeTrunk mirrors TestNextMergeAndDone for a task created with
+// --trunk (task.Git.Trunk): the merge-stage guidance should say there's
+// nothing to actually merge, and the completion message shouldn't claim a
+// merge happened - regressions for the wrong-branch/"merged into main"
+// wording task next used to have here.
+func TestNextMergeTrunk(t *testing.T) {
+	dir := t.TempDir()
+	newTestTask(t, dir, "abc")
+	if _, err := task.MutateTask(dir, "abc", func(tk *task.Task) error {
+		tk.Git.Worktree = "/repo"
+		tk.Git.Branch = "dev"
+		tk.Git.Trunk = true
+		return nil
+	}); err != nil {
+		t.Fatalf("set trunk: %v", err)
+	}
+	readyForVerify(t, dir, "abc")
+	verify(t, dir, "abc", map[string]task.CheckResult{"vet": task.CheckOK}, "")
+	recordReview(t, dir, "abc", true, nil)
+	if _, err := task.MutateTask(dir, "abc", func(tk *task.Task) error {
+		tk.Git.Commit = &task.GitCommit{Hash: "aaa", Message: "docs: x", At: time.Now().UTC()}
+		return nil
+	}); err != nil {
+		t.Fatalf("simulate commit: %v", err)
+	}
+	if _, err := task.MutateTask(dir, "abc", func(tk *task.Task) error {
+		tk.Status.Review.State = task.StageDone
+		tk.HumanReviews = append(tk.HumanReviews, task.HumanReview{Approved: true, Comment: "LGTM", At: task.Now()})
+		return nil
+	}); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+
+	g, err := Next(dir, "abc")
+	if err != nil {
+		t.Fatalf("next: %v", err)
+	}
+	if g.Action != ActionRun || g.ReportWith != "task merge abc" {
+		t.Fatalf("next after approval = %+v, want run merge", g)
+	}
+	if !strings.Contains(g.Message, "nothing to merge") {
+		t.Fatalf("next merge guidance for trunk task = %q, want it to say there's nothing to merge", g.Message)
+	}
+	if strings.Contains(g.Message, "into the base branch") {
+		t.Fatalf("next merge guidance for trunk task = %q, should not tell it to merge into a base branch", g.Message)
+	}
+
+	if _, err := task.MutateTask(dir, "abc", func(tk *task.Task) error {
+		tk.Status.Merge = task.StageStatus{State: task.StageDone}
+		tk.State = task.StateCompleted
+		return nil
+	}); err != nil {
+		t.Fatalf("merge: %v", err)
+	}
+	g, err = Next(dir, "abc")
+	if err != nil {
+		t.Fatalf("next: %v", err)
+	}
+	if g.Action != ActionDone {
+		t.Fatalf("next after merge = %+v, want done", g)
+	}
+	if !strings.Contains(g.Message, "already on branch dev") {
+		t.Fatalf("next done message for trunk task = %q, want it to say already on branch dev", g.Message)
+	}
+	if strings.Contains(g.Message, "merged into main") {
+		t.Fatalf("next done message for trunk task = %q, should not claim a merge into main", g.Message)
+	}
 }
 
 func TestNextBlockedAndFailed(t *testing.T) {

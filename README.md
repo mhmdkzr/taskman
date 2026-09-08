@@ -9,15 +9,17 @@ transitions reported to it. See `notes/design/design.md` for the full design.
 ```bash
 git init myproject && cd myproject
 git commit --allow-empty -m "chore: init"
-echo ".worktrees/" >> .gitignore && git add .gitignore && git commit -m "chore: ignore worktrees"
+printf '.worktrees/\n.tasks/*.lock\n' >> .gitignore && git add .gitignore && git commit -m "chore: ignore worktrees and task locks"
 
 go run . task create --definition "Fix doc drift in internal/task"
 ```
 
 `.worktrees/` **must** be gitignored before the first `task create` - taskman's `task create`
 refuses to run against a dirty working tree (§5), and the worktree it creates is itself untracked,
-which would make every task after the first fail that check. `.tasks/*.yaml` is meant to be
-tracked and committed, not ignored.
+which would make every task after the first fail that check. `.tasks/*.lock` should be gitignored
+too - every command that mutates a task file creates one alongside it and leaves it on disk
+afterward (it's cross-process locking state, not part of the task record). `.tasks/*.yaml` itself
+is meant to be tracked and committed, not ignored.
 
 Pass `--trunk` to `task create` to skip the worktree/branch entirely and work the task directly on
 the current branch - useful for solo, sequential work where per-task isolation is overhead rather

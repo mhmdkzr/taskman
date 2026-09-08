@@ -330,14 +330,21 @@ left in place for the rest of the task's life, inspectable at any time (`cd <wor
 
 **`--trunk`**: `task create --trunk` skips `git worktree add` entirely and records the repo root
 itself as `git.worktree`, with whatever branch is currently checked out as `git.branch` (it
-errors on a detached `HEAD`, since there's no branch name to record). The clean-working-tree
-precondition still applies - it's the only thing protecting a trunk task from starting on top of
-someone else's uncommitted changes, since there's no isolated worktree to fall back on. Everything
-downstream (`task commit`'s `git log` read, `task merge` recording completion) works unchanged,
-since both already take the worktree path as given rather than assuming it's under
-`--worktrees-dir`. Trunk mode is for solo, sequential work where a separate worktree/branch per
-task is overhead rather than isolation - concurrent tasks on the same trunk will still collide on
-the clean-working-tree check, same as two callers would collide creating the same worktree.
+errors on a detached `HEAD`, since there's no branch name to record) - and sets `git.trunk: true`
+on the task, the one bit of state that distinguishes it from a task whose worktree/branch just
+happen to equal the repo root/current branch. The clean-working-tree precondition still applies -
+it's the only thing protecting a trunk task from starting on top of someone else's uncommitted
+changes, since there's no isolated worktree to fall back on. Everything downstream (`task
+commit`'s `git log` read, `task merge` recording completion) works unchanged, since both already
+take the worktree path as given rather than assuming it's under `--worktrees-dir`; `task next`'s
+merge-stage guidance reads `git.trunk` to say there's nothing to actually merge, rather than
+telling the caller to merge a branch into itself. Trunk mode is for solo, sequential work where a
+separate worktree/branch per task is overhead rather than isolation - concurrent tasks on the same
+trunk will still collide on the clean-working-tree check, same as two callers would collide
+creating the same worktree. Because the task's own `.tasks/<id>.yaml` lives in the same working
+tree as the code it's tracking, a caller staging its own commit must stage explicitly (never a
+blanket `git add -A`/`git commit -a`), or it risks sweeping in unrelated pending changes sitting
+in that shared tree.
 
 **No push, no PR, no remote required**: the `review` stage is just human review of a worktree and
 branch - there's no PR to create. The stage's own approve/reject actions (§6) are what a human

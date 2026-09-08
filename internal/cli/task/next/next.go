@@ -51,7 +51,9 @@ func Next(tasksDir, id string) (Guidance, error) {
 		if t.Git.Commit != nil {
 			hash = t.Git.Commit.Hash
 		}
-		message := doneMerged{TaskID: t.ID, Title: t.Title, CommitHash: hash}.Render()
+		message := doneMerged{
+			TaskID: t.ID, Title: t.Title, Branch: t.Git.Branch, CommitHash: hash, Trunk: t.Git.Trunk,
+		}.Render()
 		return Guidance{TaskID: t.ID, Action: ActionDone, Message: message}, nil
 	case task.StateFailed:
 		message := doneAbandoned{TaskID: t.ID, Title: t.Title, Reason: t.FailureReason}.Render()
@@ -210,7 +212,9 @@ func guideRunVerify(t task.Task) Guidance {
 }
 
 func guideMerge(t task.Task) Guidance {
-	message := runMerge{TaskID: t.ID, Worktree: t.Git.Worktree, Branch: t.Git.Branch}.Render()
+	message := runMerge{
+		TaskID: t.ID, Worktree: t.Git.Worktree, Branch: t.Git.Branch, Trunk: t.Git.Trunk,
+	}.Render()
 	return Guidance{TaskID: t.ID, Action: ActionRun, Message: message, ReportWith: "task merge " + t.ID}
 }
 

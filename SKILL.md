@@ -79,15 +79,24 @@ Stages run `definition → specification → implementation → verification →
   approves), write a conventional-commit-style message (`feat:`, `fix:`, ...), run `git commit`
   **yourself** in the worktree (new commit, never an amend), then report it with
   `task commit <id>`. taskman reads the real hash and message back via `git log` - it does not
-  trust reported text.
+  trust reported text. **Stage explicitly** (`git add <files you actually touched>`), never `git
+  add -A`/`git commit -a` - every taskman command rewrites the task's own YAML in place, and in
+  `--trunk` mode that file lives in the same working tree as your change (plus, in trunk mode
+  specifically, whatever else happens to be sitting uncommitted in that shared tree), so a blanket
+  add can sweep in state you didn't mean to commit.
+- **Verifying a doc-only or no-op change**: `task verify` still expects at least one `--check`.
+  There's no dedicated "no build" check name - use one that reflects what you actually confirmed
+  (e.g. `--check review=ok` for a read-through, or a real command like `--check
+  grep-stale-refs=ok` for a targeted search), not a placeholder that claims a build ran when none
+  did.
 - **Human review**: after `task commit`, `task next` says `wait` until a human runs
   `task review approve` or `task review reject`.
 - **Review-reject recovery**: on a human rejection, fix, re-verify, make **another new commit**,
   and `task commit` again. This cycle skips the automated reviewer - the human is now the
   reviewer. Each cycle adds one commit; never amend.
-- **Merge**: `task next` says `run` - merge the task's branch into the base branch yourself (a
-  no-op if the task was created with `--trunk`, since it's already on the target branch), then
-  `task merge <id>`.
+- **Merge**: `task next` says `run` - merge the task's branch into the base branch yourself, then
+  `task merge <id>`. For a task created with `--trunk`, `task next`'s message says there's nothing
+  to merge (the branch is already the target) - just report `task merge <id>` directly.
 
 ## Errors and exit codes
 

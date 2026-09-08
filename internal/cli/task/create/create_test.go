@@ -69,6 +69,9 @@ func TestCreateSuccessful(t *testing.T) {
 	if got.Git.Branch == "" {
 		t.Fatalf("branch is empty")
 	}
+	if got.Git.Trunk {
+		t.Fatalf("Git.Trunk = true, want false without --trunk")
+	}
 	if _, err := os.Stat(filepath.Join(tasksDir, got.ID+".yaml")); err != nil {
 		t.Fatalf("task file not found: %v", err)
 	}
@@ -101,6 +104,9 @@ func TestCreateTrunk(t *testing.T) {
 	}
 	if got.Git.Branch == "" {
 		t.Fatalf("branch is empty")
+	}
+	if !got.Git.Trunk {
+		t.Fatalf("Git.Trunk = false, want true for a --trunk task")
 	}
 	if _, err := os.Stat(filepath.Join(worktreesDir, got.ID)); err == nil {
 		t.Fatalf("worktree directory was created under %q, want none in trunk mode", worktreesDir)
