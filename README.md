@@ -11,7 +11,7 @@ git init myproject && cd myproject
 git commit --allow-empty -m "chore: init"
 echo ".worktrees/" >> .gitignore && git add .gitignore && git commit -m "chore: ignore worktrees"
 
-go run github.com/mhmdkzr/taskman/cmd/main task create --definition "Fix doc drift in internal/task"
+go run . task create --definition "Fix doc drift in internal/task"
 ```
 
 `.worktrees/` **must** be gitignored before the first `task create` - taskman's `task create`
@@ -26,7 +26,7 @@ step - see `notes/design/design.md` §6/§7 for the full command reference and s
 
 | Path | Purpose |
 | --- | --- |
-| `cmd/main` | The `taskman` binary's minimal entrypoint |
+| `main.go` | The `taskman` binary's minimal entrypoint - `go install github.com/mhmdkzr/taskman@latest` |
 | `internal/cli` | The `taskman` CLI's root command and flags |
 | `internal/cli/support` | Plumbing shared by every command slice (git construction, output, errors) |
 | `internal/cli/task` | Every `task <command>`, one vertical slice package each |

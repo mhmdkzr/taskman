@@ -5,8 +5,8 @@ STATICCHECK := $(GOBIN)/staticcheck
 GOVULNCHECK := $(GOBIN)/govulncheck
 GO ?= go
 GOLANGCI_LINT ?= golangci-lint
-SRC_DIRS := cmd internal
-PKG_PATTERNS := $(addprefix ./, $(addsuffix /..., $(SRC_DIRS)))
+PKG_PATTERNS := ./...
+GO_FILES := $(shell find . -name '*.go' -not -path './vendor/*' -not -path './.worktrees/*')
 
 .PHONY: lint golangci-lint tools fmt vet staticcheck govulncheck build run test
 
@@ -29,9 +29,9 @@ tools:
 	fi
 
 fmt:
-	@gofmt -w $(SRC_DIRS)
-	@goimports -w $(SRC_DIRS)
-	@files=$$(git ls-files '*.md' | grep -Ev '(^|/)vendor/|^scripts/mdjsonfmt/testdata/'); \
+	@gofmt -w $(GO_FILES)
+	@goimports -w $(GO_FILES)
+	@files=$$(find . -name '*.md' -not -path './vendor/*' -not -path './.worktrees/*' -not -path './scripts/mdjsonfmt/testdata/*'); \
 	if [ -n "$$files" ]; then scripts/mdjsonfmt/mdjsonfmt.sh $$files; fi
 
 vet:
@@ -44,10 +44,10 @@ govulncheck:
 	@$(GOVULNCHECK) $(PKG_PATTERNS)
 
 build:
-	@$(GO) build -o /dev/null ./cmd/main
+	@$(GO) build -o /dev/null .
 
 run:
-	@$(GO) run ./cmd/main
+	@$(GO) run .
 
 test:
 	@$(GO) test $(PKG_PATTERNS)
