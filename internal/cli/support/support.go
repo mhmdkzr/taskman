@@ -1,4 +1,9 @@
-package cli
+// Package support holds the plumbing shared by every taskman CLI command:
+// building a Repo/GitClient from the root flags, parsing repeated flag
+// values, rendering output, and mapping errors to exit codes. It has no
+// dependency on internal/cli or its subpackages, so any of them can import
+// it without a cycle.
+package support
 
 import (
 	"encoding/json"
@@ -12,20 +17,23 @@ import (
 	"github.com/mhmdkzr/loop/internal/task"
 )
 
-func repoFrom(cmd *cli.Command) *task.Repo {
+// RepoFrom builds a task.Repo rooted at the --tasks-dir root flag.
+func RepoFrom(cmd *cli.Command) *task.Repo {
 	return task.NewRepo(cmd.String("tasks-dir"))
 }
 
-func gitFrom(cmd *cli.Command) *task.GitClient {
+// GitFrom builds a task.GitClient rooted at the --git-dir root flag.
+func GitFrom(cmd *cli.Command) *task.GitClient {
 	return task.NewGit(cmd.String("git-dir"))
 }
 
-func worktreesDirFrom(cmd *cli.Command) string {
+// WorktreesDirFrom reads the --worktrees-dir root flag.
+func WorktreesDirFrom(cmd *cli.Command) string {
 	return cmd.String("worktrees-dir")
 }
 
-// requireID reads the task id from the command's first positional argument.
-func requireID(cmd *cli.Command) (string, error) {
+// RequireID reads the task id from the command's first positional argument.
+func RequireID(cmd *cli.Command) (string, error) {
 	id := cmd.Args().First()
 	if id == "" {
 		return "", cli.Exit("a task id is required", 2)
@@ -33,9 +41,9 @@ func requireID(cmd *cli.Command) (string, error) {
 	return id, nil
 }
 
-// splitKV parses "key=value" pairs (e.g. --label priority=high). value may
+// SplitKV parses "key=value" pairs (e.g. --label priority=high). value may
 // itself contain "=" - only the first separator counts.
-func splitKV(pairs []string) (map[string]string, error) {
+func SplitKV(pairs []string) (map[string]string, error) {
 	out := make(map[string]string, len(pairs))
 	for _, pair := range pairs {
 		key, value, ok := strings.Cut(pair, "=")
@@ -47,8 +55,9 @@ func splitKV(pairs []string) (map[string]string, error) {
 	return out, nil
 }
 
-func parseChecks(pairs []string) (map[string]task.CheckResult, error) {
-	kv, err := splitKV(pairs)
+// ParseChecks parses repeated --check name=ok|error pairs.
+func ParseChecks(pairs []string) (map[string]task.CheckResult, error) {
+	kv, err := SplitKV(pairs)
 	if err != nil {
 		return nil, err
 	}
@@ -64,8 +73,9 @@ func parseChecks(pairs []string) (map[string]task.CheckResult, error) {
 	return checks, nil
 }
 
-func parseFindings(pairs []string) ([]task.Finding, error) {
-	kv, err := splitKV(pairs)
+// ParseFindings parses repeated --finding file=detail pairs.
+func ParseFindings(pairs []string) ([]task.Finding, error) {
+	kv, err := SplitKV(pairs)
 	if err != nil {
 		return nil, err
 	}
@@ -76,26 +86,25 @@ func parseFindings(pairs []string) ([]task.Finding, error) {
 	return findings, nil
 }
 
-// printTask writes t to stdout - the full JSON envelope behind --json, a
-// short human-readable summary otherwise (design.md §7's "Shared request/
-// response shapes").
-func printTask(cmd *cli.Command, t task.Task) error {
+// PrintTask writes t to stdout - the full JSON envelope behind --json, a
+// short human-readable summary otherwise.
+func PrintTask(cmd *cli.Command, t task.Task) error {
 	if cmd.Bool("json") {
-		return printJSON(cmd, t)
+		return PrintJSON(cmd, t)
 	}
 	if _, err := fmt.Fprintln(cmd.Root().Writer, prompts.TaskSummary{
 		TaskID: t.ID,
 		Title:  t.Title,
 		State:  string(t.State),
-		Stage:  currentStage(t),
+		Stage:  CurrentStage(t),
 	}.Render()); err != nil {
 		return fmt.Errorf("write output: %w", err)
 	}
 	return nil
 }
 
-// createSummary is task create's default (non-JSON) CLI output.
-func createSummary(t task.Task) string {
+// CreateSummary is task create's default (non-JSON) CLI output.
+func CreateSummary(t task.Task) string {
 	return prompts.CreateSummary{
 		TaskID:   t.ID,
 		Title:    t.Title,
@@ -104,11 +113,11 @@ func createSummary(t task.Task) string {
 	}.Render()
 }
 
-// printGuidance writes g (task next's response) to stdout - the full JSON
+// PrintGuidance writes g (task next's response) to stdout - the full JSON
 // envelope behind --json, just g.Message otherwise.
-func printGuidance(cmd *cli.Command, g task.Guidance) error {
+func PrintGuidance(cmd *cli.Command, g task.Guidance) error {
 	if cmd.Bool("json") {
-		return printJSON(cmd, g)
+		return PrintJSON(cmd, g)
 	}
 	if _, err := fmt.Fprintln(cmd.Root().Writer, g.Message); err != nil {
 		return fmt.Errorf("write output: %w", err)
@@ -116,7 +125,8 @@ func printGuidance(cmd *cli.Command, g task.Guidance) error {
 	return nil
 }
 
-func printJSON(cmd *cli.Command, v any) error {
+// PrintJSON writes v to stdout as indented JSON.
+func PrintJSON(cmd *cli.Command, v any) error {
 	data, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal json: %w", err)
@@ -127,9 +137,9 @@ func printJSON(cmd *cli.Command, v any) error {
 	return nil
 }
 
-// currentStage describes, in one short phrase, which stage a task is
+// CurrentStage describes, in one short phrase, which stage a task is
 // waiting on - task_summary.md's Stage param.
-func currentStage(t task.Task) string {
+func CurrentStage(t task.Task) string {
 	switch t.State { //nolint:exhaustive // created/started fall through to the per-stage switch below
 	case task.StateCompleted:
 		return "merged"
@@ -161,16 +171,17 @@ func currentStage(t task.Task) string {
 	}
 }
 
-// exitCode maps taskman's error taxonomy to a process exit code -
-// design.md §7's "Errors, one taxonomy" table.
-func exitCode(err error) int {
+// ExitCode maps a returned error to a process exit code.
+func ExitCode(err error) int {
 	if exitErr, ok := errors.AsType[cli.ExitCoder](err); ok {
 		return exitErr.ExitCode()
 	}
 	return 1
 }
 
-func fail(err error) error {
+// Fail wraps a domain error from internal/task into a cli.ExitCoder with
+// the right exit code.
+func Fail(err error) error {
 	switch {
 	case errors.Is(err, task.ErrTaskNotFound):
 		return cli.Exit(err, 1)

@@ -1,4 +1,4 @@
-Draft a commit message for this change, following the repository's conventional-commit style, then run `git commit` yourself in the worktree - a real commit, not a dry run.
+Draft a commit message for this change, following the conventional-commit style, then run `git commit` yourself in the worktree to commit changes.
 
 ## Task
 {{ .Title }}

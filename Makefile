@@ -6,7 +6,7 @@ GOVULNCHECK := $(GOBIN)/govulncheck
 GO ?= go
 GOLANGCI_LINT ?= golangci-lint
 TEMPL := $(GOBIN)/templ
-SRC_DIRS := cmd internal pkg
+SRC_DIRS := cmd internal
 PKG_PATTERNS := $(addprefix ./, $(addsuffix /..., $(SRC_DIRS)))
 
 .PHONY: lint golangci-lint tools fmt vet staticcheck govulncheck generate build run test test-db test-e2e test-all

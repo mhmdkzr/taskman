@@ -1,4 +1,4 @@
-package cli
+package support
 
 import (
 	"testing"
@@ -7,47 +7,47 @@ import (
 )
 
 func TestSplitKV(t *testing.T) {
-	got, err := splitKV([]string{"priority=high", "note=has=equals=too"})
+	got, err := SplitKV([]string{"priority=high", "note=has=equals=too"})
 	if err != nil {
-		t.Fatalf("splitKV: %v", err)
+		t.Fatalf("SplitKV: %v", err)
 	}
 	if got["priority"] != "high" || got["note"] != "has=equals=too" {
-		t.Errorf("splitKV = %+v", got)
+		t.Errorf("SplitKV = %+v", got)
 	}
 
-	if _, err := splitKV([]string{"malformed"}); err == nil {
-		t.Error("splitKV(malformed): want error, got nil")
+	if _, err := SplitKV([]string{"malformed"}); err == nil {
+		t.Error("SplitKV(malformed): want error, got nil")
 	}
 }
 
 func TestParseChecks(t *testing.T) {
-	got, err := parseChecks([]string{"vet=ok", "lint=error"})
+	got, err := ParseChecks([]string{"vet=ok", "lint=error"})
 	if err != nil {
-		t.Fatalf("parseChecks: %v", err)
+		t.Fatalf("ParseChecks: %v", err)
 	}
 	if got["vet"] != task.CheckOK || got["lint"] != task.CheckError {
-		t.Errorf("parseChecks = %+v", got)
+		t.Errorf("ParseChecks = %+v", got)
 	}
 
-	if _, err := parseChecks([]string{"vet=maybe"}); err == nil {
-		t.Error("parseChecks(vet=maybe): want error, got nil")
+	if _, err := ParseChecks([]string{"vet=maybe"}); err == nil {
+		t.Error("ParseChecks(vet=maybe): want error, got nil")
 	}
 }
 
 func TestParseFindings(t *testing.T) {
-	got, err := parseFindings([]string{"a.go=missing check", "b.go=unused var"})
+	got, err := ParseFindings([]string{"a.go=missing check", "b.go=unused var"})
 	if err != nil {
-		t.Fatalf("parseFindings: %v", err)
+		t.Fatalf("ParseFindings: %v", err)
 	}
 	if len(got) != 2 {
-		t.Fatalf("parseFindings len = %d, want 2", len(got))
+		t.Fatalf("ParseFindings len = %d, want 2", len(got))
 	}
 	byFile := map[string]string{}
 	for _, f := range got {
 		byFile[f.File] = f.Detail
 	}
 	if byFile["a.go"] != "missing check" || byFile["b.go"] != "unused var" {
-		t.Errorf("parseFindings = %+v", byFile)
+		t.Errorf("ParseFindings = %+v", byFile)
 	}
 }
 
@@ -87,20 +87,20 @@ func TestCurrentStage(t *testing.T) {
 		{"failed", task.Task{State: task.StateFailed}, "abandoned"},
 	}
 	for _, c := range cases {
-		if got := currentStage(c.t); got != c.want {
-			t.Errorf("%s: currentStage() = %q, want %q", c.name, got, c.want)
+		if got := CurrentStage(c.t); got != c.want {
+			t.Errorf("%s: CurrentStage() = %q, want %q", c.name, got, c.want)
 		}
 	}
 }
 
 func TestFailMapsErrorsToExitCodes(t *testing.T) {
-	if got := exitCode(fail(task.ErrTaskNotFound)); got != 1 {
+	if got := ExitCode(Fail(task.ErrTaskNotFound)); got != 1 {
 		t.Errorf("ErrTaskNotFound exit = %d, want 1", got)
 	}
-	if got := exitCode(fail(task.ErrInvalidLabel)); got != 2 {
+	if got := ExitCode(Fail(task.ErrInvalidLabel)); got != 2 {
 		t.Errorf("ErrInvalidLabel exit = %d, want 2", got)
 	}
-	if got := exitCode(fail(&task.InvalidTransitionError{Stage: "review", Have: "pending", Want: "done"})); got != 1 {
+	if got := ExitCode(Fail(&task.InvalidTransitionError{Stage: "review", Have: "pending", Want: "done"})); got != 1 {
 		t.Errorf("InvalidTransitionError exit = %d, want 1", got)
 	}
 }

@@ -1,7 +1,7 @@
 # `internal/cli`
 
-The `taskman` CLI - see `notes/design/design.md` §7. `Run()` builds the `urfave/cli` v3 command
-tree (`rootCommand`, `root.go`) and runs it once; there is no persistent daemon.
+The `taskman` CLI's entrypoint. `Run()` builds the root `urfave/cli` v3 command
+(`rootCommand`, `root.go`) and runs it once; there is no persistent daemon.
 
 ```
 taskman [--git-dir <dir>] [--tasks-dir <dir>] [--worktrees-dir <dir>] [--json]
@@ -10,17 +10,18 @@ taskman [--git-dir <dir>] [--tasks-dir <dir>] [--worktrees-dir <dir>] [--json]
 ```
 
 `root.go`'s `Before` hook (`initLogger`) sets up `slog` from `--log-level`/`--log-format` before
-any command runs.
+any command runs. Everything under `task <command>` - list/get/create/update/specify/implement/
+verify/review/commit/escalate/merge/abandon/next/delete - is wired up in `internal/cli/task`
+(and its `review` subpackage), not here; `rootCommand` just mounts `task.Command()`.
 
-`task <command>` covers the full command table in design.md §6/§7: `list`, `get`, `create`,
-`update`, `specify`, `implement`, `verify`, `review record`/`approve`/`reject`, `commit`,
-`escalate`, `merge`, `abandon`, `next`, `delete` (`commands_crud.go`, `commands_workflow.go`).
+## Subpackages
 
-Every command's `Action` parses its own flags into the request struct `internal/task`'s matching
-function expects, calls straight into that function, and renders the result: the full JSON
-envelope behind `--json`, a short human-readable summary (via `internal/prompts`) otherwise.
-`helpers.go` holds the shared plumbing (`repoFrom`/`gitFrom`, flag parsing, output rendering,
-and the error-to-exit-code mapping in `fail`/`exitCode`).
+| Package | Purpose |
+| --- | --- |
+| `support` | Shared plumbing: building a `Repo`/`GitClient` from root flags, parsing repeated flags, rendering output, mapping errors to exit codes |
+| `task` | Every `taskman task <command>`, one file per command |
+| `task/review` | The review stage's `record`/`approve`/`reject` commands |
 
-No environment variables, no config file - every directory taskman needs is a CLI flag with a
-default (see design.md §1).
+`support` exists specifically to avoid a cycle: `cli` imports `task` (to mount its commands),
+so `task` and `task/review` can't import `cli` back for shared helpers - they import `support`
+instead, which depends on neither.

@@ -1,6 +1,5 @@
-// Package cli is the taskman CLI - see notes/design/design.md §7. It is a
-// one-shot process: parse flags, run exactly one command, print, exit.
-// There is no persistent daemon.
+// Package cli is the taskman CLI. It is a one-shot process: parse flags,
+// run exactly one command, print, exit. There is no persistent daemon.
 package cli
 
 import (
@@ -12,6 +11,9 @@ import (
 	"syscall"
 
 	"github.com/urfave/cli/v3"
+
+	"github.com/mhmdkzr/loop/internal/cli/support"
+	taskcmd "github.com/mhmdkzr/loop/internal/cli/task"
 )
 
 // Run parses os.Args, runs exactly one command, and returns the process
@@ -22,7 +24,7 @@ func Run() int {
 
 	if err := rootCommand().Run(ctx, os.Args); err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		return exitCode(err)
+		return support.ExitCode(err)
 	}
 	return 0
 }
@@ -44,7 +46,7 @@ func rootCommand() *cli.Command {
 			&cli.StringFlag{Name: "log-format", Value: "text", Usage: "text or json"},
 		},
 		Before:   initLogger,
-		Commands: []*cli.Command{taskCommand()},
+		Commands: []*cli.Command{taskcmd.Command()},
 	}
 }
 
@@ -68,39 +70,4 @@ func initLogger(ctx context.Context, cmd *cli.Command) (context.Context, error) 
 	}
 	slog.SetDefault(slog.New(handler))
 	return ctx, nil
-}
-
-func taskCommand() *cli.Command {
-	return &cli.Command{
-		Name:  "task",
-		Usage: "manage tasks - see notes/design/design.md §6",
-		Commands: []*cli.Command{
-			listCommand(),
-			getCommand(),
-			createCommand(),
-			updateCommand(),
-			specifyCommand(),
-			implementCommand(),
-			verifyCommand(),
-			reviewCommand(),
-			commitCommand(),
-			escalateCommand(),
-			mergeCommand(),
-			abandonCommand(),
-			nextCommand(),
-			deleteCommand(),
-		},
-	}
-}
-
-func reviewCommand() *cli.Command {
-	return &cli.Command{
-		Name:  "review",
-		Usage: "the review stage - automated (record) and human (approve/reject)",
-		Commands: []*cli.Command{
-			reviewRecordCommand(),
-			reviewApproveCommand(),
-			reviewRejectCommand(),
-		},
-	}
 }

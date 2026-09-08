@@ -3,5 +3,5 @@ Review the diff in this worktree against its acceptance criteria. Approve it onl
 ## Specification
 {{ .Specification }}
 
-## Acceptance criteria (done_when)
+## Acceptance criteria
 {{ .DoneWhen }}

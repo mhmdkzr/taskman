@@ -82,6 +82,16 @@ fixed and reflected there now:
   `initLogger`), so the ~15 lines were inlined directly rather than kept as a separate package.
 - `pkg/testenv` removed - zero callers anywhere in the codebase once the old SQLite/HTTP stack
   was gone; nothing left to gate or load `.env` for.
+- `internal/cli` split further: each `task <command>` moved to its own file under
+  `internal/cli/task` (`list.go`, `create.go`, ...), with the review stage's three commands under
+  `internal/cli/task/review`. `internal/cli/support` holds the plumbing both need (repo/git
+  construction, output rendering, error mapping) - `internal/cli` itself imports `task` to mount
+  its commands, so `task`/`task/review` can't import `internal/cli` back for shared helpers
+  without a cycle; `support` depends on neither. Every command file has its own `_test.go`, plus
+  a `testutil_test.go` per package for shared fixtures (`task/review`'s builds its test task via
+  `internal/task` directly rather than `internal/cli/task`'s commands, for the same cycle reason).
+  Every flag also got a real `Usage` string, written for someone who only has the compiled binary
+  - no file or path references from this repo.
 
 ## Resolved since first written
 
