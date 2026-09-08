@@ -1,448 +1,202 @@
 package task
 
 import (
-	"context"
-	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
+	"slices"
+	"sort"
 	"strings"
 	"time"
-	"uuid"
+
+	"github.com/gofrs/flock"
+	"gopkg.in/yaml.v3"
 )
 
-var ErrTaskNotFound = errors.New("task not found")
+const filePerm = 0o600
 
-func CreateTask(ctx context.Context, db *sql.DB, t Task) error {
-	if t.ID == (uuid.UUID{}) {
-		return fmt.Errorf("create task: id is required")
-	}
-
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin create task: %w", err)
-	}
-	defer rollbackTaskTx(tx)
-
-	now := time.Now().UTC().Format(time.RFC3339Nano)
-	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO tasks (
-			id, definition, specification, state,
-			importance, urgency, complexity, effort, risk, autonomy,
-			model, reasoning_effort, commit_hash, branch, failure_reason, pipeline_step, created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		t.ID.String(), t.Definition, t.Specification, t.State,
-		t.Importance, t.Urgency, t.Complexity, t.Effort, t.Risk, t.Autonomy,
-		t.Model, t.ReasoningEffort, t.CommitHash, t.Branch, t.FailureReason, t.PipelineStep, now); err != nil {
-		return fmt.Errorf("insert task: %w", err)
-	}
-	if err := replaceTaskLabels(ctx, tx, t.ID, t.Labels); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit create task: %w", err)
-	}
-	return nil
+// document is the on-disk shape: a task file is { task: <Task> }, matching
+// design.md §3's schema example.
+type document struct {
+	Task Task `yaml:"task"`
 }
 
-func GetTask(ctx context.Context, db *sql.DB, id uuid.UUID) (Task, error) {
-	var t Task
-	var idString string
-	var reasoningEffort, branch, failureReason sql.NullString
-	err := db.QueryRowContext(ctx, `
-		SELECT id, definition, specification, state,
-			importance, urgency, complexity, effort, risk, autonomy,
-			model, reasoning_effort, commit_hash, branch, failure_reason, pipeline_step
-		FROM tasks
-		WHERE id = ? AND deleted_at IS NULL`, id.String()).Scan(
-		&idString, &t.Definition, &t.Specification, &t.State,
-		&t.Importance, &t.Urgency, &t.Complexity, &t.Effort, &t.Risk, &t.Autonomy,
-		&t.Model, &reasoningEffort, &t.CommitHash, &branch, &failureReason, &t.PipelineStep,
-	)
-	if errors.Is(err, sql.ErrNoRows) {
-		return Task{}, ErrTaskNotFound
-	}
-	if err != nil {
-		return Task{}, fmt.Errorf("query task: %w", err)
-	}
-	t.ReasoningEffort = reasoningEffort.String
-	t.Branch = branch.String
-	t.FailureReason = failureReason.String
-	t.ID, err = uuid.Parse(idString)
-	if err != nil {
-		return Task{}, fmt.Errorf("parse task id: %w", err)
-	}
-	labels, err := taskLabels(ctx, db, t.ID)
-	if err != nil {
-		return Task{}, err
-	}
-	t.Labels = labels
-	return t, nil
+// Repo is the file-backed task repository - design.md §3's "Repository
+// implementation". It is safe for concurrent use, including from separate
+// processes: every mutation takes an OS-level advisory lock on the task's
+// own file for the duration of its read-modify-write-rename cycle.
+type Repo struct {
+	dir string
 }
 
-func ListTasks(ctx context.Context, db *sql.DB, filter TaskFilter) ([]Task, error) {
-	query := strings.Builder{}
-	query.WriteString(`SELECT id FROM tasks WHERE deleted_at IS NULL`)
-	args := make([]any, 0)
+// NewRepo returns a Repo rooted at dir (design.md §1's --tasks-dir).
+func NewRepo(dir string) *Repo {
+	return &Repo{dir: dir}
+}
 
-	addValuesFilter := func(column string, values []string) {
-		if len(values) == 0 {
-			return
-		}
-		query.WriteString(" AND ")
-		query.WriteString(column)
-		query.WriteString(" IN (")
-		query.WriteString(placeholders(len(values)))
-		query.WriteString(")")
-		for _, value := range values {
-			args = append(args, value)
-		}
-	}
-	addIntegerValuesFilter := func(column string, values []int64) {
-		if len(values) == 0 {
-			return
-		}
-		query.WriteString(" AND ")
-		query.WriteString(column)
-		query.WriteString(" IN (")
-		query.WriteString(placeholders(len(values)))
-		query.WriteString(")")
-		for _, value := range values {
-			args = append(args, value)
-		}
-	}
-	addUUIDFilter := func(column string, values []uuid.UUID) {
-		valuesAsStrings := make([]string, len(values))
-		for i, value := range values {
-			valuesAsStrings[i] = value.String()
-		}
-		addValuesFilter(column, valuesAsStrings)
-	}
-	addLabelFilter := func(values []string) {
-		if len(values) == 0 {
-			return
-		}
-		query.WriteString(` AND EXISTS (
-			SELECT 1 FROM tasks_labels
-			WHERE task_id = tasks.id AND label IN (`)
-		query.WriteString(placeholders(len(values)))
-		query.WriteString(`))`)
-		for _, value := range values {
-			args = append(args, value)
-		}
-	}
+// Get reads the current state of task id.
+func (r *Repo) Get(id string) (Task, error) {
+	return r.read(id)
+}
 
-	addUUIDFilter("id", filter.IDs)
-	addValuesFilter("state", taskStates(filter.State))
-	addLabelFilter(filter.Labels)
-	addIntegerValuesFilter("importance", levels(filter.Importance))
-	addIntegerValuesFilter("urgency", levels(filter.Urgency))
-	addIntegerValuesFilter("complexity", levels(filter.Complexity))
-	addIntegerValuesFilter("effort", levels(filter.Effort))
-	addIntegerValuesFilter("risk", levels(filter.Risk))
-	addIntegerValuesFilter("autonomy", levels(filter.Autonomy))
-	addValuesFilter("model", filter.Model)
-	addValuesFilter("reasoning_effort", filter.ReasoningEfforts)
-	addValuesFilter("commit_hash", filter.CommitHashes)
-	addValuesFilter("branch", filter.Branches)
-	query.WriteString(" ORDER BY created_at, id")
+// Filter narrows List's results. A zero Filter matches every task.
+type Filter struct {
+	State  []State
+	Labels map[string]string
+}
 
-	rows, err := db.QueryContext(ctx, query.String(), args...)
+func (f Filter) matches(t Task) bool {
+	if len(f.State) > 0 {
+		found := slices.Contains(f.State, t.State)
+		if !found {
+			return false
+		}
+	}
+	for k, v := range f.Labels {
+		if t.Labels[k] != v {
+			return false
+		}
+	}
+	return true
+}
+
+// List returns every task matching filter, ordered by id.
+func (r *Repo) List(filter Filter) ([]Task, error) {
+	entries, err := os.ReadDir(r.dir)
 	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
 		return nil, fmt.Errorf("list tasks: %w", err)
 	}
-	defer closeTaskRows(rows)
 
-	var ids []uuid.UUID
-	for rows.Next() {
-		var idString string
-		if err := rows.Scan(&idString); err != nil {
-			return nil, fmt.Errorf("scan task id: %w", err)
+	var ids []string
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
+			continue
 		}
-		id, err := uuid.Parse(idString)
-		if err != nil {
-			return nil, fmt.Errorf("parse task id: %w", err)
-		}
-		ids = append(ids, id)
+		ids = append(ids, strings.TrimSuffix(entry.Name(), ".yaml"))
 	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate tasks: %w", err)
-	}
+	sort.Strings(ids)
 
 	tasks := make([]Task, 0, len(ids))
 	for _, id := range ids {
-		t, err := GetTask(ctx, db, id)
+		t, err := r.read(id)
 		if err != nil {
-			return nil, fmt.Errorf("load listed task: %w", err)
+			return nil, fmt.Errorf("read task %s: %w", id, err)
 		}
-		tasks = append(tasks, t)
+		if filter.matches(t) {
+			tasks = append(tasks, t)
+		}
 	}
 	return tasks, nil
 }
 
-// SessionIDsForTask returns every session linked to taskID via tasks_sessions,
-// in the order they were linked.
-func SessionIDsForTask(ctx context.Context, db *sql.DB, taskID uuid.UUID) ([]uuid.UUID, error) {
-	rows, err := db.QueryContext(ctx, `
-		SELECT session_id FROM tasks_sessions WHERE task_id = ?`, taskID.String())
-	if err != nil {
-		return nil, fmt.Errorf("query task session ids: %w", err)
+// Create writes a brand-new task file. It fails if a file for t.ID already
+// exists - task ids are <uuid-v7>_<slug> (§3), so this should only ever
+// happen if a caller passes in an id by hand.
+func (r *Repo) Create(t Task) error {
+	if t.ID == "" {
+		return fmt.Errorf("create task: id is required")
+	}
+	if err := os.MkdirAll(r.dir, 0o700); err != nil {
+		return fmt.Errorf("create tasks dir: %w", err)
+	}
+	path := r.path(t.ID)
+	if _, err := os.Stat(path); err == nil {
+		return fmt.Errorf("create task: %s already exists", t.ID)
+	}
+	return r.write(t)
+}
+
+// Mutate locks task id's file, loads it, calls fn to validate and apply a
+// transition, and writes the result back - the read-modify-write-rename
+// cycle every command in design.md §6 goes through. fn returning an error
+// aborts the mutation: nothing is written, and that error is returned as
+// Mutate's own.
+func (r *Repo) Mutate(id string, fn func(t *Task) error) (Task, error) {
+	// The lock is taken on a separate, stable file - never on the task
+	// file itself. write()'s atomic rename replaces the task file's inode
+	// on every write; a lock held on a path survives only as long as the
+	// inode it was opened against, so locking the renamed file directly
+	// would let a concurrent process's fresh open() onto the new inode
+	// acquire an independent, non-contending lock - silently defeating
+	// cross-process exclusion the moment a write ever succeeded.
+	lock := flock.New(r.path(id) + ".lock")
+	if err := lock.Lock(); err != nil {
+		return Task{}, fmt.Errorf("lock task %s: %w", id, err)
 	}
 	defer func() {
-		if err := rows.Close(); err != nil {
-			slog.Error("close task session id rows", "error", err)
+		if err := lock.Unlock(); err != nil {
+			slog.Error("unlock task file", "id", id, "error", err)
 		}
 	}()
 
-	var ids []uuid.UUID
-	for rows.Next() {
-		var idString string
-		if err := rows.Scan(&idString); err != nil {
-			return nil, fmt.Errorf("scan task session id: %w", err)
-		}
-		id, err := uuid.Parse(idString)
-		if err != nil {
-			return nil, fmt.Errorf("parse task session id: %w", err)
-		}
-		ids = append(ids, id)
+	t, err := r.read(id)
+	if err != nil {
+		return Task{}, err
 	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate task session ids: %w", err)
+	if err := fn(&t); err != nil {
+		return Task{}, err
 	}
-	return ids, nil
+	if err := r.write(t); err != nil {
+		return Task{}, err
+	}
+	return t, nil
 }
 
-// LinkSession records that sessionID was dispatched for taskID. Callers
-// that dispatch a session on a task's behalf (e.g. internal/pipeline) must
-// call this immediately after creating the session and before running it,
-// so the link survives even if the session's own turn crashes mid-run.
-func LinkSession(ctx context.Context, db *sql.DB, taskID, sessionID uuid.UUID) error {
-	if _, err := db.ExecContext(ctx,
-		`INSERT INTO tasks_sessions (task_id, session_id) VALUES (?, ?)`,
-		taskID.String(), sessionID.String()); err != nil {
-		return fmt.Errorf("link task session: %w", err)
+// Delete removes task id's file outright - no soft-delete, git history
+// covers "undo" (§3).
+func (r *Repo) Delete(id string) error {
+	path := r.path(id)
+	if _, err := os.Stat(path); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return ErrTaskNotFound
+		}
+		return fmt.Errorf("stat task %s: %w", id, err)
+	}
+	if err := os.Remove(path); err != nil {
+		return fmt.Errorf("delete task %s: %w", id, err)
 	}
 	return nil
 }
 
-func UpdateTask(ctx context.Context, db *sql.DB, t Task) error {
-	if t.ID == (uuid.UUID{}) {
-		return fmt.Errorf("update task: id is required")
-	}
+func (r *Repo) path(id string) string {
+	return filepath.Join(r.dir, id+".yaml")
+}
 
-	tx, err := db.BeginTx(ctx, nil)
+func (r *Repo) read(id string) (Task, error) {
+	data, err := os.ReadFile(r.path(id))
 	if err != nil {
-		return fmt.Errorf("begin update task: %w", err)
+		if errors.Is(err, os.ErrNotExist) {
+			return Task{}, ErrTaskNotFound
+		}
+		return Task{}, fmt.Errorf("read task %s: %w", id, err)
 	}
-	defer rollbackTaskTx(tx)
+	var doc document
+	if err := yaml.Unmarshal(data, &doc); err != nil {
+		return Task{}, fmt.Errorf("parse task %s: %w", id, err)
+	}
+	return doc.Task, nil
+}
 
-	result, err := tx.ExecContext(ctx, `
-		UPDATE tasks
-		SET definition = ?, specification = ?, state = ?,
-			importance = ?, urgency = ?, complexity = ?, effort = ?, risk = ?, autonomy = ?,
-			model = ?, reasoning_effort = ?, commit_hash = ?, branch = ?, failure_reason = ?, pipeline_step = ?, updated_at = ?
-		WHERE id = ? AND deleted_at IS NULL`,
-		t.Definition, t.Specification, t.State,
-		t.Importance, t.Urgency, t.Complexity, t.Effort, t.Risk, t.Autonomy,
-		t.Model, t.ReasoningEffort, t.CommitHash, t.Branch, t.FailureReason, t.PipelineStep, time.Now().UTC().Format(time.RFC3339Nano), t.ID.String())
+func (r *Repo) write(t Task) error {
+	data, err := yaml.Marshal(document{Task: t})
 	if err != nil {
-		return fmt.Errorf("update task: %w", err)
+		return fmt.Errorf("marshal task %s: %w", t.ID, err)
 	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("check updated task: %w", err)
+	path := r.path(t.ID)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, filePerm); err != nil {
+		return fmt.Errorf("write task %s: %w", t.ID, err)
 	}
-	if affected == 0 {
-		return ErrTaskNotFound
-	}
-	if err := replaceTaskLabels(ctx, tx, t.ID, t.Labels); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit update task: %w", err)
+	if err := os.Rename(tmp, path); err != nil {
+		return fmt.Errorf("rename task %s: %w", t.ID, err)
 	}
 	return nil
 }
 
-func DeleteTask(ctx context.Context, db *sql.DB, id uuid.UUID) error {
-	result, err := db.ExecContext(ctx, `
-		UPDATE tasks SET deleted_at = ?
-		WHERE id = ? AND deleted_at IS NULL`, time.Now().UTC().Format(time.RFC3339Nano), id.String())
-	if err != nil {
-		return fmt.Errorf("delete task: %w", err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("check deleted task: %w", err)
-	}
-	if affected == 0 {
-		return ErrTaskNotFound
-	}
-	return nil
-}
-
-func replaceTaskLabels(ctx context.Context, tx *sql.Tx, id uuid.UUID, labels []string) error {
-	if _, err := tx.ExecContext(ctx, `DELETE FROM tasks_labels WHERE task_id = ?`, id.String()); err != nil {
-		return fmt.Errorf("delete task labels: %w", err)
-	}
-	for _, label := range labels {
-		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO tasks_labels (task_id, label) VALUES (?, ?)`, id.String(), label); err != nil {
-			return fmt.Errorf("insert task label: %w", err)
-		}
-	}
-	return nil
-}
-
-func taskLabels(ctx context.Context, db *sql.DB, id uuid.UUID) ([]string, error) {
-	rows, err := db.QueryContext(ctx, `
-		SELECT label FROM tasks_labels WHERE task_id = ? ORDER BY label`, id.String())
-	if err != nil {
-		return nil, fmt.Errorf("query task labels: %w", err)
-	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			slog.Error("close task label rows", "error", err)
-		}
-	}()
-
-	var labels []string
-	for rows.Next() {
-		var label string
-		if err := rows.Scan(&label); err != nil {
-			return nil, fmt.Errorf("scan task label: %w", err)
-		}
-		labels = append(labels, label)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate task labels: %w", err)
-	}
-	return labels, nil
-}
-
-// InsertReviewResult records one review attempt's outcome for a task,
-// assigning it the next attempt number for that task (1 for the first
-// review). Called the moment a review finishes, before any later stage
-// (fix, commit, ...) runs, so a crash afterward never loses what the
-// review found.
-func InsertReviewResult(ctx context.Context, db *sql.DB, r ReviewResult) (ReviewResult, error) {
-	if r.TaskID == (uuid.UUID{}) {
-		return ReviewResult{}, fmt.Errorf("insert review result: task id is required")
-	}
-	findings, err := json.Marshal(r.Findings)
-	if err != nil {
-		return ReviewResult{}, fmt.Errorf("marshal review findings: %w", err)
-	}
-
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return ReviewResult{}, fmt.Errorf("begin insert review result: %w", err)
-	}
-	defer rollbackTaskTx(tx)
-
-	var maxAttempt sql.NullInt64
-	if err := tx.QueryRowContext(ctx,
-		`SELECT MAX(attempt) FROM task_review_results WHERE task_id = ?`, r.TaskID.String(),
-	).Scan(&maxAttempt); err != nil {
-		return ReviewResult{}, fmt.Errorf("resolve next review attempt: %w", err)
-	}
-	r.Attempt = int(maxAttempt.Int64) + 1
-	r.ID = uuid.NewV7()
-
-	sessionID := sql.NullString{String: r.SessionID.String(), Valid: r.SessionID != (uuid.UUID{})}
-	approved := 0
-	if r.Approved {
-		approved = 1
-	}
-	if _, err := tx.ExecContext(ctx, `
-		INSERT INTO task_review_results (id, task_id, session_id, attempt, approved, findings, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		r.ID.String(), r.TaskID.String(), sessionID, r.Attempt, approved, string(findings),
-		time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
-		return ReviewResult{}, fmt.Errorf("insert review result: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return ReviewResult{}, fmt.Errorf("commit insert review result: %w", err)
-	}
-	return r, nil
-}
-
-// ReviewResultsForTask returns every review attempt recorded for taskID,
-// oldest attempt first.
-func ReviewResultsForTask(ctx context.Context, db *sql.DB, taskID uuid.UUID) ([]ReviewResult, error) {
-	rows, err := db.QueryContext(ctx, `
-		SELECT id, session_id, attempt, approved, findings
-		FROM task_review_results
-		WHERE task_id = ?
-		ORDER BY attempt`, taskID.String())
-	if err != nil {
-		return nil, fmt.Errorf("query review results: %w", err)
-	}
-	defer func() {
-		if err := rows.Close(); err != nil {
-			slog.Error("close review result rows", "error", err)
-		}
-	}()
-
-	var results []ReviewResult
-	for rows.Next() {
-		var idString string
-		var sessionIDString sql.NullString
-		var approved int
-		var findings string
-		r := ReviewResult{TaskID: taskID}
-		if err := rows.Scan(&idString, &sessionIDString, &r.Attempt, &approved, &findings); err != nil {
-			return nil, fmt.Errorf("scan review result: %w", err)
-		}
-		if r.ID, err = uuid.Parse(idString); err != nil {
-			return nil, fmt.Errorf("parse review result id: %w", err)
-		}
-		if sessionIDString.Valid {
-			if r.SessionID, err = uuid.Parse(sessionIDString.String); err != nil {
-				return nil, fmt.Errorf("parse review result session id: %w", err)
-			}
-		}
-		r.Approved = approved != 0
-		if err := json.Unmarshal([]byte(findings), &r.Findings); err != nil {
-			return nil, fmt.Errorf("unmarshal review findings: %w", err)
-		}
-		results = append(results, r)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate review results: %w", err)
-	}
-	return results, nil
-}
-
-func closeTaskRows(rows *sql.Rows) {
-	if err := rows.Close(); err != nil {
-		slog.Error("close task rows", "error", err)
-	}
-}
-
-func rollbackTaskTx(tx *sql.Tx) {
-	if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
-		slog.Error("rollback task transaction", "error", err)
-	}
-}
-
-func placeholders(n int) string {
-	return strings.TrimRight(strings.Repeat("?,", n), ",")
-}
-
-func levels(values []Level) []int64 {
-	result := make([]int64, len(values))
-	for i, value := range values {
-		result[i] = int64(value)
-	}
-	return result
-}
-
-func taskStates(values []TaskState) []string {
-	result := make([]string, len(values))
-	for i, value := range values {
-		result[i] = string(value)
-	}
-	return result
-}
+// now is a seam for tests; production code always uses time.Now().
+var now = func() time.Time { return time.Now().UTC() }

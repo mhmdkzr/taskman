@@ -1,14 +1,16 @@
+// Command taskman is the CLI entrypoint for taskman - see
+// notes/design/design.md §7. It is a one-shot process: parse flags, run
+// exactly one command, print, exit. There is no persistent daemon.
 package main
 
 import (
 	"context"
-	"flag"
-	"log/slog"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/mhmdkzr/loop/internal/app/process"
+	"github.com/urfave/cli/v3"
 )
 
 func main() {
@@ -19,34 +21,64 @@ func run() int {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	flags := flag.NewFlagSet("loop", flag.ContinueOnError)
-	addr := flags.String("addr", "", "override the web UI bind address")
-	dbPath := flags.String("db", "", "override the SQLite database path")
-	envFile := flags.String("env", "", "load configuration from this env file")
-	logLevel := flags.String("log-level", "", "override the logger level")
-	logFormat := flags.String("log-format", "", "override the logger format")
-	port := flags.Int("port", 0, "override the web UI port")
-	if err := flags.Parse(os.Args[1:]); err != nil {
-		return 2
-	}
-	if flags.NArg() != 0 {
-		flags.Usage()
-		return 2
-	}
-	if *port < 0 || *port > 65535 {
-		flags.Usage()
-		return 2
-	}
-	if err := process.Start(ctx, process.StartOptions{
-		AddrOverride:   *addr,
-		PortOverride:   *port,
-		DBPathOverride: *dbPath,
-		EnvFile:        *envFile,
-		LogLevel:       *logLevel,
-		LogFormat:      *logFormat,
-	}); err != nil {
-		slog.Error("app init", "error", err)
-		return 1
+	if err := rootCommand().Run(ctx, os.Args); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return exitCode(err)
 	}
 	return 0
+}
+
+func rootCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "taskman",
+		Usage: "a file-backed, stateless, one-shot CLI task server",
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "git-dir", Value: ".", Usage: "repository root taskman operates against"},
+			&cli.StringFlag{Name: "tasks-dir", Value: ".tasks", Usage: "directory holding task files"},
+			&cli.StringFlag{
+				Name:  "worktrees-dir",
+				Value: ".worktrees",
+				Usage: "directory task create creates worktrees under",
+			},
+			&cli.BoolFlag{Name: "json", Usage: "print the full JSON envelope instead of a human-readable summary"},
+			&cli.StringFlag{Name: "log-level", Value: "info", Usage: "debug, info, warn, or error"},
+			&cli.StringFlag{Name: "log-format", Value: "text", Usage: "text or json"},
+		},
+		Commands: []*cli.Command{taskCommand()},
+	}
+}
+
+func taskCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "task",
+		Usage: "manage tasks - see notes/design/design.md §6",
+		Commands: []*cli.Command{
+			listCommand(),
+			getCommand(),
+			createCommand(),
+			updateCommand(),
+			specifyCommand(),
+			implementCommand(),
+			verifyCommand(),
+			reviewCommand(),
+			commitCommand(),
+			escalateCommand(),
+			mergeCommand(),
+			abandonCommand(),
+			nextCommand(),
+			deleteCommand(),
+		},
+	}
+}
+
+func reviewCommand() *cli.Command {
+	return &cli.Command{
+		Name:  "review",
+		Usage: "the review stage - automated (record) and human (approve/reject)",
+		Commands: []*cli.Command{
+			reviewRecordCommand(),
+			reviewApproveCommand(),
+			reviewRejectCommand(),
+		},
+	}
 }

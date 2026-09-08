@@ -10,9 +10,11 @@
 .test
 .claude
 .mcp.json
-.worktrees
 .sessions
 bin
+/main
 loop.db
 loop.db-shm
 loop.db-wal
+.worktrees
+.tasks/*.lock

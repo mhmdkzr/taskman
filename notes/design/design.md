@@ -63,7 +63,9 @@ every directory taskman needs is a CLI flag with a default, resolved fresh on ev
 | `--git-dir` | `.` | The repository root taskman operates against - worktrees, commits, the clean-working-tree check (§5). |
 | `--tasks-dir` | `.tasks` | Where task files live (§3). |
 | `--worktrees-dir` | `.worktrees` | Where `task create` creates worktrees (§5). |
-| `--prompts-dir` | `prompts` | Where prompt templates live (§4). |
+
+Prompt templates (§4) aren't a directory flag at all - they're compiled into the taskman binary
+itself (`go:embed`), not read from disk at runtime, so there's nothing to point a flag at.
 
 Pass a flag to override its default for that invocation; omit it and the default applies - there
 is nothing to load, parse, or validate before a command runs, and no interpolation of any kind
@@ -238,10 +240,15 @@ Notes:
 - **Concurrency**: `taskman` is a one-shot CLI - each invocation is its own process that reads,
   validates, writes, and exits, not a long-running daemon holding an in-memory lock table between
   calls. Two invocations touching the same task at nearly the same moment are two separate OS
-  processes, so the read-modify-write-rename cycle takes a real OS-level advisory lock on the
-  task file (`flock`, held for the duration of the read-modify-write) rather than an in-process
-  mutex - a per-process lock would provide no protection at all here, since there's no shared
-  process for it to live in. This lock is per-file, not global: two invocations against
+  processes, so the read-modify-write-rename cycle takes a real OS-level advisory lock (`flock`,
+  held for the duration of the read-modify-write) rather than an in-process mutex - a per-process
+  lock would provide no protection at all here, since there's no shared process for it to live
+  in. The lock is held on a separate, stable `<id>.yaml.lock` file, never on the task file
+  itself: the write's atomic rename replaces the task file's inode on every write, and a lock
+  survives only as long as the inode it was opened against - locking the renamed file directly
+  would let a concurrent process's fresh open onto the new inode acquire an independent,
+  non-contending lock, silently defeating cross-process exclusion the moment a write ever
+  succeeded. This lock is per-file, not global: two invocations against
   *different* task ids never contend at all, since they touch different files - see "Task-scoped,
   not global" below.
 - **Delete**: removes the file outright, no soft-delete/tombstone - git history covers "undo."
@@ -281,9 +288,16 @@ regardless of stage, so taskman generates them once and wraps the rendered promp
 preamble/postamble itself (§7's `task next`) rather than have every prompt file repeat them.
 `task next`'s `dispatch` response carries the fully wrapped, rendered text as `message` - the
 caller never touches `prompts/*.md` directly and never has to assemble the pieces itself.
-Lookup is `os.ReadFile("<prompts-dir>/<name>.md")` plus `text/template` rendering, on demand, no
-caching required at this scale. The built-in prompts (`specify`, `implement`, `fix`, `review`,
-`commit`) ship checked into the repo as plain defaults - nothing to seed, no database.
+Every `prompts/*.md` file is embedded into the taskman binary at compile time (`go:embed`, in
+`internal/prompts`) and parsed once at startup - there's no runtime file lookup, no `--prompts-dir`
+flag, and no way to edit a prompt without rebuilding taskman. `internal/prompts` also defines one
+typed params struct and `Render` method per template, so a caller can't pass the wrong shape of
+data into the wrong template - a compile-time guarantee, not a runtime check. This applies to
+every natural-language template taskman renders, not just the five judgment-dispatch prompts
+above: the dispatch preamble/postamble, the `run`/`wait`/`done` message variants, and `task
+create`'s own CLI summary are each their own small embedded template too, for the same reason -
+one typed struct per shape of message, never hand-built strings scattered across the command
+layer.
 
 ## 5. No GitHub
 
@@ -700,7 +714,12 @@ that the same way to every response it gives, not just the ones that hand off a 
 Concretely, every response has:
 
 ```json
-{ "task_id": "abc", "action": "...", "message": "...", "report_with": "..." }
+{
+  "task_id": "abc",
+  "action": "...",
+  "message": "...",
+  "report_with": "..."
+}
 ```
 
 - `action` is a coarse signal for a caller with no way to read prose - specifically **loop** (§0
@@ -724,8 +743,12 @@ always reports back with `task verify` - it produced a diff, not a verdict, so t
 for it to approve or reject:
 
 ```json
-{ "task_id": "abc", "action": "dispatch", "report_with": "task verify",
-  "message": "Fix the issues found in the last automated review of task abc ('Test Task').\n\nWork in .worktrees/abc, on branch task/abc.\n\nFindings:\n- main.go: missing error check\n\nWhen you're done, report back with:\n    task verify --check vet=<ok|error> --check lint=<ok|error> --check test=<ok|error> [--output <text>]" }
+{
+  "task_id": "abc",
+  "action": "dispatch",
+  "report_with": "task verify",
+  "message": "Fix the issues found in the last automated review of task abc ('Test Task').\n\nWork in .worktrees/abc, on branch task/abc.\n\nFindings:\n- main.go: missing error check\n\nWhen you're done, report back with:\n    task verify --check vet=<ok|error> --check lint=<ok|error> --check test=<ok|error> [--output <text>]"
+}
 ```
 
 Once verification passes (attempt 1 or 2) or a review-reject-recovery cycle's fix comes back
@@ -733,16 +756,24 @@ clean, the next dispatch is drafting the commit message - the one place `report_
 `task commit` rather than a verdict-reporting command:
 
 ```json
-{ "task_id": "abc", "action": "dispatch", "report_with": "task commit",
-  "message": "Draft a commit message for task abc ('Test Task').\n\nWork in .worktrees/abc, on branch task/abc.\n\nSpecification:\n<task's specification>\n\nWhen you're done, run git commit yourself, then report back with:\n    task commit [--commit <hash>]\n(taskman reads the commit's real message and hash itself - you don't need to repeat them)." }
+{
+  "task_id": "abc",
+  "action": "dispatch",
+  "report_with": "task commit",
+  "message": "Draft a commit message for task abc ('Test Task').\n\nWork in .worktrees/abc, on branch task/abc.\n\nSpecification:\n<task's specification>\n\nWhen you're done, run git commit yourself, then report back with:\n    task commit [--commit <hash>]\n(taskman reads the commit's real message and hash itself - you don't need to repeat them)."
+}
 ```
 
 **`run`** - the step is mechanical, no judgment needed, so there's no prompt to hand over - just
 plain instructions:
 
 ```json
-{ "task_id": "abc", "action": "run", "report_with": "task verify",
-  "message": "Run go vet, make lint, and go test in .worktrees/abc (branch task/abc) yourself, then report each result with:\n    task verify --check vet=<ok|error> --check lint=<ok|error> --check test=<ok|error> [--output <text>]" }
+{
+  "task_id": "abc",
+  "action": "run",
+  "report_with": "task verify",
+  "message": "Run go vet, make lint, and go test in .worktrees/abc (branch task/abc) yourself, then report each result with:\n    task verify --check vet=<ok|error> --check lint=<ok|error> --check test=<ok|error> [--output <text>]"
+}
 ```
 
 **`wait`** - the next move belongs to a human. Exactly two triggers, both human gates from §6,
@@ -750,12 +781,20 @@ never a catch-all for "nothing obvious to do" - and each message carries enough 
 on its own, the way a person would actually say it:
 
 ```json
-{ "task_id": "abc", "action": "wait", "report_with": null,
-  "message": "Task abc ('Test Task') is awaiting human review. Verification passed on attempt 1; the change is committed as 12345asdf on branch task/abc in .worktrees/abc. It's been waiting since 2026-09-08 11:40 UTC. Nothing to do until a human runs task review approve or task review reject." }
+{
+  "task_id": "abc",
+  "action": "wait",
+  "report_with": null,
+  "message": "Task abc ('Test Task') is awaiting human review. Verification passed on attempt 1; the change is committed as 12345asdf on branch task/abc in .worktrees/abc. It's been waiting since 2026-09-08 11:40 UTC. Nothing to do until a human runs task review approve or task review reject."
+}
 ```
 ```json
-{ "task_id": "abc", "action": "wait", "report_with": null,
-  "message": "Task abc ('Test Task') is blocked in verification, waiting since 2026-09-08 12:00 UTC. The second automated review rejected it: still missing error handling in balance.go:42. A human needs to look at .worktrees/abc (branch task/abc) before this can continue." }
+{
+  "task_id": "abc",
+  "action": "wait",
+  "report_with": null,
+  "message": "Task abc ('Test Task') is blocked in verification, waiting since 2026-09-08 12:00 UTC. The second automated review rejected it: still missing error handling in balance.go:42. A human needs to look at .worktrees/abc (branch task/abc) before this can continue."
+}
 ```
 Distinct from `done` on purpose: `done` means drop this task, nothing will ever change again;
 `wait` means keep it in view but stop dispatching against it until a human acts.
@@ -763,10 +802,18 @@ Distinct from `done` on purpose: `done` means drop this task, nothing will ever 
 **`done`** - task is `completed` or `failed`:
 
 ```json
-{ "task_id": "abc", "action": "done", "report_with": null,
-  "message": "Task abc ('Test Task') is complete - merged into main as 12345asdf." }
-{ "task_id": "abc", "action": "done", "report_with": null,
-  "message": "Task abc ('Test Task') was abandoned: superseded by a manual fix." }
+{
+  "task_id": "abc",
+  "action": "done",
+  "report_with": null,
+  "message": "Task abc ('Test Task') is complete - merged into main as 12345asdf."
+}
+{
+  "task_id": "abc",
+  "action": "done",
+  "report_with": null,
+  "message": "Task abc ('Test Task') was abandoned: superseded by a manual fix."
+}
 ```
 
 A caller that only ever calls `task next`, branches on `action`, and either hands `message` to a
@@ -781,5 +828,4 @@ callers get the same answer.
 command with one `cli.Command` child per row in the command table, each declaring its own
 `cli.Flag`s and an `Action` that builds the shared `*Request` struct and calls straight into the
 one Go function from "One core, thin CLI." `--json` is a persistent flag on the root command,
-inherited by every subcommand, alongside `--git-dir`/`--tasks-dir`/`--worktrees-dir`/
-`--prompts-dir` (§1).
+inherited by every subcommand, alongside `--git-dir`/`--tasks-dir`/`--worktrees-dir` (§1).

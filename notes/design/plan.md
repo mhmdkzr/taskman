@@ -9,61 +9,61 @@ it from the current codebase - the design doc itself stays pure design, no seque
   `internal/web`; no `internal/webhooks` ever existed in this repo to remove - an earlier design
   pass asserted it did, without checking; that claim is gone from `design.md` now, and this note
   exists so it doesn't quietly reappear in a future pass).
+- Directory flags, no config file: `--git-dir`/`--tasks-dir`/`--worktrees-dir` plus
+  `--log-level`/`--log-format`, all persistent root flags on the `taskman` command
+  (`cmd/main/main.go`). Prompt templates ended up embedded in the binary instead of a
+  `--prompts-dir` flag (see below) - `design.md` §1/§4 were updated to match.
+- `internal/prompts`: every natural-language template taskman renders - not just the five
+  judgment-dispatch prompts design.md originally named, but the dispatch wrapper and every
+  `run`/`wait`/`done`/CLI-summary message too (13 templates total) - each embedded via
+  `go:embed`, with its own typed params struct and `Render()` method. This was a deliberate
+  scope widening from the original plan: embedding (not `os.ReadFile` from a `--prompts-dir`)
+  and one struct per message shape, not just per judgment-dispatch prompt.
+- `internal/task` rewritten from scratch for `.tasks/*.yaml` per design §3/§6: the new `Task`
+  type (`types.go`), the file-backed `Repo` (`repo.go`), `GitClient` (`git.go`), id generation
+  (`id.go`), label validation (`labels.go`), and every command in §6's table (`create.go`,
+  `update.go`, `delete.go`, `workflow.go`, `next.go`). Full test coverage: `repo_test.go`,
+  `id_test.go`, `git_test.go`, `workflow_test.go`, `next_test.go`.
+- `internal/store`, `migrations/`, `pkg/migrate`, and the `modernc.org/sqlite` dependency
+  dropped. Scope widened past the original plan once design.md settled on CLI-only (no HTTP,
+  no MCP): the entire dead HTTP app framework went with it too -  `internal/app` (config,
+  process, register, routes), `internal/mcp`, `internal/providers/opencode`, and
+  `pkg/middleware`/`pkg/jsonresp`/`pkg/pagination` (all either only served that framework or,
+  for `pkg/pagination`, had zero users already). `cmd/main/main.go` rewritten as the `taskman`
+  CLI entrypoint. `config.yaml`, `.tasks/abc.yaml`, and `agents/review.yaml` (stale pre-design
+  sketches) and `.env.example` (no env vars left to document) deleted.
+- The taskman command layer and CLI (design §6/§7): CRUD, workflow commands, `Next`, and
+  `urfave/cli` v3 wiring (`cmd/main/*.go`) - all landed together rather than as 5 separate
+  passes, once the shape of `internal/task` was settled. `--json` plus the directory flags are
+  persistent root flags, inherited by every subcommand. HTTP/MCP adapters: not built, per
+  design §7's CLI-only scope.
+- Manual end-to-end testing (a real git repo, real worktrees, real commits) walked the full
+  happy path, the review-reject-recovery cycle, the two-round automated-review-rejection cap
+  (blocked), escalate, abandon, delete, concurrent same-task mutations, and the dirty-working-
+  tree precondition - see "Found during implementation" below for what that surfaced. Automated
+  coverage for the same paths now lives in `cmd/main/cli_integration_test.go`
+  (`TestCLIFullLifecycle` and friends) and `internal/task/*_test.go`.
 
-## Remaining work
+## Found during implementation
 
-1. **Directory flags, no config file.** `--git-dir` (default `.`), `--tasks-dir` (default
-   `.tasks`), `--worktrees-dir` (default `.worktrees`), `--prompts-dir` (default `prompts`),
-   plus `--log-level`/`--log-format` - all resolved from CLI flags at invocation, nothing loaded
-   from disk before a command runs. Today's `internal/app/config` is still the old
-   env-var-driven `Server`/`Logger`/`Database`/`Provider` shape, loaded from `config.yaml` - this
-   step removes that whole config-file-loading path, not adapts it. No `Config.Validate()`
-   either: there's no file to have gotten wrong.
-2. **`prompts/*.md`.** Smallest content migration - plain files, no metadata to validate beyond
-   existence. Ship the built-in prompts (`specify`, `implement`, `fix`, `review`, `commit`)
-   checked into the repo.
-3. **Rewrite `internal/task` for `.tasks/*.yaml`.** Not new construction - `internal/task` is
-   today a complete, working SQLite-backed package (`types.go`'s `Task` struct uses `uuid.UUID`
-   IDs, `Importance`/`Urgency`/`Complexity`/`Effort`/`Risk`/`Autonomy` `Level` fields, a
-   `ReasoningEffort` string, a `PipelineStep` field tied to the now-deleted pipeline package, and
-   a `TaskStateCancelled` value design.md explicitly drops) - that whole type and its
-   SQL-backed repo (`repo.go`) get replaced, not added to. New repo per design §3:
-   `os.ReadFile`/`yaml.Unmarshal` for reads, write-to-temp-then-rename for writes, an OS-level
-   `flock` per task file for cross-process safety (taskman is a one-shot CLI - every invocation
-   is its own process, so an in-memory lock provides no protection). `id` is `<uuid-v7>_<slug>`
-   (§3) - a UUID v7 generator (Go's stdlib `uuid` package, per `CLAUDE.md`) plus a title-to-slug
-   helper. Includes `human_reviews[]` (flat `{approved, comment, at}` entries, no nested findings
-   - distinct from `reviews[]`'s structured, full-text `findings[].detail`), the `blocked`
-   overlay, and `verifications[]` (one entry per `task verify` call, per-check `ok`/`error`
-   status) from day one - these are all part of the same `Task` type, not separate follow-on
-   work. No `sessions`/session-id field anywhere - dropped from the design entirely.
-   `Commit`'s implementation needs a small `Git` helper (`git log` in a worktree, parsing hash +
-   message + a leading conventional-commit `type:` prefix) - taskman reads the real commit back
-   rather than trusting caller-reported text (design §6, "When the commit happens").
-4. **Drop `internal/store`, `migrations/`, `pkg/migrate`, and the `modernc.org/sqlite`
-   dependency.** Not just deleting the packages - `internal/app/app.go` (`Deps.Store`),
-   `internal/app/process/start.go` (`store.Open`, `runMigrations`), and
-   `internal/app/config/sqlite.go` all still wire up SQLite today and need updating in the same
-   pass, or step 4 leaves the build broken.
-5. **The taskman command layer and CLI (design §6/§7).** The largest single piece of work;
-   broken down here specifically because it isn't one commit:
-   1. Core task CRUD: `Create` (including the clean-working-tree check and `git worktree add`
-      exception, §5), `Update`, `Delete`, plus rewiring existing `Get`/`List` onto the new repo
-      from step 3.
-   2. Workflow commands, in the order a task actually moves through them: `Specify` → `Implement`
-      → `Verify` → `RecordReview` → `Commit` → `Escalate` → `ApproveReview`/`RejectReview` →
-      `Merge` → `Abandon`. Each is small and independently testable against §6's precondition/
-      effect table.
-   3. `Next` - deliberately last among the Go functions, since it reads the state every other
-      command in 5.2 produces (`dispatch`/`run`/`wait`/`done`, the `message`/`report_with`
-      contract) and has nothing to inspect until they exist.
-   4. CLI wiring (`urfave/cli` v3) over all of the above - one `cli.Command` per row in §7's
-      command table, `--json` plus the directory flags from step 1 as persistent root flags.
-      This is the whole interface - no HTTP or MCP adapter follows; design §7 puts both out of
-      scope entirely, not deferred.
+Two correctness issues and one operational requirement, none anticipated in `design.md`, all
+fixed and reflected there now:
 
-Each step keeps its own README updated and lands with the smallest sensible `go build`/`go vet`/
-test scope, as separate, package-scoped commits.
+- **The per-task `flock` was taken on the task file itself, not a separate lock file.**
+  `write()`'s atomic rename replaces the task file's inode on every write; a lock survives only
+  as long as the inode it was opened against, so a concurrent process's fresh `open()` onto the
+  post-rename inode would acquire an independent, non-contending lock - silently defeating
+  cross-process exclusion the moment a write ever succeeded. Caught by an automated concurrency
+  test (30 concurrent `task update` calls losing writes), fixed by locking a separate, stable
+  `<id>.yaml.lock` file instead. `design.md` §3's Concurrency bullet now describes this
+  explicitly.
+- **`.worktrees/` must be gitignored.** Discovered manually: after one `task create`, its
+  worktree is an untracked directory, which fails the *next* `task create`'s clean-working-tree
+  check. Not a code bug - an operational precondition the design never stated. Documented in the
+  root `README.md`'s quickstart and baked into every test fixture (`newTestRepo` in both
+  `internal/task` and `cmd/main` tests commits a `.gitignore` with `.worktrees/` up front).
+- **`<id>.yaml.lock` files need to be gitignored too**, for the same reason - `.gitignore` now
+  has a `.tasks/*.lock` entry.
 
 ## Resolved since first written
 
@@ -89,3 +89,12 @@ test scope, as separate, package-scoped commits.
   flat text block for the latter - never to be conflated.
 - HTTP and MCP are out of scope for this design entirely (not merely deferred past the CLI) -
   taskman is CLI-only.
+- Prompt templates are embedded in the binary (`go:embed`), not read from a `--prompts-dir` at
+  runtime - a deliberate implementation-time decision, reflected back into design.md.
+
+## What's left
+
+Nothing from the original plan. Possible future work, not currently scoped: HTTP/MCP adapters
+(explicitly out of design's scope, would need a fresh design discussion first), a `loop` project
+to actually drive taskman unattended (a separate repo per design §0), and more built-in prompt
+variety if real usage shows the current five judgment-dispatch prompts too generic.
