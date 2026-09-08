@@ -2,7 +2,7 @@
 
 Owns the `Task` domain type, its file-backed persistence, and the command layer that validates
 and applies every state transition in `notes/design/design.md` §6. This is taskman's core
-package - the CLI (`cmd/main`) is a thin adapter over it.
+package - the CLI (`internal/cli`) is a thin adapter over it.
 
 ## Task
 

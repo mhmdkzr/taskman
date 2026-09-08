@@ -11,7 +11,7 @@ it from the current codebase - the design doc itself stays pure design, no seque
   exists so it doesn't quietly reappear in a future pass).
 - Directory flags, no config file: `--git-dir`/`--tasks-dir`/`--worktrees-dir` plus
   `--log-level`/`--log-format`, all persistent root flags on the `taskman` command
-  (`cmd/main/main.go`). Prompt templates ended up embedded in the binary instead of a
+  (`internal/cli/root.go`). Prompt templates ended up embedded in the binary instead of a
   `--prompts-dir` flag (see below) - `design.md` §1/§4 were updated to match.
 - `internal/prompts`: every natural-language template taskman renders - not just the five
   judgment-dispatch prompts design.md originally named, but the dispatch wrapper and every
@@ -30,10 +30,11 @@ it from the current codebase - the design doc itself stays pure design, no seque
   process, register, routes), `internal/mcp`, `internal/providers/opencode`, and
   `pkg/middleware`/`pkg/jsonresp`/`pkg/pagination` (all either only served that framework or,
   for `pkg/pagination`, had zero users already). `cmd/main/main.go` rewritten as the `taskman`
-  CLI entrypoint. `config.yaml`, `.tasks/abc.yaml`, and `agents/review.yaml` (stale pre-design
-  sketches) and `.env.example` (no env vars left to document) deleted.
+  CLI entrypoint (later trimmed to a two-line `main()` once `internal/cli` existed - see below).
+  `config.yaml`, `.tasks/abc.yaml`, and `agents/review.yaml` (stale pre-design sketches) and
+  `.env.example` (no env vars left to document) deleted.
 - The taskman command layer and CLI (design §6/§7): CRUD, workflow commands, `Next`, and
-  `urfave/cli` v3 wiring (`cmd/main/*.go`) - all landed together rather than as 5 separate
+  `urfave/cli` v3 wiring (`cmd/main/*.go`, later moved to `internal/cli`) - all landed together rather than as 5 separate
   passes, once the shape of `internal/task` was settled. `--json` plus the directory flags are
   persistent root flags, inherited by every subcommand. HTTP/MCP adapters: not built, per
   design §7's CLI-only scope.
@@ -41,7 +42,7 @@ it from the current codebase - the design doc itself stays pure design, no seque
   happy path, the review-reject-recovery cycle, the two-round automated-review-rejection cap
   (blocked), escalate, abandon, delete, concurrent same-task mutations, and the dirty-working-
   tree precondition - see "Found during implementation" below for what that surfaced. Automated
-  coverage for the same paths now lives in `cmd/main/cli_integration_test.go`
+  coverage for the same paths now lives in `internal/cli/cli_integration_test.go`
   (`TestCLIFullLifecycle` and friends) and `internal/task/*_test.go`.
 
 ## Found during implementation
@@ -61,9 +62,26 @@ fixed and reflected there now:
   worktree is an untracked directory, which fails the *next* `task create`'s clean-working-tree
   check. Not a code bug - an operational precondition the design never stated. Documented in the
   root `README.md`'s quickstart and baked into every test fixture (`newTestRepo` in both
-  `internal/task` and `cmd/main` tests commits a `.gitignore` with `.worktrees/` up front).
+  `internal/task` and `internal/cli` tests commits a `.gitignore` with `.worktrees/` up front).
 - **`<id>.yaml.lock` files need to be gitignored too**, for the same reason - `.gitignore` now
   has a `.tasks/*.lock` entry.
+- **`--log-level`/`--log-format` were declared as root flags but never actually wired to
+  anything** - `pkg/logger.Init` was never called from `cmd/main`, so the flags parsed but did
+  nothing. Found by re-checking test coverage against the full flag surface rather than just the
+  happy-path commands. Fixed by adding a `Before` hook (`internal/cli/root.go`'s `initLogger`)
+  that sets up `slog` from those flags before any command runs, and manually verified (both a
+  successful run and an invalid `--log-level` erroring as expected).
+
+## Post-implementation cleanup
+
+- CLI code moved out of `cmd/main` into `internal/cli`, leaving `cmd/main/main.go` as a two-line
+  `func main() { os.Exit(cli.Run()) }`. `internal/cli` is package `cli` - it can still import
+  `github.com/urfave/cli/v3` under its default `cli` identifier from inside itself without
+  collision, since a package never qualifies its own exported names.
+- `pkg/logger` removed - it wrapped `slog.Init` for exactly one caller (`internal/cli`'s
+  `initLogger`), so the ~15 lines were inlined directly rather than kept as a separate package.
+- `pkg/testenv` removed - zero callers anywhere in the codebase once the old SQLite/HTTP stack
+  was gone; nothing left to gate or load `.env` for.
 
 ## Resolved since first written
 

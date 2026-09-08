@@ -47,4 +47,4 @@ by hand:
 
 1. Add the `.md` file (picked up automatically by `//go:embed *.md`).
 2. Add a `var xTmpl = parse("x.md")` and a params struct with a `Render()` method in `prompts.go`.
-3. Use it from `internal/task` (usually `next.go`) or `cmd/main`.
+3. Use it from `internal/task` (usually `next.go`) or `internal/cli`.

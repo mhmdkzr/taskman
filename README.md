@@ -26,10 +26,10 @@ step - see `notes/design/design.md` §6/§7 for the full command reference and s
 
 | Path | Purpose |
 | --- | --- |
-| `cmd/main` | The `taskman` CLI entrypoint |
+| `cmd/main` | The `taskman` binary's minimal entrypoint |
+| `internal/cli` | The `taskman` CLI itself - command wiring, flags, output rendering |
 | `internal/task` | The `Task` domain type, file-backed repository, and command layer |
 | `internal/prompts` | Embedded prompt/message templates, typed params, `Render` methods |
-| `pkg/logger` | Structured logging setup (`--log-level`/`--log-format`) |
 | `notes/design/` | The design (`design.md`) and its execution plan (`plan.md`) |
 
 ## Commands
