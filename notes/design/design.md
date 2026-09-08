@@ -20,7 +20,7 @@ setup step, guarded by its own clean-working-tree precondition, that has to happ
 before any caller can start work. It also reads git directly in one other, read-only spot: `task
 commit` reads the caller's already-made commit via `git log` rather than trusting reported text
 (§6) - it never writes via git except the worktree/branch step. taskman owns the data and the
-state machine: `.tasks/*.yaml`, `prompts/*.md`, the directories it's told to use via flags at
+state machine: `.tasks/*.yaml` (prompt templates compiled into the binary, §4), the directories it's told to use via flags at
 invocation, and the process-stage rules in §6 (what's pending, what a rejection or an escalation
 means, what unblocks a task). It validates that a reported transition is legal and records it.
 Exposed as a CLI (§7) - the only interface in scope. taskman assumes **nothing** about whether
@@ -73,7 +73,7 @@ is nothing to load, parse, or validate before a command runs, and no interpolati
 also a flag (`--log-level`, `--log-format`), not persisted state - a one-shot process has no
 reason to carry a standing logger configuration between invocations.
 
-`.tasks/*.yaml` and `prompts/*.md` are the only files taskman reads and writes on its own -
+`.tasks/*.yaml` is the only file taskman reads and writes on its own -
 content, not configuration: it grows without bound, is authored by humans or agents, and is meant
 to be `git diff`-able and read on its own.
 
@@ -85,7 +85,7 @@ migrations, no `modernc.org/sqlite` dependency.
 | Data | Lives in |
 |---|---|
 | Directory locations | CLI flags, not persisted (§1) |
-| Prompt templates | `prompts/*.md` |
+| Prompt templates | compiled into the taskman binary (`go:embed`, one per owning slice - §4) |
 | Tasks, labels | `.tasks/*.yaml` |
 | Build-check attempts | `.tasks/*.yaml` (`verifications:` list) |
 | Review attempts | `.tasks/*.yaml` (`reviews:` list, automated; `human_reviews:` list, human - §3) |
@@ -102,7 +102,7 @@ creation time) followed by an underscore and a lowercase, hyphenated slug genera
 task's title, e.g.:
 
 ```
-.tasks/01a07e83-31e1-759f-a01f-58f0f99a37c5_fix-doc-drift-in-balance-package.yaml
+.tasks/01a07e83-31e1-759f-a01f-58f0f99a37c5_fix-doc-drift-in-internal-task.yaml
 ```
 
 Generated once at creation, never regenerated - a UUID v7 doesn't collide, so there's no
@@ -136,8 +136,8 @@ task:
   done_when: |
     ...
   references:
-    - internal/balance/README.md:11
-    - types.go:11-14
+    - internal/task/README.md:11
+    - store.go:66-72
   status:
     definition:     { state: done, completed_at: "2026-08-31T22:46:14+03:30" }
     specification:  { state: done, completed_at: "2026-08-31T22:47:00+03:30" }
@@ -156,7 +156,7 @@ task:
   verifications:
     - checks: { vet: ok, lint: error, test: ok }
       output: |
-        lint: internal/balance/balance.go:42: error not checked
+        lint: internal/task/store.go:42: error not checked
       created_at: "2026-08-31T23:15:00+03:30"
     - checks: { vet: ok, lint: ok, test: ok }
       created_at: "2026-08-31T23:35:00+03:30"
@@ -164,11 +164,12 @@ task:
     - attempt: 1
       approved: false
       findings:
-        - file: internal/balance/balance.go
+        - file: internal/task/store.go
           detail: |
-            Withdraw's return value isn't checked at line 42 - if the ledger update fails, the
-            balance still reports the funds as moved. Needs an explicit error check and either a
-            rollback or a returned error, not a silent ignore.
+            WriteTaskFile's error return isn't checked at line 42 - if the temp-file rename
+            fails, the task file still shows the old state while the caller believes the write
+            landed. Needs an explicit error check and either a retry or a returned error, not a
+            silent ignore.
       created_at: "2026-08-31T23:20:00+03:30"
     - attempt: 2
       approved: true
@@ -181,7 +182,7 @@ task:
   # blocked:
   #   stage: verification
   #   reason: |
-  #     Second review rejected: still missing error handling in balance.go:42
+  #     Second review rejected: still missing error handling in store.go:42
   #   at: "2026-09-08T12:00:00Z"
 ```
 
@@ -256,7 +257,7 @@ Notes:
   slug comes from the title, the UUID guarantees the filename is unique even if two tasks share a
   title.
 
-## 4. Prompts as files
+## 4. Prompts as embedded templates
 
 taskman has no tools and no notion of which model a task should run on (§2) - what's left to hand
 a caller, for a stage that needs judgment, is exactly one thing: **text a human would otherwise
@@ -264,8 +265,10 @@ have to type into a prompt by hand.** That's a prompt file.
 
 ### Location and format
 
-One file per stage-role, plain Markdown, no wrapper format: `prompts/specify.md`,
-`prompts/implement.md`, `prompts/fix.md`, `prompts/review.md`, `prompts/commit.md`. Each is a
+One file per stage-role, plain Markdown, no wrapper format: each stage-role's `prompt.md` lives
+inside the slice package that dispatches it (`internal/cli/task/specify/prompt.md`,
+`internal/cli/task/implement/prompt.md`, and so on for the `fix`, `review`, and `commit`
+stage roles). Each is a
 **user-prompt template only** - deliberately no system-prompt file, since not every harness lets
 a caller override the system prompt; taskman doesn't assume that capability exists on the other
 end. `{{ .Field }}` placeholders, rendered with Go's `text/template` against the task's own
@@ -287,8 +290,8 @@ worktree path, the branch, or what to report back with. Those are the same on ev
 regardless of stage, so taskman generates them once and wraps the rendered prompt in that common
 preamble/postamble itself (§7's `task next`) rather than have every prompt file repeat them.
 `task next`'s `dispatch` response carries the fully wrapped, rendered text as `message` - the
-caller never touches `prompts/*.md` directly and never has to assemble the pieces itself.
-Every `prompts/*.md` file is embedded into the taskman binary at compile time (`go:embed`, in the
+caller never touches a prompt file directly and never has to assemble the pieces itself.
+Every prompt file is embedded into the taskman binary at compile time (`go:embed`, in the
 Go package of the slice that owns that prompt - e.g. `internal/cli/task/specify`) and parsed once
 at startup - there's no runtime file lookup, no `--prompts-dir` flag, and no way to edit a prompt
 without rebuilding taskman. Each such package also defines one typed params struct and `Render`
@@ -453,7 +456,7 @@ orthogonal to whichever stage was active:
 blocked:
   stage: verification       # which stage's work was in flight
   reason: |
-    Second review rejected: still missing error handling in balance.go:42
+    Second review rejected: still missing error handling in store.go:42
   at: "2026-09-08T12:00:00Z"
 ```
 
@@ -497,7 +500,7 @@ The "guide it, tell it what to do, give it prompts" interface. Given a task id, 
 - **Dispatch this** - the task is at a stage needing judgment (`specification`, `implementation`,
   the fix half of `verification`, drafting the commit message once verification passes or a
   review-reject-recovery cycle clears, or the fix half of a review-reject-recovery cycle): the
-  rendered `prompts/<name>.md` text for that stage, and which command to report the result with.
+  rendered prompt-template text for that stage, and which command to report the result with.
 - **Run this yourself** - the task is at `verification`'s build check or at `merge`: no prompt to
   give, since neither needs judgment - run the check or the merge however you like and call
   `task verify` / `task merge` to report what happened.
@@ -565,7 +568,7 @@ review agent on the way back - the human is now the reviewer for this task:
    agent with the human's stated reason (`escalate` still available).
 2. `task verify` re-runs (fix-and-recheck loop, same as verification's own) until clean or
    escalated.
-3. Once clean, the caller drafts a message (`prompts/commit.md` again) for **a new commit** -
+3. Once clean, the caller drafts a message (the `commit` prompt template again) for **a new commit** -
    not an amend of the first one - addressing the human's feedback, runs `git commit` itself, and
    reports it via `task commit`, whose effect resets `status.review.state` to `pending` (§6's
    command table). The task is back in front of the human, now looking at a second commit on top
@@ -583,7 +586,7 @@ approves, whether on attempt 1 or attempt 2 - **not** at `merge`, and never for 
 up `blocked` instead (attempt 2's rejection sets `blocked` without ever setting
 `verification.state: done`, so the commit trigger simply never fires for it - nothing worth
 committing if verification never actually passed). At that point the caller drafts a commit
-message (`prompts/commit.md`, dispatched via `task next`, §7), runs `git commit` itself, and
+message (the `commit` prompt template, dispatched via `task next`, §7), runs `git commit` itself, and
 reports it via `task commit`, which reads the real commit back out of the worktree via `git log`
 rather than trusting whatever the caller says about it (§6's command table) - this is what the
 human at `review` is looking at. A human rejection doesn't touch that commit; it adds a new one
@@ -709,7 +712,7 @@ work to - not a data feed an agent has to reverse-engineer intent from.** A harn
 conversation: told where to work, what the situation is, and what's expected back, in prose - not
 handed a pile of separate fields (`worktree`, `since`, `attempts`, `blocked_reason`,
 `last_findings`, ...) it has to reassemble into a sentence itself before it can act or brief a
-human. Every `prompts/*.md` file already renders to natural language (§4); `task next` extends
+human. Every prompt template already renders to natural language (§4); `task next` extends
 that the same way to every response it gives, not just the ones that hand off a prompt.
 
 Concretely, every response has:
@@ -736,7 +739,7 @@ Concretely, every response has:
   field alongside it; all of that is *in* the message, the same way it'd be in a sentence a
   person wrote.
 
-**`dispatch`** - work is needed and requires judgment. `message` is the stage's `prompts/*.md`
+**`dispatch`** - work is needed and requires judgment. `message` is the stage's prompt template
 template rendered with the task's own fields, wrapped in the same worktree/branch/report-back
 preamble and postamble on every dispatch (generated by taskman, not repeated in each prompt
 file). A fix agent (whether from `verification`'s own loop or a review-reject-recovery cycle)
@@ -794,7 +797,7 @@ on its own, the way a person would actually say it:
   "task_id": "abc",
   "action": "wait",
   "report_with": null,
-  "message": "Task abc ('Test Task') is blocked in verification, waiting since 2026-09-08 12:00 UTC. The second automated review rejected it: still missing error handling in balance.go:42. A human needs to look at .worktrees/abc (branch task/abc) before this can continue."
+  "message": "Task abc ('Test Task') is blocked in verification, waiting since 2026-09-08 12:00 UTC. The second automated review rejected it: still missing error handling in store.go:42. A human needs to look at .worktrees/abc (branch task/abc) before this can continue."
 }
 ```
 Distinct from `done` on purpose: `done` means drop this task, nothing will ever change again;

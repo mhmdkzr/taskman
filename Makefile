@@ -8,7 +8,7 @@ GOLANGCI_LINT ?= golangci-lint
 SRC_DIRS := cmd internal
 PKG_PATTERNS := $(addprefix ./, $(addsuffix /..., $(SRC_DIRS)))
 
-.PHONY: lint golangci-lint tools fmt vet staticcheck govulncheck generate build run test test-db test-e2e test-all
+.PHONY: lint golangci-lint tools fmt vet staticcheck govulncheck build run test
 
 lint: vet staticcheck golangci-lint govulncheck
 
@@ -43,23 +43,11 @@ staticcheck:
 govulncheck:
 	@$(GOVULNCHECK) $(PKG_PATTERNS)
 
-generate:
-	@$(GO) generate ./...
-
-build: generate
+build:
 	@$(GO) build -o /dev/null ./cmd/main
 
-run: generate
+run:
 	@$(GO) run ./cmd/main
 
 test:
 	@$(GO) test $(PKG_PATTERNS)
-
-test-db:
-	@$(GO) test -count=1 -run '^TestDB' $(PKG_PATTERNS)
-
-test-e2e:
-	@RUN_E2E_TESTS=1 $(GO) test -count=1 $(PKG_PATTERNS)
-
-test-all:
-	@RUN_E2E_TESTS=1 $(GO) test -count=1 $(PKG_PATTERNS)

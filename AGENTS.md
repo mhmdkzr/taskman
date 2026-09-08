@@ -1,85 +1,85 @@
 ## Stack
 
-- Go
-- SQLite
-- Templ
-- Datastar
+- Go 1.27+
+- File-backed YAML task store (`.tasks/*.yaml`) with per-task file locking
+- `git` on `PATH` (taskman shells out to it for worktrees and reading commits)
+- `urfave/cli` v3
+
+No database, no HTTP server, no MCP - taskman is a one-shot CLI that validates and records the
+state transitions reported to it. See `notes/design/design.md` for the full design.
 
 ---
 
 ## Vertical Slices
 
-Most product behavior is organized as vertical slices under `internal/<module>/<feature>/...`.
-Each slice is a Go package focused on one feature or workflow. It should keep its HTTP,
-domain, persistence, event, and documentation code close together unless the repo
-already has a more specific package pattern for that module.
+Every `taskman task <command>` is a vertical slice: one package under `internal/cli/task`, with
+the review stage nested as `internal/cli/task/review/{record,approve,reject}`. A slice keeps its
+CLI (`cmd.go`), domain logic (`<name>.go`), prompt templates (`prompt.go`/`prompt.md` where the
+command dispatches an agent), and documentation (`README.md`) close together.
 
-## Modules
+## Shared Packages
 
-Related slices are grouped into modules, which are domain bounded contexts.
+- `internal/task` - the `Task` domain type and the file-backed persistence primitives every
+  slice builds on: `ReadTask`, `WriteTaskFile`, and `MutateTask` (lock → read → validate/mutate →
+  write), plus shared helpers (`errors.go`, `labels.go`, `id.go`, `commit_timing.go`) and
+  `GitClient` (`git.go`).
+- `internal/cli/support` - CLI plumbing shared by every slice: building a `GitClient`/worktrees
+  dir from root flags, parsing repeated `key=value` flags, rendering output (`--json` envelope or
+  human-readable summary), and mapping errors to exit codes.
 
-Module-level shared types normally live in `internal/<module>/types.go`. Domain newtypes
-usually implement `Scan`/`Value` for database, `MarshalJSON`/`UnmarshalJSON` for serialization, and `String` for display. 
+There is no `pkg/`; everything shared lives under `internal/`.
 
-Shared runtime dependencies live in `internal/app`. `app.App` contains `Deps`, `Cfg`,
-and `Mux`; `Deps` contains runtime dependencies including SQLite.
+## Command Assembly Pattern
 
-Supporting packages live in `pkg/`.
+1. **Slice-level**: each slice's `cmd.go` exports a `Command()` func returning a `*cli.Command`.
+2. **Stage-level**: `internal/cli/task/task.go` mounts every slice into the `task` command tree;
+   `internal/cli/task/review/review.go` mounts `record`/`approve`/`reject` into `review`.
+3. **Root-level**: `internal/cli/root.go`'s `rootCommand` mounts `task.Command()` under the
+   `taskman` root with the root flags, and wires `initLogger` (`internal/cli/logger.go`) as its
+   `Before` hook.
 
-## Registration Pattern
+## CLI Conventions
 
-Registration usually follows a three-layer delegation pattern:
-
-1. **Slice-level**: A slice exposes registration helpers in `register.go` when needed.
-2. **Module-level** (`internal/<module>/register/`): Aggregation packages delegate to constituent slices.
-3. **Root-level** (`internal/app/register/`): Top-level aggregation is split by concern.
-
-`internal/app/process/start.go` calls the root registration helpers.
-
-## HTTP Conventions
-
-- Public API slices register routes via `routes.Route` descriptors (`Method`, `Path`, `Handler`) passed to `routes.RegisterRoutes(a, ...)` (see `internal/app/routes`).
-- Route patterns use Go `net/http` method patterns: `Route.Method` plus `Route.Path`, with path parameters read through `r.PathValue(...)`.
-- `app.App.Cfg.Server.BasePath` is applied centrally by `App.RegisterRoutes`; route definitions should remain module-relative, usually beginning with `/`.
-- Query slices should normally use `GET`.
-- Command slices should normally use `POST`, `PUT`, or `DELETE` and expose HTTP action routes whose last path segment is the action when the resource is not fully described by the method alone.
-- Handlers should parse path/query/body input into typed `Request` values via a `requestFromHTTP(r *http.Request)` function, then call a business logic function, write success with `jsonresp.WriteJSON`, and write errors with `jsonresp.WriteHTTPError`.
-- Handlers should map domain and validation errors to appropriate HTTP status codes via a local `httpStatusForError(err) int` function.
-
-## Pagination
-
-- List endpoints use `pkg/pagination.Meta` (fields: `Page`, `Size`, `Total`) for paginated responses.
-- Use `pagination.Normalize` for defaults and `pagination.Validate` for bounds checking.
+- A slice's `cmd.go` `Action` parses flags/args into the request its domain function expects,
+  calls the domain logic (a plain function taking `tasksDir` and other runtime deps directly,
+  built on `internal/task`'s shared primitives), renders success via `internal/cli/support`
+  (`support.PrintTask`/`support.PrintJSON`), and returns errors through `support.Fail`.
+- Every flag has a `Usage` string written for someone who only has the compiled binary - no
+  references to files or paths in this repo.
+- Slices must not import `internal/cli` (it imports them, so that would cycle) - shared helpers
+  go in `internal/cli/support`, which depends on `internal/task` and `urfave/cli` only.
+- `next` is the one slice allowed to import sibling slices (`specify`, `implement`), since
+  guiding a task means knowing what every stage's own commands would accept next; none of them
+  import it back.
 
 ---
 
 ## Required Slice Documentation
 
-New slices must include a `README.md` file which explains what the slice is, what functionality it provides, how it behaves, and how it is invoked. When touching an existing slice, update its README if present; if the slice lacks one and the change is material, add it. For public API slices, document the HTTP route and include `curl` examples.
+New slices must include a `README.md` file which explains what the slice is, what functionality it provides, how it behaves, and how it is invoked. When touching an existing slice, update its README if present; if the slice lacks one and the change is material, add it.
 
 ---
 
 ## Error Handling
 
-- Define domain errors as sentinel `var` values with `errors.New(...)`.
+- Define domain errors as sentinel `var` values with `errors.New(...)`, and structured errors as
+  error types (e.g. `*task.InvalidTransitionError`).
 - Use `errors.Is()` and `errors.AsType[T]()` for error checking and unwrapping.
 - Wrap errors with context using `fmt.Errorf("context: %w", err)` to provide error chains when useful.
 - We almost always should return errors, but if an error is not being explicitly returned, intentionally, the reason should always be explained via a comment and the error **must be logged with `Error` level**. There must be **no silent errors**.
-- HTTP handlers write domain errors to the response using `jsonresp.WriteHTTPError(w, status, err)`, which serializes as `{"error": "..."}` via `jsonresp.ResponseError`.
+- CLI slices return errors; the command's `Action` hands them to `support.Fail`, which maps
+  domain errors to exit codes (see `support.ExitCode`).
 
 ---
 
 ## Testing
 
 - If you change `[file].go`, and `[file]_test.go` or other related test files are present, keep them in sync with the behavior you changed.
-- For e2e tests that run from `testing.T`, prefer `t.Context()` over `context.Background()` so request cancellation is tied to test lifecycle.
-- For testing DB-backed slices, use an in-memory SQLite database and run the schema migrations before seeding fixtures.
+- Every slice has unit tests in `_test.go` files running under plain `go test ./...`.
+- `internal/cli/cli_integration_test.go` drives the real command tree in-process (with
+  `cli.OsExiter` stubbed) against throwaway git repositories; keep it in sync with command behavior.
+- For tests that run from `testing.T`, prefer `t.Context()` over `context.Background()` so request cancellation is tied to test lifecycle.
 - Do NOT use mocks, unless you have checked with user and got a validation for your usecase.
-- Tests can load .env files if they need their values (see `pkg/testenv`).
-- Test files follow a `_test.go` / `_integration_test.go` split:
-  - Pure unit tests live in `_test.go` files and run under plain `go test ./...`.
-  - Integration tests (including DB-backed tests) live in `_integration_test.go` files (e.g. `repo_integration_test.go` for repository tests) and always run under plain `go test ./...`; DB-backed tests use a local SQLite database (temp file or in-memory), so no gating is required. E2E tests remain gated with `testenv.SkipIfE2ETestsDisabled`.
-  - Tests that are primarily about database behavior must be named with a `TestDB` prefix so they can be run selectively via `go test -run '^TestDB'` (see `make test-db`). Since `TestDB` implies integration, do not also append `_Integration` to their names. 
 
 ---
 
@@ -87,18 +87,8 @@ New slices must include a `README.md` file which explains what the slice is, wha
 
 - After making code changes, run the smallest sensible build/test/vet scope.
 - Use `go vet`, and try to build the code so we can catch any compile-time errors. Do not store build artifacts; send them to `/dev/null` when building binaries.
-- Use `make lint` for running linters and `make fmt` for formatting.
+- Use `make lint` for running linters and `make fmt` for formatting; `make test` runs the full suite.
 - For doc-only changes, Go validation is not required.
-
----
-
-## Database
-
-- You should not write to database directly unless you have a good reason to do so, in that case, **confirm with user**. Use the system endpoints instead, keep direct db access read-only and for debugging when API wouldn't be enough.
-
-### Repository Pattern
-
-All database access must be wrapped in private functions whose only job is to take a `*sql.DB` (or `*sql.Tx`) and interact with the database. They would all be in `repo.go` files, and their tests in `repo_integration_test.go` files.
 
 ---
 
@@ -111,7 +101,7 @@ All database access must be wrapped in private functions whose only job is to ta
 
 ## Logging
 
-- Use `slog` package for logging with proper log level and attrs.
+- Use `slog` package for logging with proper log level and attrs. The root `--log-level`/`--log-format` flags configure it (see `internal/cli/logger.go`).
 
 ---
 
@@ -127,7 +117,6 @@ All database access must be wrapped in private functions whose only job is to ta
 - Use current Go syntax and features already supported by this repo's workspace Go version.
 - Detect important and critical decision points. When you find a decision point in front of you which you can't know what to do based on your context, **confirm your decisions with user** before taking actions. For simple decisions or decisions that can be made with current context, you don't need to do this.
 - Avoid premature abstractions. Don't add a level of indirection unless it actually helps and the indirection is worth the cost of it. Do not use helper functions that don't help reduce complexity and are better inlined.
-- Any duration crossing a wire or storage boundary (SQLite integer columns or JSON API fields) uses **raw nanoseconds**, matching Go's `time.Duration` exactly. Domain code keeps using `time.Duration` natively.
 
 ---
 
@@ -136,8 +125,6 @@ All database access must be wrapped in private functions whose only job is to ta
 - available cli tools:
   - `rg`
   - `jq`
-  - `psql`
-  - `nats`
 - To see project structure, run `tree`.
 - Do not modify `go.mod` file directly. Use `go` commands for it, e.g., use `go get` instead of adding dependencies manually.
 

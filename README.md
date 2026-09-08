@@ -11,7 +11,7 @@ git init myproject && cd myproject
 git commit --allow-empty -m "chore: init"
 echo ".worktrees/" >> .gitignore && git add .gitignore && git commit -m "chore: ignore worktrees"
 
-go run github.com/mhmdkzr/taskman/cmd/main task create --definition "Fix doc drift in balance package"
+go run github.com/mhmdkzr/taskman/cmd/main task create --definition "Fix doc drift in internal/task"
 ```
 
 `.worktrees/` **must** be gitignored before the first `task create` - taskman's `task create`

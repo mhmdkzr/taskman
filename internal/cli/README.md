@@ -1,7 +1,8 @@
 # `internal/cli`
 
-The `taskman` CLI's entrypoint. `Run()` builds the root `urfave/cli` v3 command
-(`rootCommand`, `root.go`) and runs it once; there is no persistent daemon.
+The `taskman` CLI's entrypoint. `cli.go`'s `Run()` parses `os.Args`, runs exactly one command,
+and returns the process exit code; there is no persistent daemon. The root `urfave/cli` v3
+command (`rootCommand`, with all root flags) lives in `root.go`.
 
 ```
 taskman [--git-dir <dir>] [--tasks-dir <dir>] [--worktrees-dir <dir>] [--json]
@@ -9,8 +10,8 @@ taskman [--git-dir <dir>] [--tasks-dir <dir>] [--worktrees-dir <dir>] [--json]
         task <command> [args...]
 ```
 
-`root.go`'s `Before` hook (`initLogger`) sets up `slog` from `--log-level`/`--log-format` before
-any command runs. Everything under `task <command>` - list/get/create/update/specify/implement/
+`logger.go`'s `initLogger`, wired as `rootCommand`'s `Before` hook, sets up `slog` from
+`--log-level`/`--log-format` before any command runs. Everything under `task <command>` - list/get/create/update/specify/implement/
 verify/review/commit/escalate/merge/abandon/next/delete - is wired up in `internal/cli/task`
 (and its `review` subpackage), not here; `rootCommand` just mounts `task.Command()`.
 

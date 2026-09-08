@@ -11,5 +11,5 @@ func main() {
 Usage:
 
 ```sh
-go run ./cmd/main task create --definition "Fix doc drift in balance package"
+go run ./cmd/main task create --definition "Fix doc drift in internal/task"
 ```

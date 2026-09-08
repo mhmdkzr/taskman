@@ -19,13 +19,11 @@ formatters:
 
 linters:
   enable:
-    - arangolint
     - asasalint
     - asciicheck
     - bidichk
     - bodyclose
     - canonicalheader
-    - clickhouselint
     - containedctx
     - contextcheck
     - copyloopvar
@@ -91,10 +89,8 @@ linters:
     - reassign
     - recvcheck
     - revive
-    - rowserrcheck
     - sloglint
     - spancheck
-    - sqlclosecheck
     - staticcheck
     - tagalign
     - testableexamples
@@ -103,7 +99,6 @@ linters:
     - thelper
     - unconvert
     - unparam
-    - unqueryvet
     - unused
     - usestdlibvars
     - usetesting
@@ -284,7 +279,7 @@ linters:
         text: "encoding/json.(Marshal|Unmarshal)"
         # Domain newtypes (open two-value string enums, UUID-backed IDs) intentionally
         # repeat the same Scan/Value/MarshalJSON/UnmarshalJSON boilerplate per type per
-        # CLAUDE.md's type-safety convention — each is its own irreducible domain type,
+        # The repo's type-safety convention — each is its own irreducible domain type,
         # not accidental copy-paste.
       - path: _test\.go
         linters:
@@ -314,7 +309,6 @@ linters:
           - wastedassign
           - wrapcheck
     paths:
-      - "migrations/"
       - "bin/"
       - "third_party/"
       - "vendor/"
