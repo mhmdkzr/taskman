@@ -29,6 +29,7 @@ var (
 	dispatchWrapperTmpl = parse("dispatch_wrapper.md")
 	runVerifyTmpl       = parse("run_verify.md")
 	runMergeTmpl        = parse("run_merge.md")
+	runAutoApproveTmpl  = parse("run_auto_approve.md")
 	waitHumanReviewTmpl = parse("wait_human_review.md")
 	waitBlockedTmpl     = parse("wait_blocked.md")
 	doneMergedTmpl      = parse("done_merged.md")
@@ -57,6 +58,7 @@ func (p reviewPrompt) Render() string { return render(reviewTmpl, p) }
 
 // commitPrompt drafts and makes a commit for the task's current diff.
 type commitPrompt struct {
+	TaskID        string
 	Title         string
 	Specification string
 }
@@ -95,6 +97,15 @@ type runMerge struct {
 }
 
 func (p runMerge) Render() string { return render(runMergeTmpl, p) }
+
+// runAutoApprove tells the caller to approve its own task's review, since
+// it was created with --auto-approve and no human gate applies.
+type runAutoApprove struct {
+	TaskID     string
+	CommitHash string
+}
+
+func (p runAutoApprove) Render() string { return render(runAutoApproveTmpl, p) }
 
 // waitHumanReview briefs the caller that a task is awaiting human review.
 type waitHumanReview struct {

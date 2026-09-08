@@ -577,6 +577,17 @@ way to record their decision without ever hand-editing the task's YAML file: `ta
 approve`, `task review reject --reason ...`, `task abandon --reason ...` (the release valve - a
 human is never stuck rejecting forever just to avoid giving up).
 
+**`--auto-approve`**: `task create --auto-approve` records `auto_approve: true` on the task,
+opting it out of this gate entirely - for solo, low-stakes work where a second human pass adds
+nothing. `task next` reads it the same place it reads `git.trunk`: once the commit exists, it
+tells the caller to run `task review approve` itself (`action: run`, not `wait`) instead of
+stopping for a human. Nothing else changes - `task review reject` is still a real command a human
+can call to override an auto-approved task mid-flight (dropping it into the same review-reject
+recovery cycle as any other rejection), and `task review approve`'s own guard (`review.state` must
+be `pending`) doesn't care who called it. The flag is a policy decision made once, at creation,
+because `task next` has to make the same wait-or-run call every time it's asked, from just the
+task file on disk - the same reason `--trunk` is stored on `git`, not re-derived per call.
+
 ### Review-reject recovery
 
 A human rejection re-enters automation exactly once per rejection, but skips the automated
@@ -611,6 +622,16 @@ human at `review` is looking at. A human rejection doesn't touch that commit; it
 on top (see "Review-reject recovery" above), so a task can end its life with one commit (no human
 rejections) or several (one per rejection cycle), but never zero once it's reached `review` at
 all, and never an amend.
+
+**The task file's own commit is necessarily a separate, later one.** `git.commit.hash` is read
+back from git itself, so it can only be known once the code commit already exists - a task file
+committed alongside that code commit could never correctly name its own hash (a commit can't
+contain, as tracked content, the hash of itself). And `review`/`merge` reaching `done` both
+require commands (`task review approve`, `task merge`) that by construction happen after the code
+commit already exists for them to act on. So no matter how it's sequenced, the task's fully final
+state can't land in the same commit as its code - `task next`'s `done` message (§7) says as much
+and tells the caller to commit `.tasks/<id>.yaml` on its own once the task is complete, as one
+small trailing chore commit.
 
 ### Unblocking a `blocked` task
 

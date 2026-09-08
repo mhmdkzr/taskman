@@ -2,6 +2,7 @@ package support
 
 import (
 	"testing"
+	"time"
 
 	"github.com/mhmdkzr/taskman/internal/task"
 )
@@ -52,6 +53,7 @@ func TestParseFindings(t *testing.T) {
 }
 
 func TestCurrentStage(t *testing.T) {
+	verifiedAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	cases := []struct {
 		name string
 		t    task.Task
@@ -85,6 +87,23 @@ func TestCurrentStage(t *testing.T) {
 		},
 		{"completed", task.Task{State: task.StateCompleted}, "merged"},
 		{"failed", task.Task{State: task.StateFailed}, "abandoned"},
+		{"awaiting human review", task.Task{State: task.StateStarted, Status: task.Status{
+			Specification:  task.StageStatus{State: task.StageDone},
+			Implementation: task.StageStatus{State: task.StageDone},
+			Verification:   task.StageStatus{State: task.StageDone, CompletedAt: &verifiedAt},
+			Review:         task.StageStatus{State: task.StagePending},
+		}, Git: task.Git{Commit: &task.GitCommit{Hash: "abc", At: verifiedAt.Add(time.Minute)}}}, "awaiting human review"},
+		{"awaiting review approval for auto-approve task", task.Task{
+			State:       task.StateStarted,
+			AutoApprove: true,
+			Status: task.Status{
+				Specification:  task.StageStatus{State: task.StageDone},
+				Implementation: task.StageStatus{State: task.StageDone},
+				Verification:   task.StageStatus{State: task.StageDone, CompletedAt: &verifiedAt},
+				Review:         task.StageStatus{State: task.StagePending},
+			},
+			Git: task.Git{Commit: &task.GitCommit{Hash: "abc", At: verifiedAt.Add(time.Minute)}},
+		}, "awaiting review approval (--auto-approve)"},
 	}
 	for _, c := range cases {
 		if got := CurrentStage(c.t); got != c.want {

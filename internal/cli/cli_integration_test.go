@@ -13,6 +13,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
+	"github.com/mhmdkzr/taskman/internal/cli/task/list"
 	"github.com/mhmdkzr/taskman/internal/task"
 )
 
@@ -226,21 +227,43 @@ func TestCLIList(t *testing.T) {
 	commitTaskFiles(t, dir)
 
 	out := runTaskman(t, dir, "task", "list", "--json")
-	var tasks []task.Task
-	if err := json.Unmarshal([]byte(out), &tasks); err != nil {
+	var result list.Result
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
 		t.Fatalf("unmarshal: %v\noutput:\n%s", err, out)
 	}
-	if len(tasks) != 2 {
-		t.Fatalf("list len = %d, want 2", len(tasks))
+	if len(result.Tasks) != 2 || result.Total != 2 {
+		t.Fatalf("list = %+v, want 2 tasks, total 2", result)
 	}
 
 	filtered := runTaskman(t, dir, "task", "list", "--label", "priority=high", "--json")
-	var filteredTasks []task.Task
-	if err := json.Unmarshal([]byte(filtered), &filteredTasks); err != nil {
+	var filteredResult list.Result
+	if err := json.Unmarshal([]byte(filtered), &filteredResult); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if len(filteredTasks) != 1 || filteredTasks[0].Title != "Two" {
-		t.Fatalf("filtered = %+v, want just Two", filteredTasks)
+	if len(filteredResult.Tasks) != 1 || filteredResult.Tasks[0].Title != "Two" {
+		t.Fatalf("filtered = %+v, want just Two", filteredResult)
+	}
+
+	paged := runTaskman(t, dir, "task", "list", "--limit", "1", "--json")
+	var pagedResult list.Result
+	if err := json.Unmarshal([]byte(paged), &pagedResult); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(pagedResult.Tasks) != 1 || pagedResult.Total != 2 {
+		t.Fatalf("paged = %+v, want 1 task, total 2", pagedResult)
+	}
+
+	pagedOut := runTaskman(t, dir, "task", "list", "--limit", "1")
+	if !strings.Contains(pagedOut, "1 more") || !strings.Contains(pagedOut, "--offset 1") {
+		t.Fatalf("paged output = %q, want a hint about the remaining task", pagedOut)
+	}
+}
+
+func TestCLISkill(t *testing.T) {
+	dir := newTestRepo(t)
+	out := runTaskman(t, dir, "skill")
+	if !strings.Contains(out, "name: taskman") {
+		t.Fatalf("skill output = %q, want it to contain the SKILL.md frontmatter", out)
 	}
 }
 

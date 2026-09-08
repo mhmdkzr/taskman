@@ -113,6 +113,30 @@ func TestCreateTrunk(t *testing.T) {
 	}
 }
 
+func TestCreateAutoApprove(t *testing.T) {
+	gitDir := newTestRepo(t)
+	tasksDir := filepath.Join(gitDir, ".tasks")
+	worktreesDir := filepath.Join(gitDir, ".worktrees")
+
+	got, err := Create(
+		context.Background(),
+		tasksDir,
+		worktreesDir,
+		task.NewGit(gitDir),
+		Request{
+			Definition:  "test task",
+			Title:       "Test Task",
+			AutoApprove: true,
+		},
+	)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if !got.AutoApprove {
+		t.Fatalf("AutoApprove = false, want true")
+	}
+}
+
 func TestCreateDirtyWorkingTree(t *testing.T) {
 	gitDir := newTestRepo(t)
 	tasksDir := filepath.Join(gitDir, ".tasks")

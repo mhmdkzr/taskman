@@ -45,6 +45,10 @@ type Task struct {
 	// FailureReason is set by task abandon - the only place a task ever
 	// records why it stopped for good.
 	FailureReason string `json:"failure_reason,omitempty" yaml:"failure_reason,omitempty"`
+	// AutoApprove, set at create time, tells task next's review-stage
+	// guidance that no human gate is needed: the caller may run task review
+	// approve itself once the commit exists, rather than waiting.
+	AutoApprove bool `json:"auto_approve,omitempty" yaml:"auto_approve,omitempty"`
 }
 
 // Status holds the per-stage progress, one field per design.md §6 stage.

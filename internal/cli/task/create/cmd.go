@@ -29,6 +29,10 @@ func Command() *cli.Command {
 				Name:  "trunk",
 				Usage: "work this task on the current branch instead of creating a worktree and branch",
 			},
+			&cli.BoolFlag{
+				Name:  "auto-approve",
+				Usage: "skip the human review gate - task next lets the caller approve its own review",
+			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			labels, err := support.SplitKV(cmd.StringSlice("label"))
@@ -49,6 +53,7 @@ func Command() *cli.Command {
 					Specification: cmd.String("specification"),
 					DoneWhen:      cmd.String("done-when"),
 					Trunk:         cmd.Bool("trunk"),
+					AutoApprove:   cmd.Bool("auto-approve"),
 				},
 			)
 			if err != nil {

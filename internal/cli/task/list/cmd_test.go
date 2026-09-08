@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/urfave/cli/v3"
@@ -80,15 +81,15 @@ func TestCommandListJSON(t *testing.T) {
 		t.Fatalf("list: %v\noutput:\n%s", err, out)
 	}
 
-	var tasks []task.Task
-	if err := json.Unmarshal([]byte(out), &tasks); err != nil {
+	var result Result
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
 		t.Fatalf("unmarshal json: %v\noutput:\n%s", err, out)
 	}
-	if len(tasks) != 2 {
-		t.Fatalf("got %d tasks, want 2", len(tasks))
+	if len(result.Tasks) != 2 || result.Total != 2 {
+		t.Fatalf("got %+v, want 2 tasks, total 2", result)
 	}
-	if tasks[0].ID != "abc" || tasks[1].ID != "def" {
-		t.Fatalf("got wrong task ids: %v, %v", tasks[0].ID, tasks[1].ID)
+	if result.Tasks[0].ID != "abc" || result.Tasks[1].ID != "def" {
+		t.Fatalf("got wrong task ids: %v, %v", result.Tasks[0].ID, result.Tasks[1].ID)
 	}
 }
 
@@ -122,14 +123,56 @@ func TestCommandFilterByLabel(t *testing.T) {
 		t.Fatalf("list: %v\noutput:\n%s", err, out)
 	}
 
-	var tasks []task.Task
-	if err := json.Unmarshal([]byte(out), &tasks); err != nil {
+	var result Result
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
 		t.Fatalf("unmarshal json: %v\noutput:\n%s", err, out)
 	}
-	if len(tasks) != 1 {
-		t.Fatalf("got %d tasks, want 1", len(tasks))
+	if len(result.Tasks) != 1 {
+		t.Fatalf("got %d tasks, want 1", len(result.Tasks))
 	}
-	if tasks[0].ID != "abc" {
-		t.Fatalf("got wrong task id: %v", tasks[0].ID)
+	if result.Tasks[0].ID != "abc" {
+		t.Fatalf("got wrong task id: %v", result.Tasks[0].ID)
+	}
+}
+
+func TestCommandPagination(t *testing.T) {
+	dir := t.TempDir()
+	for _, id := range []string{"a", "b", "c"} {
+		tk := task.Task{ID: id, State: task.StateCreated, Title: id, Definition: "def", Status: task.Status{}}
+		if err := task.WriteTaskFile(dir, tk); err != nil {
+			t.Fatalf("write task %s: %v", id, err)
+		}
+	}
+
+	out, err := runCmd(t, dir, "--limit", "2", "--json")
+	if err != nil {
+		t.Fatalf("list: %v\noutput:\n%s", err, out)
+	}
+	var result Result
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatalf("unmarshal json: %v\noutput:\n%s", err, out)
+	}
+	if len(result.Tasks) != 2 || result.Total != 3 || result.Limit != 2 || result.Offset != 0 {
+		t.Fatalf("got %+v, want 2 tasks, total 3, limit 2, offset 0", result)
+	}
+
+	page2, err := runCmd(t, dir, "--limit", "2", "--offset", "2", "--json")
+	if err != nil {
+		t.Fatalf("list: %v\noutput:\n%s", err, page2)
+	}
+	var result2 Result
+	if err := json.Unmarshal([]byte(page2), &result2); err != nil {
+		t.Fatalf("unmarshal json: %v\noutput:\n%s", err, page2)
+	}
+	if len(result2.Tasks) != 1 || result2.Tasks[0].ID != "c" {
+		t.Fatalf("got %+v, want just task c", result2)
+	}
+
+	humanOut, err := runCmd(t, dir, "--limit", "2")
+	if err != nil {
+		t.Fatalf("list: %v\noutput:\n%s", err, humanOut)
+	}
+	if !strings.Contains(humanOut, "1 more") {
+		t.Fatalf("human output = %q, want a hint about the remaining task", humanOut)
 	}
 }

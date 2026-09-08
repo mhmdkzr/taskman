@@ -12,11 +12,7 @@ what happened. Full design: `notes/design/design.md`.
 
 ## Invocation
 
-Use `taskman` if it is on PATH; otherwise, from this repo's checkout:
-
-```bash
-go run . task <command> ...
-```
+`taskman` should be on your PATH.
 
 Global flags (apply to every command): `--git-dir` (default `.`), `--tasks-dir` (default
 `.tasks`), `--worktrees-dir` (default `.worktrees`), `--json` (full JSON envelope instead of a
@@ -42,9 +38,10 @@ A caller that only ever calls `task next`, does what `message` says, and reports
 
 | Command | Purpose |
 |---|---|
-| `task create --definition <text> [--title <text>] [--id <id>] [--label k=v ...] [--reference <ref> ...] [--specification <text> --done-when <text>] [--trunk]` | Create a task. Requires a **clean working tree**. Creates the worktree `.worktrees/<id>` on branch `task/<id>` itself - the one thing taskman executes. `.worktrees/` must be gitignored first. With `--trunk`, skips the worktree/branch and records the repo root and current branch instead - the task is worked in place. With `--specification`/`--done-when`, the specify stage is skipped. |
+| `task create --definition <text> [--title <text>] [--id <id>] [--label k=v ...] [--reference <ref> ...] [--specification <text> --done-when <text>] [--trunk] [--auto-approve]` | Create a task. Requires a **clean working tree**. Creates the worktree `.worktrees/<id>` on branch `task/<id>` itself - the one thing taskman executes. `.worktrees/` must be gitignored first. With `--trunk`, skips the worktree/branch and records the repo root and current branch instead - the task is worked in place. With `--specification`/`--done-when`, the specify stage is skipped. With `--auto-approve`, the review stage never waits for a human - see below. |
 | `task next <id>` | Ask what to do next (see core loop). |
-| `task get <id>` / `task list [--state <state> ...] [--label k=v ...]` | Read tasks. Never parse the YAML by hand for decisions. |
+| `task get <id>` | Read one task. Prefer relying on `task next`'s own message instead - it already carries the definition, specification, done_when and references you need for the current step, so `task get` is usually not necessary mid-flow. |
+| `task list [--state <state> ...] [--label k=v ...] [--limit <n>] [--offset <n>]` | List/filter tasks, paginated (`--limit` defaults to 50 to avoid dumping a huge tasks-dir; `0` means unlimited). `--json` returns `{tasks, total, limit, offset}` - use `total` to know whether more pages remain, and `--offset` to page through them. Never parse the YAML by hand for decisions. |
 | `task update <id> [--title ...] [--label k=v ...] [--unset-label k ...] [--reference <ref> ...] [--clear-references]` | Patch metadata only - safe on tasks in any state. |
 | `task specify <id> --result <text> --done-when <text>` | Record a drafted specification and acceptance criteria. |
 | `task implement <id>` | Record that an implementation attempt exists (a diff in the worktree). |
@@ -90,13 +87,20 @@ Stages run `definition → specification → implementation → verification →
   grep-stale-refs=ok` for a targeted search), not a placeholder that claims a build ran when none
   did.
 - **Human review**: after `task commit`, `task next` says `wait` until a human runs
-  `task review approve` or `task review reject`.
+  `task review approve` or `task review reject`. Exception: a task created with `--auto-approve`
+  never waits here - `task next` says `run` and tells you to approve your own review, since no
+  human gate applies to that task.
 - **Review-reject recovery**: on a human rejection, fix, re-verify, make **another new commit**,
   and `task commit` again. This cycle skips the automated reviewer - the human is now the
   reviewer. Each cycle adds one commit; never amend.
 - **Merge**: `task next` says `run` - merge the task's branch into the base branch yourself, then
   `task merge <id>`. For a task created with `--trunk`, `task next`'s message says there's nothing
   to merge (the branch is already the target) - just report `task merge <id>` directly.
+- **Final bookkeeping commit**: the task's own `.tasks/<id>.yaml` keeps changing after the code
+  commit (through review and merge), so it can never be part of that commit - `task next`'s `done`
+  message says so and tells you to commit it now, on its own, as a small chore commit (e.g. `chore
+  (.tasks): record completion of <id>`). Don't try to fold it into the code commit or leave it
+  uncommitted.
 
 ## Errors and exit codes
 

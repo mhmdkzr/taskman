@@ -73,6 +73,9 @@ func Next(tasksDir, id string) (Guidance, error) {
 		if !task.HasCommitSince(t, t.Status.Verification.CompletedAt) {
 			return guideDraftCommit(t), nil
 		}
+		if t.AutoApprove {
+			return guideAutoApprove(t), nil
+		}
 		return guideWaitHumanReview(t), nil
 	case t.Status.Review.State == task.StageInProgress:
 		return guideReviewRejectRecovery(t)
@@ -101,6 +104,11 @@ func verifyReport(id string) (string, string) {
 func reviewRecordReport(id string) (string, string) {
 	short := "task review record " + id
 	return short, short + " --approved <bool> [--finding <file>=<text> ...]"
+}
+
+func reviewApproveReport(id string) (string, string) {
+	short := "task review approve " + id
+	return short, short + " [--comment <text>]"
 }
 
 func commitReport(id string) (string, string) {
@@ -219,9 +227,22 @@ func guideMerge(t task.Task) Guidance {
 }
 
 func guideDraftCommit(t task.Task) Guidance {
-	body := commitPrompt{Title: t.Title, Specification: t.Specification}.Render()
+	body := commitPrompt{TaskID: t.ID, Title: t.Title, Specification: t.Specification}.Render()
 	short, full := commitReport(t.ID)
 	return dispatch(t, body, short, full)
+}
+
+// guideAutoApprove is guideWaitHumanReview's counterpart for a task created
+// with --auto-approve: the same point in the state machine, but the caller
+// is told to approve its own review rather than wait for a human.
+func guideAutoApprove(t task.Task) Guidance {
+	hash := ""
+	if t.Git.Commit != nil {
+		hash = t.Git.Commit.Hash
+	}
+	message := runAutoApprove{TaskID: t.ID, CommitHash: hash}.Render()
+	short, _ := reviewApproveReport(t.ID)
+	return Guidance{TaskID: t.ID, Action: ActionRun, Message: message, ReportWith: short}
 }
 
 func guideWaitHumanReview(t task.Task) Guidance {

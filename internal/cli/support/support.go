@@ -162,6 +162,9 @@ func CurrentStage(t task.Task) string {
 	case t.Status.Review.State == task.StageInProgress:
 		return "in review-reject recovery"
 	case t.Status.Review.State != task.StageDone:
+		if t.AutoApprove {
+			return "awaiting review approval (--auto-approve)"
+		}
 		return "awaiting human review"
 	case t.Status.Merge.State != task.StageDone:
 		return "awaiting merge"

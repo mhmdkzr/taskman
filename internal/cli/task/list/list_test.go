@@ -8,7 +8,7 @@ import (
 
 func TestListEmpty(t *testing.T) {
 	dir := t.TempDir()
-	got, err := List(dir, Filter{})
+	got, _, err := List(dir, Filter{})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -51,7 +51,7 @@ func TestListMultipleSorted(t *testing.T) {
 		}
 	}
 
-	got, err := List(dir, Filter{})
+	got, _, err := List(dir, Filter{})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -98,7 +98,7 @@ func TestListFilterByState(t *testing.T) {
 	}
 
 	filter := Filter{State: []task.State{task.StateStarted, task.StateCompleted}}
-	got, err := List(dir, filter)
+	got, _, err := List(dir, filter)
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -145,7 +145,7 @@ func TestListFilterByLabels(t *testing.T) {
 	}
 
 	filter := Filter{Labels: map[string]string{"priority": "high"}}
-	got, err := List(dir, filter)
+	got, _, err := List(dir, filter)
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestListFilterByLabelsMissing(t *testing.T) {
 	}
 
 	filter := Filter{Labels: map[string]string{"priority": "high", "team": "frontend"}}
-	got, err := List(dir, filter)
+	got, _, err := List(dir, filter)
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -196,11 +196,89 @@ func TestListFilterByLabelsMissingKey(t *testing.T) {
 	}
 
 	filter := Filter{Labels: map[string]string{"team": "backend"}}
-	got, err := List(dir, filter)
+	got, _, err := List(dir, filter)
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
 	if len(got) != 0 {
 		t.Fatalf("got %d tasks, want 0 (label key missing)", len(got))
+	}
+}
+
+func writeFiveTasks(t *testing.T, dir string) {
+	t.Helper()
+	ids := []string{"a", "b", "c", "d", "e"}
+	for i := range ids {
+		tk := task.Task{
+			ID:         ids[i],
+			State:      task.StateCreated,
+			Title:      "t",
+			Definition: "def",
+			Status:     task.Status{},
+		}
+		if err := task.WriteTaskFile(dir, tk); err != nil {
+			t.Fatalf("write task file: %v", err)
+		}
+	}
+}
+
+func TestListPaginationLimit(t *testing.T) {
+	dir := t.TempDir()
+	writeFiveTasks(t, dir)
+
+	got, total, err := List(dir, Filter{Limit: 2})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if total != 5 {
+		t.Fatalf("total = %d, want 5", total)
+	}
+	if len(got) != 2 || got[0].ID != "a" || got[1].ID != "b" {
+		t.Fatalf("got %v, want [a b]", got)
+	}
+}
+
+func TestListPaginationOffset(t *testing.T) {
+	dir := t.TempDir()
+	writeFiveTasks(t, dir)
+
+	got, total, err := List(dir, Filter{Limit: 2, Offset: 2})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if total != 5 {
+		t.Fatalf("total = %d, want 5", total)
+	}
+	if len(got) != 2 || got[0].ID != "c" || got[1].ID != "d" {
+		t.Fatalf("got %v, want [c d]", got)
+	}
+}
+
+func TestListPaginationOffsetBeyondEnd(t *testing.T) {
+	dir := t.TempDir()
+	writeFiveTasks(t, dir)
+
+	got, total, err := List(dir, Filter{Limit: 2, Offset: 10})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if total != 5 {
+		t.Fatalf("total = %d, want 5", total)
+	}
+	if len(got) != 0 {
+		t.Fatalf("got %v, want empty", got)
+	}
+}
+
+func TestListPaginationZeroLimitIsUnlimited(t *testing.T) {
+	dir := t.TempDir()
+	writeFiveTasks(t, dir)
+
+	got, total, err := List(dir, Filter{})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if total != 5 || len(got) != 5 {
+		t.Fatalf("got %d of %d, want 5 of 5", len(got), total)
 	}
 }

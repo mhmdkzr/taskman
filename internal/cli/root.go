@@ -5,6 +5,7 @@ package cli
 import (
 	"github.com/urfave/cli/v3"
 
+	skillcmd "github.com/mhmdkzr/taskman/internal/cli/skill"
 	taskcmd "github.com/mhmdkzr/taskman/internal/cli/task"
 )
 
@@ -25,6 +26,6 @@ func rootCommand() *cli.Command {
 			&cli.StringFlag{Name: "log-format", Value: "text", Usage: "text or json"},
 		},
 		Before:   initLogger,
-		Commands: []*cli.Command{taskcmd.Command()},
+		Commands: []*cli.Command{taskcmd.Command(), skillcmd.Command()},
 	}
 }

@@ -20,6 +20,7 @@ type Request struct {
 	Specification string
 	DoneWhen      string
 	Trunk         bool
+	AutoApprove   bool
 }
 
 // Create makes a new task file, and - the one exception to "taskman
@@ -62,13 +63,14 @@ func Create(ctx context.Context, tasksDir, worktreesDir string, git *task.GitCli
 	}
 
 	t := task.Task{
-		ID:         id,
-		State:      task.StateCreated,
-		Title:      req.Title,
-		Labels:     req.Labels,
-		Definition: req.Definition,
-		References: req.References,
-		Git:        task.Git{Worktree: worktree, Branch: branch, Trunk: req.Trunk},
+		ID:          id,
+		State:       task.StateCreated,
+		Title:       req.Title,
+		Labels:      req.Labels,
+		Definition:  req.Definition,
+		References:  req.References,
+		AutoApprove: req.AutoApprove,
+		Git:         task.Git{Worktree: worktree, Branch: branch, Trunk: req.Trunk},
 		Status: task.Status{
 			Definition:     task.StageStatus{State: task.StageDone, CompletedAt: new(task.Now())},
 			Specification:  task.StageStatus{State: task.StagePending},

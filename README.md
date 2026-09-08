@@ -25,8 +25,18 @@ Pass `--trunk` to `task create` to skip the worktree/branch entirely and work th
 the current branch - useful for solo, sequential work where per-task isolation is overhead rather
 than a benefit. See design.md §5 for the tradeoffs.
 
+Pass `--auto-approve` to `task create` to skip the human review gate entirely - `task next` tells
+the caller to approve its own review once the commit exists, instead of waiting. See design.md
+§6's "The review stage" for the tradeoffs.
+
 From there, `task next <id>` tells you (or whatever agent you're driving) what to do next at every
 step - see `notes/design/design.md` §6/§7 for the full command reference and state machine.
+`task list` is paginated (`--limit`, default 50; `--offset`) since a tasks-dir can grow large;
+`--json` reports `total` so a caller knows whether more pages remain.
+
+Run `taskman skill` to print this repo's own agent-facing driver document (`internal/cli/skill/
+SKILL.md`) to stdout - it's embedded in the binary, so it's available even without a checkout of
+this repo on hand.
 
 ## Project Layout
 
@@ -37,6 +47,7 @@ step - see `notes/design/design.md` §6/§7 for the full command reference and s
 | `internal/cli/support` | Plumbing shared by every command slice (git construction, output, errors) |
 | `internal/cli/task` | Every `task <command>`, one vertical slice package each |
 | `internal/cli/task/review` | The review stage's `record`/`approve`/`reject` slices |
+| `internal/cli/skill` | The `skill` command - embeds and prints this repo's own `SKILL.md` |
 | `internal/task` | The `Task` domain type and shared file-backed persistence primitives |
 | `notes/design/` | The design (`design.md`) and its execution plan (`plan.md`) |
 

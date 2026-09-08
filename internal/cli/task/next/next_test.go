@@ -188,6 +188,53 @@ func TestNextDraftCommitThenWaitHumanReview(t *testing.T) {
 	}
 }
 
+// TestNextAutoApprove mirrors TestNextDraftCommitThenWaitHumanReview for a
+// task created with --auto-approve (task.AutoApprove): once the commit
+// exists, task next should tell the caller to approve its own review
+// itself (action run) rather than wait for a human.
+func TestNextAutoApprove(t *testing.T) {
+	dir := t.TempDir()
+	newTestTask(t, dir, "abc")
+	if _, err := task.MutateTask(dir, "abc", func(tk *task.Task) error {
+		tk.AutoApprove = true
+		return nil
+	}); err != nil {
+		t.Fatalf("set auto-approve: %v", err)
+	}
+	readyForVerify(t, dir, "abc")
+	verify(t, dir, "abc", map[string]task.CheckResult{"vet": task.CheckOK}, "")
+	recordReview(t, dir, "abc", true, nil)
+
+	g, err := Next(dir, "abc")
+	if err != nil {
+		t.Fatalf("next: %v", err)
+	}
+	if g.Action != ActionDispatch || g.ReportWith != "task commit abc" {
+		t.Fatalf("next after verification passes = %+v, want dispatch commit", g)
+	}
+
+	if _, err := task.MutateTask(dir, "abc", func(tk *task.Task) error {
+		tk.Git.Commit = &task.GitCommit{Hash: "deadbeef", Message: "docs: x", Type: "docs", At: time.Now().UTC()}
+		return nil
+	}); err != nil {
+		t.Fatalf("simulate commit: %v", err)
+	}
+
+	g, err = Next(dir, "abc")
+	if err != nil {
+		t.Fatalf("next: %v", err)
+	}
+	if g.Action != ActionRun || g.ReportWith != "task review approve abc" {
+		t.Fatalf("next after commit recorded for auto-approve task = %+v, want run review approve", g)
+	}
+	if !strings.Contains(g.Message, "deadbeef") {
+		t.Errorf("auto-approve message = %q, want it to mention the commit hash", g.Message)
+	}
+	if !strings.Contains(g.Message, "no human review is required") {
+		t.Errorf("auto-approve message = %q, want it to say no human review is required", g.Message)
+	}
+}
+
 func TestNextReviewRejectRecoverySkipsAutomatedReview(t *testing.T) {
 	dir := t.TempDir()
 	newTestTask(t, dir, "abc")
