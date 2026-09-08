@@ -5,7 +5,7 @@ package implement
 import (
 	"fmt"
 
-	"github.com/mhmdkzr/loop/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task"
 )
 
 // Implement marks a task's implementation attempt as done - the diff lives

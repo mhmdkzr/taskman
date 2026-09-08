@@ -3,7 +3,7 @@ package support
 import (
 	"testing"
 
-	"github.com/mhmdkzr/loop/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task"
 )
 
 func TestSplitKV(t *testing.T) {

@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mhmdkzr/loop/internal/cli/task/implement"
-	"github.com/mhmdkzr/loop/internal/cli/task/specify"
-	"github.com/mhmdkzr/loop/internal/task"
+	"github.com/mhmdkzr/taskman/internal/cli/task/implement"
+	"github.com/mhmdkzr/taskman/internal/cli/task/specify"
+	"github.com/mhmdkzr/taskman/internal/task"
 )
 
 // Action is Next's coarse signal for a caller with no way to read prose -

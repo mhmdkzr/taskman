@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mhmdkzr/loop/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task"
 )
 
 // newTestTask writes a fresh task ready for the specify stage.

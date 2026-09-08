@@ -8,7 +8,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/mhmdkzr/loop/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task"
 )
 
 func TestMain(m *testing.M) {

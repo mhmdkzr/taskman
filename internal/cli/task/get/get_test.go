@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/mhmdkzr/loop/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task"
 )
 
 func newTestTaskDir(t *testing.T, id string) string {

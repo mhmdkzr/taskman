@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"maps"
 
-	"github.com/mhmdkzr/loop/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task"
 )
 
 // Request is task update's input - patch semantics, only non-nil fields are

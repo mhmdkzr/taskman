@@ -5,7 +5,7 @@ package approve
 import (
 	"fmt"
 
-	"github.com/mhmdkzr/loop/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task"
 )
 
 // ApproveReview records a human's approval at the review stage.

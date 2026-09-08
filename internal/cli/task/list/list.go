@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/mhmdkzr/loop/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task"
 )
 
 // Filter narrows List's results. A zero Filter matches every task.

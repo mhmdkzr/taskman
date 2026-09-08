@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/mhmdkzr/loop/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task"
 )
 
 func TestDeleteExistingTask(t *testing.T) {

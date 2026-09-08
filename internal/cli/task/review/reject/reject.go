@@ -5,7 +5,7 @@ package reject
 import (
 	"fmt"
 
-	"github.com/mhmdkzr/loop/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task"
 )
 
 // RejectReview records a human's rejection and starts review-reject

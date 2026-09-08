@@ -12,8 +12,8 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/mhmdkzr/loop/internal/cli/support"
-	taskcmd "github.com/mhmdkzr/loop/internal/cli/task"
+	"github.com/mhmdkzr/taskman/internal/cli/support"
+	taskcmd "github.com/mhmdkzr/taskman/internal/cli/task"
 )
 
 // Run parses os.Args, runs exactly one command, and returns the process

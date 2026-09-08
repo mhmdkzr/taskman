@@ -6,8 +6,8 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/mhmdkzr/loop/internal/cli/support"
-	"github.com/mhmdkzr/loop/internal/task"
+	"github.com/mhmdkzr/taskman/internal/cli/support"
+	"github.com/mhmdkzr/taskman/internal/task"
 )
 
 // Command returns the "list" command.

@@ -13,7 +13,7 @@ formatters:
       sections:
         - standard
         - default
-        - prefix(github.com/mhmdkzr/loop)
+        - prefix(github.com/mhmdkzr/taskman)
     golines:
       max-len: 120
 

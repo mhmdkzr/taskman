@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mhmdkzr/loop/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task"
 )
 
 //nolint:unparam // id is always "abc" in this file, but keeping it explicit reads better than a magic string inside the helper

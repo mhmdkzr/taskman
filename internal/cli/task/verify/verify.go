@@ -4,7 +4,7 @@ package verify
 import (
 	"fmt"
 
-	"github.com/mhmdkzr/loop/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task"
 )
 
 // Request is task verify's input - one reported build-check attempt.

@@ -4,7 +4,7 @@ package main
 import (
 	"os"
 
-	"github.com/mhmdkzr/loop/internal/cli"
+	"github.com/mhmdkzr/taskman/internal/cli"
 )
 
 func main() {

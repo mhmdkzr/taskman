@@ -15,13 +15,14 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/mhmdkzr/loop/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task"
 )
 
 //go:embed task_summary.md
 var taskSummaryFile embed.FS
 
-var taskSummaryTmpl = template.Must(template.New("task_summary.md").ParseFS(taskSummaryFile, "task_summary.md"))
+var taskSummaryTmpl = template.Must(template.New("task_summary.md").
+	ParseFS(taskSummaryFile, "task_summary.md"))
 
 // taskSummary is the default (non-JSON) CLI output for any command that
 // returns a Task rather than a next.Guidance - the one prompt template

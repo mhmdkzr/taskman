@@ -4,7 +4,7 @@ package get
 import (
 	"fmt"
 
-	"github.com/mhmdkzr/loop/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task"
 )
 
 // Get reads the current state of task id under tasksDir.

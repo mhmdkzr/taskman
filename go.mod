@@ -1,4 +1,4 @@
-module github.com/mhmdkzr/loop
+module github.com/mhmdkzr/taskman
 
 go 1.27.0
 
