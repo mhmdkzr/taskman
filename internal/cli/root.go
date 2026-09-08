@@ -3,31 +3,10 @@
 package cli
 
 import (
-	"context"
-	"fmt"
-	"log/slog"
-	"os"
-	"os/signal"
-	"syscall"
-
 	"github.com/urfave/cli/v3"
 
-	"github.com/mhmdkzr/taskman/internal/cli/support"
 	taskcmd "github.com/mhmdkzr/taskman/internal/cli/task"
 )
-
-// Run parses os.Args, runs exactly one command, and returns the process
-// exit code.
-func Run() int {
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
-	if err := rootCommand().Run(ctx, os.Args); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		return support.ExitCode(err)
-	}
-	return 0
-}
 
 func rootCommand() *cli.Command {
 	return &cli.Command{
@@ -48,26 +27,4 @@ func rootCommand() *cli.Command {
 		Before:   initLogger,
 		Commands: []*cli.Command{taskcmd.Command()},
 	}
-}
-
-// initLogger sets up slog per the root --log-level/--log-format flags,
-// before any command runs.
-func initLogger(ctx context.Context, cmd *cli.Command) (context.Context, error) {
-	var level slog.Level
-	if err := level.UnmarshalText([]byte(cmd.String("log-level"))); err != nil {
-		return ctx, fmt.Errorf("parse --log-level: %w", err)
-	}
-
-	var handler slog.Handler
-	opts := &slog.HandlerOptions{Level: level, AddSource: true}
-	switch format := cmd.String("log-format"); format {
-	case "text":
-		handler = slog.NewTextHandler(os.Stdout, opts)
-	case "json":
-		handler = slog.NewJSONHandler(os.Stdout, opts)
-	default:
-		return ctx, fmt.Errorf("--log-format must be %q or %q, got %q", "text", "json", format)
-	}
-	slog.SetDefault(slog.New(handler))
-	return ctx, nil
 }
