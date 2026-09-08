@@ -13,7 +13,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/mhmdkzr/taskman/internal/cli/task/list"
+	"github.com/mhmdkzr/taskman/internal/commands/list"
 	"github.com/mhmdkzr/taskman/internal/task"
 )
 
@@ -97,26 +97,26 @@ func fixStdout(cmd *cli.Command, w *bytes.Buffer) {
 func TestCLIFullLifecycle(t *testing.T) {
 	dir := newTestRepo(t)
 
-	created := runTaskman(t, dir, "task", "create", "--definition", "Fix doc drift", "--title", "Fix Doc Drift")
+	created := runTaskman(t, dir, "create", "--definition", "Fix doc drift", "--title", "Fix Doc Drift")
 	if !strings.Contains(created, "Created task") {
 		t.Fatalf("create output = %q", created)
 	}
 
 	id := onlyTaskID(t, dir)
 
-	runTaskman(t, dir, "task", "specify", id, "--result", "Update the README", "--done-when", "README reflects reality")
-	runTaskman(t, dir, "task", "implement", id)
-	runTaskman(t, dir, "task", "verify", id, "--check", "vet=ok")
-	runTaskman(t, dir, "task", "review", "record", id, "--approved=true")
+	runTaskman(t, dir, "specify", id, "--result", "Update the README", "--done-when", "README reflects reality")
+	runTaskman(t, dir, "implement", id)
+	runTaskman(t, dir, "verify", id, "--check", "vet=ok")
+	runTaskman(t, dir, "review", "record", id, "--approved=true")
 
 	worktree := filepath.Join(dir, ".worktrees", id)
 	gitCommit(t, worktree, "docs: update readme")
 
-	runTaskman(t, dir, "task", "commit", id)
-	runTaskman(t, dir, "task", "review", "approve", id, "--comment", "LGTM")
+	runTaskman(t, dir, "commit", id)
+	runTaskman(t, dir, "review", "approve", id, "--comment", "LGTM")
 
 	mergeInto(t, dir, "task/"+id)
-	runTaskman(t, dir, "task", "merge", id)
+	runTaskman(t, dir, "merge", id)
 
 	final := getTaskJSON(t, dir, id)
 	if final.State != task.StateCompleted {
@@ -126,7 +126,7 @@ func TestCLIFullLifecycle(t *testing.T) {
 		t.Fatalf("merge status = %+v, want done", final.Status.Merge)
 	}
 
-	next := runTaskman(t, dir, "task", "next", id)
+	next := runTaskman(t, dir, "next", id)
 	if !strings.Contains(next, "complete") {
 		t.Fatalf("next output = %q, want it to say the task is complete", next)
 	}
@@ -138,7 +138,7 @@ func TestCLIFullLifecycle(t *testing.T) {
 func TestCLIFullLifecycleTrunk(t *testing.T) {
 	dir := newTestRepo(t)
 
-	created := runTaskman(t, dir, "task", "create",
+	created := runTaskman(t, dir, "create",
 		"--definition", "Fix doc drift", "--title", "Fix Doc Drift", "--trunk")
 	if !strings.Contains(created, "Created task") {
 		t.Fatalf("create output = %q", created)
@@ -160,22 +160,22 @@ func TestCLIFullLifecycleTrunk(t *testing.T) {
 		t.Fatalf("--worktrees-dir was created despite --trunk")
 	}
 
-	runTaskman(t, dir, "task", "specify", id, "--result", "Update the README", "--done-when", "README reflects reality")
-	runTaskman(t, dir, "task", "implement", id)
-	runTaskman(t, dir, "task", "verify", id, "--check", "vet=ok")
-	runTaskman(t, dir, "task", "review", "record", id, "--approved=true")
+	runTaskman(t, dir, "specify", id, "--result", "Update the README", "--done-when", "README reflects reality")
+	runTaskman(t, dir, "implement", id)
+	runTaskman(t, dir, "verify", id, "--check", "vet=ok")
+	runTaskman(t, dir, "review", "record", id, "--approved=true")
 
 	gitCommit(t, dir, "docs: update readme")
 
-	runTaskman(t, dir, "task", "commit", id)
-	runTaskman(t, dir, "task", "review", "approve", id, "--comment", "LGTM")
+	runTaskman(t, dir, "commit", id)
+	runTaskman(t, dir, "review", "approve", id, "--comment", "LGTM")
 
-	preMerge := runTaskman(t, dir, "task", "next", id)
+	preMerge := runTaskman(t, dir, "next", id)
 	if !strings.Contains(preMerge, "nothing to merge") {
 		t.Fatalf("next before merge = %q, want it to say there's nothing to merge in trunk mode", preMerge)
 	}
 
-	runTaskman(t, dir, "task", "merge", id)
+	runTaskman(t, dir, "merge", id)
 
 	final := getTaskJSON(t, dir, id)
 	if final.State != task.StateCompleted {
@@ -185,7 +185,7 @@ func TestCLIFullLifecycleTrunk(t *testing.T) {
 		t.Fatalf("merge status = %+v, want done", final.Status.Merge)
 	}
 
-	done := runTaskman(t, dir, "task", "next", id)
+	done := runTaskman(t, dir, "next", id)
 	if !strings.Contains(done, "already on branch") {
 		t.Fatalf("next after merge = %q, want it to say already on branch, not that it merged", done)
 	}
@@ -199,7 +199,7 @@ func TestCLIDirtyWorkingTreeRefused(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("dirty\n"), 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	_, err := runTaskmanErr(dir, "task", "create", "--definition", "x")
+	_, err := runTaskmanErr(dir, "create", "--definition", "x")
 	if err == nil {
 		t.Fatal("create on dirty tree: want error, got nil")
 	}
@@ -207,10 +207,10 @@ func TestCLIDirtyWorkingTreeRefused(t *testing.T) {
 
 func TestCLIInvalidTransitionExitsNonZero(t *testing.T) {
 	dir := newTestRepo(t)
-	runTaskman(t, dir, "task", "create", "--definition", "x")
+	runTaskman(t, dir, "create", "--definition", "x")
 	id := onlyTaskID(t, dir)
 
-	_, err := runTaskmanErr(dir, "task", "implement", id)
+	_, err := runTaskmanErr(dir, "implement", id)
 	if err == nil {
 		t.Fatal("implement before specify: want error, got nil")
 	}
@@ -221,12 +221,12 @@ func TestCLIInvalidTransitionExitsNonZero(t *testing.T) {
 
 func TestCLIList(t *testing.T) {
 	dir := newTestRepo(t)
-	runTaskman(t, dir, "task", "create", "--definition", "one", "--title", "One")
+	runTaskman(t, dir, "create", "--definition", "one", "--title", "One")
 	commitTaskFiles(t, dir)
-	runTaskman(t, dir, "task", "create", "--definition", "two", "--title", "Two", "--label", "priority=high")
+	runTaskman(t, dir, "create", "--definition", "two", "--title", "Two", "--label", "priority=high")
 	commitTaskFiles(t, dir)
 
-	out := runTaskman(t, dir, "task", "list", "--json")
+	out := runTaskman(t, dir, "list", "--json")
 	var result list.Result
 	if err := json.Unmarshal([]byte(out), &result); err != nil {
 		t.Fatalf("unmarshal: %v\noutput:\n%s", err, out)
@@ -235,7 +235,7 @@ func TestCLIList(t *testing.T) {
 		t.Fatalf("list = %+v, want 2 tasks, total 2", result)
 	}
 
-	filtered := runTaskman(t, dir, "task", "list", "--label", "priority=high", "--json")
+	filtered := runTaskman(t, dir, "list", "--label", "priority=high", "--json")
 	var filteredResult list.Result
 	if err := json.Unmarshal([]byte(filtered), &filteredResult); err != nil {
 		t.Fatalf("unmarshal: %v", err)
@@ -244,7 +244,7 @@ func TestCLIList(t *testing.T) {
 		t.Fatalf("filtered = %+v, want just Two", filteredResult)
 	}
 
-	paged := runTaskman(t, dir, "task", "list", "--limit", "1", "--json")
+	paged := runTaskman(t, dir, "list", "--limit", "1", "--json")
 	var pagedResult list.Result
 	if err := json.Unmarshal([]byte(paged), &pagedResult); err != nil {
 		t.Fatalf("unmarshal: %v", err)
@@ -253,7 +253,7 @@ func TestCLIList(t *testing.T) {
 		t.Fatalf("paged = %+v, want 1 task, total 2", pagedResult)
 	}
 
-	pagedOut := runTaskman(t, dir, "task", "list", "--limit", "1")
+	pagedOut := runTaskman(t, dir, "list", "--limit", "1")
 	if !strings.Contains(pagedOut, "1 more") || !strings.Contains(pagedOut, "--offset 1") {
 		t.Fatalf("paged output = %q, want a hint about the remaining task", pagedOut)
 	}
@@ -329,7 +329,7 @@ func mergeInto(t *testing.T, gitDir, branch string) {
 
 func getTaskJSON(t *testing.T, gitDir, id string) task.Task {
 	t.Helper()
-	out := runTaskman(t, gitDir, "task", "get", id, "--json")
+	out := runTaskman(t, gitDir, "get", id, "--json")
 	var tk task.Task
 	if err := json.Unmarshal([]byte(out), &tk); err != nil {
 		t.Fatalf("unmarshal: %v\noutput:\n%s", err, out)

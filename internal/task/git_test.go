@@ -163,5 +163,5 @@ func TestGitClientReadCommitNoConventionalPrefix(t *testing.T) {
 }
 
 // Reading a real commit back via GitClient.ReadCommit (used by the commit
-// slice's own domain function, internal/cli/task/commit) is covered by
-// that slice's own tests - see internal/cli/task/commit/commit_test.go.
+// slice's own domain function, internal/commands/commit) is covered by
+// that slice's own tests - see internal/commands/commit/commit_test.go.

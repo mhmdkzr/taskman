@@ -1,9 +1,16 @@
 # `internal/task`
 
 Owns the `Task` domain type and its file-backed persistence primitives. Every command's own
-logic - validating and applying the state transitions in `notes/design/design.md` §6 - now lives
-in its own vertical slice package under `internal/cli/task` (see that package's README); this
-package only holds what those slices, and `internal/cli/support`, share.
+logic - validating and applying the state transitions in `notes/design/design.md` §6 - lives in
+its own vertical slice package under `internal/commands` (`internal/commands/create`,
+`internal/commands/get`, ...; the review stage is nested further as
+`internal/commands/review/{record,approve,reject}`). A slice holds its domain logic (`<name>.go`),
+its CLI frontend (`cmd.go`, exporting `Command()`), and, where wired up, its MCP frontend
+(`mcp.go`, exporting `RegisterMCP()`).
+
+This package's own files carry no dependency on either frontend - every slice, `internal/utils`,
+and `internal/mcp` all import it directly, so it stays free of `urfave/cli` and the MCP
+SDK. CLI-only shared plumbing lives in `internal/utils` instead.
 
 ## Task
 
@@ -34,8 +41,8 @@ exclusion. `Now()` is the exported seam onto this package's fakeable clock, for 
 - `labels.go` - `ValidateLabels`.
 - `id.go` - `GenerateID`.
 - `commit_timing.go` - `HasCommitSince`/`NeedsFreshCommit`, kept here (rather than moving to the
-  `next` slice with the rest of its guidance logic) because `internal/cli/support.CurrentStage`
-  needs `NeedsFreshCommit`, and `support` can't import `next` without a cycle.
+  `next` slice with the rest of its guidance logic) because `internal/utils.CurrentStage` needs
+  `NeedsFreshCommit`, and `utils` can't import `next` without a cycle.
 
 ## Git
 

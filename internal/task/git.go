@@ -45,7 +45,7 @@ func (g *GitClient) CreateWorktree(ctx context.Context, worktreesDir, id string)
 }
 
 // UseTrunk returns the repo root at g.dir and the name of its currently
-// checked-out branch, for `task create --trunk` (design.md §5): it skips
+// checked-out branch, for `create --trunk` (design.md §5): it skips
 // CreateWorktree entirely and works the task directly on the caller's
 // current branch instead of an isolated worktree/branch pair.
 func (g *GitClient) UseTrunk(ctx context.Context) (string, string, error) {

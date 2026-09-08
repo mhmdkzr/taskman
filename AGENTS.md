@@ -3,51 +3,74 @@
 - Go 1.27+
 - File-backed YAML task store (`.tasks/*.yaml`) with per-task file locking
 - `git` on `PATH` (taskman shells out to it for worktrees and reading commits)
-- `urfave/cli` v3
+- `urfave/cli` v3 for the CLI frontend, `modelcontextprotocol/go-sdk` for the MCP frontend
 
-No database, no HTTP server, no MCP - taskman is a one-shot CLI that validates and records the
-state transitions reported to it. See `notes/design/design.md` for the full design.
+No database, no HTTP server - taskman is a one-shot process that validates and records the state
+transitions reported to it, either as a CLI command or (via `taskman mcp`) as an MCP/stdio tool
+call. See `notes/design/design.md` for the full design.
 
 ---
 
 ## Vertical Slices
 
-Every `taskman task <command>` is a vertical slice: one package under `internal/cli/task`, with
-the review stage nested as `internal/cli/task/review/{record,approve,reject}`. A slice keeps its
-CLI (`cmd.go`), domain logic (`<name>.go`), prompt templates (`prompt.go`/`prompt.md` where the
-command dispatches an agent), and documentation (`README.md`) close together.
+Every `taskman <command>` is a vertical slice: one package under `internal/commands`, with the
+review stage nested as `internal/commands/review/{record,approve,reject}`. There is no
+intermediate grouping command - every slice's `Command()` mounts directly on the `taskman` root
+(`internal/cli/cli.go`), except `review`'s own `record`/`approve`/`reject`, which nest under
+`review`. A slice keeps its domain logic (`<name>.go`), its frontends - `cmd.go` (CLI,
+exports `Command()`) and, where wired up, `mcp.go` (MCP, exports `RegisterMCP()`) - prompt
+templates (`prompt.go`/`prompt.md` where the command dispatches an agent), and documentation
+(`README.md`) close together. A slice's domain function never imports either frontend package;
+`cmd.go` and `mcp.go` both call straight into it, so the two frontends stay two thin, independent
+callers of the same logic rather than one wrapping the other. A domain function's entire
+caller-supplied input - including the task id itself, since MCP has no positional-argument
+concept the way a CLI does - is one `Request` struct defined in `<name>.go` (not duplicated per
+frontend): `json`/`jsonschema` struct tags make it usable as-is for both `cmd.go` (built
+field-by-field from flags/args) and `mcp.go` (passed directly as the tool's typed input). Where
+`Request` has anything worth checking (a required field, a non-empty id), it gets a
+`func (r Request) validate() error` method, called once at the top of the domain function -
+shared automatically by both frontends rather than checked twice or only in one. Runtime deps a
+frontend doesn't get from the caller (`tasksDir`, `worktreesDir`, `*task.GitClient`) stay separate
+function parameters, not `Request` fields, since MCP binds them once at server startup rather than
+per call.
 
 ## Shared Packages
 
-- `internal/task` - the `Task` domain type and the file-backed persistence primitives every
-  slice builds on: `ReadTask`, `WriteTaskFile`, and `MutateTask` (lock → read → validate/mutate →
+- `internal/task` - the `Task` domain type and the file-backed persistence primitives every slice
+  builds on: `ReadTask`, `WriteTaskFile`, and `MutateTask` (lock → read → validate/mutate →
   write), plus shared helpers (`errors.go`, `labels.go`, `id.go`, `commit_timing.go`) and
-  `GitClient` (`git.go`).
-- `internal/cli/support` - CLI plumbing shared by every slice: building a `GitClient`/worktrees
-  dir from root flags, parsing repeated `key=value` flags, rendering output (`--json` envelope or
-  human-readable summary), and mapping errors to exit codes.
+  `GitClient` (`git.go`). These files carry no frontend dependency (`urfave/cli` or the MCP SDK),
+  since every slice and both frontends import this package.
+- `internal/utils` - CLI-only plumbing shared by every slice's `cmd.go`: building a
+  `GitClient`/worktrees dir from root flags, parsing repeated `key=value` flags, rendering output
+  (`--json` envelope or human-readable summary), and mapping errors to exit codes.
 
 There is no `pkg/`; everything shared lives under `internal/`.
 
 ## Command Assembly Pattern
 
-1. **Slice-level**: each slice's `cmd.go` exports a `Command()` func returning a `*cli.Command`.
-2. **Stage-level**: `internal/cli/task/task.go` mounts every slice into the `task` command tree;
-   `internal/cli/task/review/review.go` mounts `record`/`approve`/`reject` into `review`.
-3. **Root-level**: `internal/cli/root.go`'s `rootCommand` mounts `task.Command()` under the
-   `taskman` root with the root flags, and wires `initLogger` (`internal/cli/logger.go`) as its
-   `Before` hook.
+1. **Slice-level**: each slice's `cmd.go` exports a `Command()` func returning a `*cli.Command`;
+   a slice wired up for MCP also has `mcp.go` exporting `RegisterMCP()`, which adds that slice's
+   tool to an `*mcp.Server`.
+2. **Stage-level**: `internal/commands/review/cmd.go` mounts `record`/`approve`/`reject` into
+   `review` - the one nested grouping command left. `internal/mcp/server.go` mounts every
+   wired-up slice's `RegisterMCP()` into the MCP server the same way.
+3. **Root-level**: `internal/cli/cli.go`'s `rootCommand` mounts every slice's `Command()` -
+   including `review.Command()`, `skill.Command()`, and `mcp.Command()` (from
+   `internal/commands/mcp`, which calls `internal/mcp.NewServer` and serves it over stdio) -
+   directly under the `taskman` root with the root flags, and wires `initLogger` (defined in the
+   same file) as its `Before` hook.
 
 ## CLI Conventions
 
 - A slice's `cmd.go` `Action` parses flags/args into the request its domain function expects,
   calls the domain logic (a plain function taking `tasksDir` and other runtime deps directly,
-  built on `internal/task`'s shared primitives), renders success via `internal/cli/support`
-  (`support.PrintTask`/`support.PrintJSON`), and returns errors through `support.Fail`.
+  built on `internal/task`'s shared primitives), renders success via `internal/utils`
+  (`utils.PrintTask`/`utils.PrintJSON`), and returns errors through `utils.Fail`.
 - Every flag has a `Usage` string written for someone who only has the compiled binary - no
   references to files or paths in this repo.
 - Slices must not import `internal/cli` (it imports them, so that would cycle) - shared helpers
-  go in `internal/cli/support`, which depends on `internal/task` and `urfave/cli` only.
+  go in `internal/utils`, which depends on `internal/task` and `urfave/cli` only.
 - `next` is the one slice allowed to import sibling slices (`specify`, `implement`), since
   guiding a task means knowing what every stage's own commands would accept next; none of them
   import it back.
@@ -101,7 +124,7 @@ New slices must include a `README.md` file which explains what the slice is, wha
 
 ## Logging
 
-- Use `slog` package for logging with proper log level and attrs. The root `--log-level`/`--log-format` flags configure it (see `internal/cli/logger.go`).
+- Use `slog` package for logging with proper log level and attrs. The root `--log-level`/`--log-format` flags configure it (see `initLogger` in `internal/cli/cli.go`).
 
 ---
 
