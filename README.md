@@ -28,11 +28,10 @@ step - see `notes/design/design.md` §6/§7 for the full command reference and s
 | --- | --- |
 | `cmd/main` | The `taskman` binary's minimal entrypoint |
 | `internal/cli` | The `taskman` CLI's root command and flags |
-| `internal/cli/support` | Plumbing shared by every command (repo/git construction, output, errors) |
-| `internal/cli/task` | Every `task <command>`, one file each |
-| `internal/cli/task/review` | The review stage's `record`/`approve`/`reject` commands |
-| `internal/task` | The `Task` domain type, file-backed repository, and command layer |
-| `internal/prompts` | Embedded prompt/message templates, typed params, `Render` methods |
+| `internal/cli/support` | Plumbing shared by every command slice (git construction, output, errors) |
+| `internal/cli/task` | Every `task <command>`, one vertical slice package each |
+| `internal/cli/task/review` | The review stage's `record`/`approve`/`reject` slices |
+| `internal/task` | The `Task` domain type and shared file-backed persistence primitives |
 | `notes/design/` | The design (`design.md`) and its execution plan (`plan.md`) |
 
 ## Commands

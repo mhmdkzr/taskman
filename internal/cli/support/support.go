@@ -1,25 +1,45 @@
 // Package support holds the plumbing shared by every taskman CLI command:
-// building a Repo/GitClient from the root flags, parsing repeated flag
-// values, rendering output, and mapping errors to exit codes. It has no
-// dependency on internal/cli or its subpackages, so any of them can import
-// it without a cycle.
+// building a GitClient from the root flags, parsing repeated flag values,
+// rendering output, and mapping errors to exit codes. It has no dependency
+// on internal/cli or its subpackages, so any of them can import it without
+// a cycle.
 package support
 
 import (
+	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+	"text/template"
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/mhmdkzr/loop/internal/prompts"
 	"github.com/mhmdkzr/loop/internal/task"
 )
 
-// RepoFrom builds a task.Repo rooted at the --tasks-dir root flag.
-func RepoFrom(cmd *cli.Command) *task.Repo {
-	return task.NewRepo(cmd.String("tasks-dir"))
+//go:embed task_summary.md
+var taskSummaryFile embed.FS
+
+var taskSummaryTmpl = template.Must(template.New("task_summary.md").ParseFS(taskSummaryFile, "task_summary.md"))
+
+// taskSummary is the default (non-JSON) CLI output for any command that
+// returns a Task rather than a next.Guidance - the one prompt template
+// genuinely shared by many command slices, so it lives here rather than in
+// any one of them.
+type taskSummary struct {
+	TaskID string
+	Title  string
+	State  string
+	Stage  string
+}
+
+func (p taskSummary) render() string {
+	var b strings.Builder
+	if err := taskSummaryTmpl.Execute(&b, p); err != nil {
+		panic(fmt.Sprintf("support: render task_summary: %v", err))
+	}
+	return strings.TrimRight(b.String(), "\n")
 }
 
 // GitFrom builds a task.GitClient rooted at the --git-dir root flag.
@@ -92,34 +112,12 @@ func PrintTask(cmd *cli.Command, t task.Task) error {
 	if cmd.Bool("json") {
 		return PrintJSON(cmd, t)
 	}
-	if _, err := fmt.Fprintln(cmd.Root().Writer, prompts.TaskSummary{
+	if _, err := fmt.Fprintln(cmd.Root().Writer, taskSummary{
 		TaskID: t.ID,
 		Title:  t.Title,
 		State:  string(t.State),
 		Stage:  CurrentStage(t),
-	}.Render()); err != nil {
-		return fmt.Errorf("write output: %w", err)
-	}
-	return nil
-}
-
-// CreateSummary is task create's default (non-JSON) CLI output.
-func CreateSummary(t task.Task) string {
-	return prompts.CreateSummary{
-		TaskID:   t.ID,
-		Title:    t.Title,
-		Worktree: t.Git.Worktree,
-		Branch:   t.Git.Branch,
-	}.Render()
-}
-
-// PrintGuidance writes g (task next's response) to stdout - the full JSON
-// envelope behind --json, just g.Message otherwise.
-func PrintGuidance(cmd *cli.Command, g task.Guidance) error {
-	if cmd.Bool("json") {
-		return PrintJSON(cmd, g)
-	}
-	if _, err := fmt.Fprintln(cmd.Root().Writer, g.Message); err != nil {
+	}.render()); err != nil {
 		return fmt.Errorf("write output: %w", err)
 	}
 	return nil

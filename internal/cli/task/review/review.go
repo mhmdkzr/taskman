@@ -4,6 +4,10 @@ package review
 
 import (
 	"github.com/urfave/cli/v3"
+
+	"github.com/mhmdkzr/loop/internal/cli/task/review/approve"
+	"github.com/mhmdkzr/loop/internal/cli/task/review/record"
+	"github.com/mhmdkzr/loop/internal/cli/task/review/reject"
 )
 
 // Command builds the "review" command tree.
@@ -12,9 +16,9 @@ func Command() *cli.Command {
 		Name:  "review",
 		Usage: "the review stage: automated (record) and human (approve/reject)",
 		Commands: []*cli.Command{
-			Record(),
-			Approve(),
-			Reject(),
+			record.Command(),
+			approve.Command(),
+			reject.Command(),
 		},
 	}
 }

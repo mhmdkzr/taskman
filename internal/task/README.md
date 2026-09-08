@@ -1,8 +1,9 @@
 # `internal/task`
 
-Owns the `Task` domain type, its file-backed persistence, and the command layer that validates
-and applies every state transition in `notes/design/design.md` §6. This is taskman's core
-package - the CLI (`internal/cli`) is a thin adapter over it.
+Owns the `Task` domain type and its file-backed persistence primitives. Every command's own
+logic - validating and applying the state transitions in `notes/design/design.md` §6 - now lives
+in its own vertical slice package under `internal/cli/task` (see that package's README); this
+package only holds what those slices, and `internal/cli/support`, share.
 
 ## Task
 
@@ -14,31 +15,27 @@ worktree/branch/commit, and three append-only logs: `Verifications` (build-check
 `Reviews` (automated review rounds, structured findings), and `HumanReviews` (the human gate,
 flat approve/reject entries - never conflated with `Reviews`, see design.md §3).
 
-## Repo
+## Persistence
 
-`Repo` (`repo.go`) is the file-backed repository: `Get`/`List`/`Create`/`Delete` are plain
-reads/writes; `Mutate` is the one path every workflow command goes through - it locks, reads,
-calls a caller-supplied function to validate a precondition and apply an effect, and writes the
-result back via a temp-file-then-rename cycle. The lock is taken on a separate, stable
-`<id>.yaml.lock` file, never on the task file itself - see the comment on `Mutate` for why locking
-the renamed file directly would silently defeat cross-process exclusion.
+`store.go` holds the three plain functions every slice's domain logic is built on: `ReadTask`,
+`WriteTaskFile`, and `MutateTask` - the one path every workflow command goes through to change a
+task. `MutateTask` locks, reads, calls a caller-supplied function to validate a precondition and
+apply an effect, and writes the result back via a temp-file-then-rename cycle. The lock is taken
+on a separate, stable `<id>.yaml.lock` file, never on the task file itself - see the comment on
+`MutateTask` for why locking the renamed file directly would silently defeat cross-process
+exclusion. `Now()` is the exported seam onto this package's fakeable clock, for slices that need
+`time.Now()` semantics but live outside this package.
 
-## Commands
+## Shared helpers
 
-One Go function per row in design.md §6's command table: `Create` (`create.go`, the one place
-this package executes git itself - a worktree and branch, gated by `GitClient.IsClean`),
-`Update`/`Delete` (`update.go`/`delete.go`), and the workflow commands (`workflow.go`): `Specify`,
-`Implement`, `Verify`, `RecordReview`, `Commit` (reads the caller's already-made commit back via
-`git log` rather than trusting reported text), `Escalate`, `ApproveReview`, `RejectReview`,
-`Merge`, `Abandon`. Each validates its own precondition and returns `*InvalidTransitionError` if
-unmet.
-
-## Next
-
-`Next` (`next.go`) is the read-only "what should happen next" command - design.md §6/§7. It
-returns a `Guidance{TaskID, Action, Message, ReportWith}`: `Action` is `dispatch`/`run`/`wait`/
-`done`, `Message` is the fully rendered natural-language brief (via `internal/prompts`), and
-`ReportWith` is the literal next CLI command, for callers with no LLM to read prose (loop).
+- `errors.go` - `NotInState`/`NotBlockedOrFailed` (the precondition errors most workflow commands
+  return) and `SummarizeFindings` (renders a `[]Finding` log as prose), plus
+  `InvalidTransitionError`.
+- `labels.go` - `ValidateLabels`.
+- `id.go` - `GenerateID`.
+- `commit_timing.go` - `HasCommitSince`/`NeedsFreshCommit`, kept here (rather than moving to the
+  `next` slice with the rest of its guidance logic) because `internal/cli/support.CurrentStage`
+  needs `NeedsFreshCommit`, and `support` can't import `next` without a cycle.
 
 ## Git
 

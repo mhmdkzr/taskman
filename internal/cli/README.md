@@ -18,9 +18,9 @@ verify/review/commit/escalate/merge/abandon/next/delete - is wired up in `intern
 
 | Package | Purpose |
 | --- | --- |
-| `support` | Shared plumbing: building a `Repo`/`GitClient` from root flags, parsing repeated flags, rendering output, mapping errors to exit codes |
-| `task` | Every `taskman task <command>`, one file per command |
-| `task/review` | The review stage's `record`/`approve`/`reject` commands |
+| `support` | Shared plumbing: building a `GitClient` from root flags, parsing repeated flags, rendering output, mapping errors to exit codes |
+| `task` | Every `taskman task <command>`, one vertical slice package per command |
+| `task/review` | The review stage's `record`/`approve`/`reject` slices |
 
 `support` exists specifically to avoid a cycle: `cli` imports `task` (to mount its commands),
 so `task` and `task/review` can't import `cli` back for shared helpers - they import `support`

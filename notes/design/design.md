@@ -288,11 +288,12 @@ regardless of stage, so taskman generates them once and wraps the rendered promp
 preamble/postamble itself (§7's `task next`) rather than have every prompt file repeat them.
 `task next`'s `dispatch` response carries the fully wrapped, rendered text as `message` - the
 caller never touches `prompts/*.md` directly and never has to assemble the pieces itself.
-Every `prompts/*.md` file is embedded into the taskman binary at compile time (`go:embed`, in
-`internal/prompts`) and parsed once at startup - there's no runtime file lookup, no `--prompts-dir`
-flag, and no way to edit a prompt without rebuilding taskman. `internal/prompts` also defines one
-typed params struct and `Render` method per template, so a caller can't pass the wrong shape of
-data into the wrong template - a compile-time guarantee, not a runtime check. This applies to
+Every `prompts/*.md` file is embedded into the taskman binary at compile time (`go:embed`, in the
+Go package of the slice that owns that prompt - e.g. `internal/cli/task/specify`) and parsed once
+at startup - there's no runtime file lookup, no `--prompts-dir` flag, and no way to edit a prompt
+without rebuilding taskman. Each such package also defines one typed params struct and `Render`
+method per template, so a caller can't pass the wrong shape of data into the wrong template - a
+compile-time guarantee, not a runtime check. This applies to
 every natural-language template taskman renders, not just the five judgment-dispatch prompts
 above: the dispatch preamble/postamble, the `run`/`wait`/`done` message variants, and `task
 create`'s own CLI summary are each their own small embedded template too, for the same reason -

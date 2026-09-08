@@ -92,6 +92,26 @@ fixed and reflected there now:
   `internal/task` directly rather than `internal/cli/task`'s commands, for the same cycle reason).
   Every flag also got a real `Usage` string, written for someone who only has the compiled binary
   - no file or path references from this repo.
+- `internal/cli/task` (and `internal/cli/task/review`) restructured again, from one file per
+  command into one vertical slice package per command (`internal/cli/task/list`, `.../create`,
+  etc., `.../review/record`, `.../review/approve`, `.../review/reject`) - each owning its own
+  `cmd.go` (CLI wiring) and `<name>.go` (domain logic), following this repo's
+  `internal/<module>/<feature>` convention. `internal/task`'s `Repo` type is gone: its
+  lock/read/write logic became three plain functions (`ReadTask`, `WriteTaskFile`, `MutateTask`
+  in `internal/task/store.go`) that every slice calls directly, and every workflow command that
+  used to live in `internal/task` (`create.go`, `update.go`, `delete.go`, `workflow.go`,
+  `next.go`) moved into its slice's own package instead. `internal/prompts` is gone the same
+  way - each of its 13 templates moved to the one slice that uses it (`specify`, `implement`, and
+  `create`'s own CLI summary each own their `prompt.md`+`prompt.go`), except `task_summary.md`
+  (used by every slice's `--json`-off output, now embedded in `internal/cli/support`) and the 9
+  templates behind `next`'s guidance logic, which all moved into the `next` slice together since
+  nothing outside it used them. `next` is the one slice that imports other slices (`specify`,
+  `implement`, for their `Prompt` structs) - safe now that `next` itself lives in
+  `internal/cli/task/next` rather than `internal/task`, so it's on the same side of the
+  `cli`→`cli/task`→`task` import direction as the slices it needs. Two pieces of `next`'s old
+  logic (`HasCommitSince`, `NeedsFreshCommit`) stayed behind in `internal/task/commit_timing.go`
+  specifically because `internal/cli/support.CurrentStage` needs `NeedsFreshCommit`, and
+  `support` can't import `next` without a cycle.
 
 ## Resolved since first written
 
