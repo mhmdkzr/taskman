@@ -8,7 +8,7 @@ GOLANGCI_LINT ?= golangci-lint
 PKG_PATTERNS := ./...
 GO_FILES := $(shell find . -name '*.go' -not -path './vendor/*' -not -path './.worktrees/*')
 
-.PHONY: lint golangci-lint tools fmt vet staticcheck govulncheck build run test
+.PHONY: lint golangci-lint tools fmt vet staticcheck govulncheck build install run test
 
 lint: vet staticcheck golangci-lint govulncheck
 
@@ -45,6 +45,9 @@ govulncheck:
 
 build:
 	@$(GO) build -o /dev/null .
+
+install:
+	@$(GO) install .
 
 run:
 	@$(GO) run .
