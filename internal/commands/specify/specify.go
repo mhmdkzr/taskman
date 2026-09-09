@@ -31,7 +31,7 @@ func (r Request) validate() error {
 }
 
 // Specify writes a task's specification and done_when, drafted from its
-// definition - design.md §6.
+// definition.
 func Specify(tasksDir string, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("specify task: %w", err)

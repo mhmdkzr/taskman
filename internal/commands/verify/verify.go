@@ -27,9 +27,9 @@ func (r Request) validate() error {
 	return nil
 }
 
-// Verify appends one build-check attempt to a task's verifications log -
-// design.md §6. It never sets verification.state itself; that only happens
-// via task review record's approval.
+// Verify appends one build-check attempt to a task's verifications log. It
+// never sets verification.state itself; that only happens via task review
+// record's approval.
 func Verify(tasksDir string, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("verify task: %w", err)

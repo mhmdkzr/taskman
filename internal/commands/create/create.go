@@ -10,7 +10,7 @@ import (
 	"github.com/mhmdkzr/taskman/internal/task"
 )
 
-// Request is create's input - design.md §6. Shared verbatim by the CLI
+// Request is create's input. Shared verbatim by the CLI
 // (cmd.go builds it from flags) and MCP (mcp.go uses it as the tool's input
 // type directly) frontends; the jsonschema tags describe it to MCP clients.
 type Request struct {
@@ -39,7 +39,7 @@ func (r Request) validate() error {
 // executes nothing itself" - the task's worktree and branch, guarded by a
 // clean-working-tree precondition. With req.Trunk, it skips worktree/branch
 // creation and records the repo root and current branch instead, so the
-// task is worked in place. See design.md §5.
+// task is worked in place.
 func Create(ctx context.Context, tasksDir, worktreesDir string, git *task.GitClient, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("create task: %w", err)

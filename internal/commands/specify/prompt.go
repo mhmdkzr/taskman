@@ -12,7 +12,7 @@ var promptFile embed.FS
 
 var promptTmpl = template.Must(template.New("prompt.md").ParseFS(promptFile, "prompt.md"))
 
-// Prompt is the dispatch prompt for the specification stage - design.md §4.
+// Prompt is the dispatch prompt for the specification stage.
 type Prompt struct {
 	Definition string
 	References []string

@@ -12,13 +12,14 @@ import (
 )
 
 // GitClient wraps the handful of git operations taskman performs itself -
-// design.md §5 and §6's "task commit" row. Every other git operation (build
-// checks, commits, merges) is caller-executed and only reported to taskman.
+// worktree creation and the terminal task's own bookkeeping commit. Every
+// other git operation (build checks, commits, merges) is caller-executed and
+// only reported to taskman.
 type GitClient struct {
 	dir string
 }
 
-// NewGit returns a GitClient rooted at dir (design.md §1's --git-dir).
+// NewGit returns a GitClient rooted at dir (the --git-dir flag's value).
 func NewGit(dir string) *GitClient {
 	return &GitClient{dir: dir}
 }
@@ -36,8 +37,7 @@ func (g *GitClient) IsClean(ctx context.Context) (bool, error) {
 // CreateWorktree runs `git worktree add <worktreesDir>/<id> -b task/<slug>`
 // against the repo at g.dir, and returns the resulting worktree path and
 // branch name. The worktree directory is keyed by the full id (unique even
-// across tasks sharing a slug); the branch name uses only slug, per design.md
-// §3 ("`task/<slug>` becomes the git branch name").
+// across tasks sharing a slug); the branch name uses only the slug.
 func (g *GitClient) CreateWorktree(ctx context.Context, worktreesDir, id, slug string) (string, string, error) {
 	worktree := filepath.Join(worktreesDir, id)
 	branch := "task/" + slug
@@ -48,7 +48,7 @@ func (g *GitClient) CreateWorktree(ctx context.Context, worktreesDir, id, slug s
 }
 
 // UseTrunk returns the repo root at g.dir and the name of its currently
-// checked-out branch, for `create --trunk` (design.md §5): it skips
+// checked-out branch, for `create --trunk`: it skips
 // CreateWorktree entirely and works the task directly on the caller's
 // current branch instead of an isolated worktree/branch pair.
 func (g *GitClient) UseTrunk(ctx context.Context) (string, string, error) {
@@ -69,9 +69,8 @@ var conventionalType = regexp.MustCompile(`^([a-zA-Z]+)(\([^)]*\))?!?:\s`)
 
 // ReadCommit reads the commit at ref (typically "HEAD", or a hash) out of
 // the worktree at worktreeDir via `git log`, rather than trusting a
-// caller's own report of it - design.md §6 "When the commit happens". It
-// parses a leading conventional-commit type prefix out of the message when
-// present.
+// caller's own report of it. It parses a leading conventional-commit type
+// prefix out of the message when present.
 func (g *GitClient) ReadCommit(ctx context.Context, worktreeDir, ref string) (GitCommit, error) {
 	if ref == "" {
 		ref = "HEAD"
@@ -95,12 +94,11 @@ func (g *GitClient) ReadCommit(ctx context.Context, worktreeDir, ref string) (Gi
 }
 
 // CommitBookkeeping stages path and commits it with message - taskman's own
-// commit, the one exception beyond §5's worktree creation. A terminal
+// commit, the one exception beyond worktree creation. A terminal
 // task's own file keeps changing through review and merge, so it can never
-// ride along with the code commit that finished it (design.md §"final
-// bookkeeping commit"); rather than dispatch that as another round trip,
-// taskman makes this one commit itself. A no-op if path has nothing to
-// commit (already committed, or gitignored).
+// ride along with the code commit that finished it; rather than dispatch
+// that as another round trip, taskman makes this one commit itself. A no-op
+// if path has nothing to commit (already committed, or gitignored).
 func (g *GitClient) CommitBookkeeping(ctx context.Context, path, message string) error {
 	if _, err := g.run(ctx, g.dir, "add", "--", path); err != nil {
 		return err

@@ -6,7 +6,7 @@ import (
 	"uuid"
 )
 
-// GenerateID returns a new <uuid-v7>_<slug> task id - design.md §3. The
+// GenerateID returns a new <uuid-v7>_<slug> task id. The
 // slug comes from title; a title with no letters or digits at all falls
 // back to "task".
 func GenerateID(title string) string {

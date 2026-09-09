@@ -26,10 +26,9 @@ func (r Request) validate() error {
 }
 
 // RecordReview reports the automated review round's verdict inside
-// verification - design.md §6's verification stage. Approval advances the
-// task to the review stage; rejection either loops back for another
-// attempt (attempt 1) or blocks the task (attempt 2, the fixed two-round
-// cap).
+// verification. Approval advances the task to the review stage; rejection
+// either loops back for another attempt (attempt 1) or blocks the task
+// (attempt 2, the fixed two-round cap).
 func RecordReview(tasksDir string, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("record review: %w", err)

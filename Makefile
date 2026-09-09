@@ -31,8 +31,6 @@ tools:
 fmt:
 	@gofmt -w $(GO_FILES)
 	@goimports -w $(GO_FILES)
-	@files=$$(find . -name '*.md' -not -path './vendor/*' -not -path './.worktrees/*' -not -path './scripts/mdjsonfmt/testdata/*'); \
-	if [ -n "$$files" ]; then scripts/mdjsonfmt/mdjsonfmt.sh $$files; fi
 
 vet:
 	@$(GO) vet $(PKG_PATTERNS)

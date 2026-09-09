@@ -27,7 +27,7 @@ func (r Request) validate() error {
 }
 
 // Delete removes req.ID's file outright under tasksDir - no soft-delete,
-// git history covers "undo" (design.md §3/§6). This is the one command
+// git history covers "undo". This is the one command
 // whose file operation is simple enough to implement directly here rather
 // than through a shared helper in internal/task.
 func Delete(tasksDir string, req Request) error {

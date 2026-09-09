@@ -31,7 +31,7 @@ func (r Request) validate() error {
 }
 
 // Escalate blocks a task on a caller's own report that a dispatched agent
-// gave up rather than keep iterating - design.md §6's "Giving up".
+// gave up rather than keep iterating.
 func Escalate(tasksDir string, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("escalate task: %w", err)

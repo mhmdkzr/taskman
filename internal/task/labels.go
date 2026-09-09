@@ -4,7 +4,7 @@ import "fmt"
 
 // ValidateLabels checks the well-known label keys (priority, complexity,
 // autonomy) against their fixed low/medium/high enum when present. Every
-// other key is an unchecked plain user tag - design.md §3.
+// other key is an unchecked plain user tag.
 func ValidateLabels(labels map[string]string) error {
 	for _, key := range []string{LabelPriority, LabelComplexity, LabelAutonomy} {
 		value, ok := labels[key]

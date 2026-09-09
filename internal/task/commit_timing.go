@@ -5,8 +5,8 @@ import "time"
 // HasCommitSince reports whether the task's recorded commit was made at or
 // after since - i.e. whether it's the commit for the current pass, not a
 // stale one from an earlier pass still waiting to be superseded. Exported
-// for the "next" slice's own guidance logic (design.md §6/§7), which lives
-// outside this package.
+// for the "next" slice's own guidance logic, which lives outside this
+// package.
 func HasCommitSince(t Task, since *time.Time) bool {
 	if t.Git.Commit == nil || since == nil {
 		return false

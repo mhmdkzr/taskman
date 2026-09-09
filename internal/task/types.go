@@ -1,5 +1,5 @@
 // Package task owns the Task domain type and its file-backed persistence.
-// See README.md and notes/design/design.md for the full design.
+// See README.md for the full design.
 package task
 
 import "time"
@@ -16,7 +16,7 @@ const (
 )
 
 // StageState is the value of a single stage's status.state field. Not every
-// stage reaches every value - see design.md §6's per-stage table.
+// stage reaches every value.
 type StageState string
 
 const (
@@ -25,8 +25,7 @@ const (
 	StageDone       StageState = "done"
 )
 
-// Task is one unit of work, serialized as .tasks/<id>.yaml. Field order here
-// matches the schema example in design.md §3.
+// Task is one unit of work, serialized as .tasks/<id>.yaml.
 type Task struct {
 	ID            string            `json:"id"                      yaml:"id"`
 	State         State             `json:"state"                   yaml:"state"`
@@ -51,7 +50,7 @@ type Task struct {
 	AutoApprove bool `json:"auto_approve,omitempty" yaml:"auto_approve,omitempty"`
 }
 
-// Status holds the per-stage progress, one field per design.md §6 stage.
+// Status holds the per-stage progress, one field per stage.
 type Status struct {
 	Definition     StageStatus `json:"definition"     yaml:"definition"`
 	Specification  StageStatus `json:"specification"  yaml:"specification"`
@@ -75,15 +74,14 @@ type Git struct {
 	Branch   string `json:"branch,omitempty"   yaml:"branch,omitempty"`
 	// Trunk records whether this task was created with --trunk: Worktree is
 	// the repo root and Branch is whatever was checked out at create time,
-	// rather than an isolated worktree/branch pair task next's merge-stage
-	// guidance (design.md §5/§7) reads this to know there's nothing to
-	// actually merge.
+	// rather than an isolated worktree/branch pair. task next's merge-stage
+	// guidance reads this to know there's nothing to actually merge.
 	Trunk  bool       `json:"trunk,omitempty"  yaml:"trunk,omitempty"`
 	Commit *GitCommit `json:"commit,omitempty" yaml:"commit,omitempty"`
 }
 
-// GitCommit is what task commit reads back from the worktree via git log - see
-// design.md §6 "When the commit happens". At is when taskman recorded it
+// GitCommit is what task commit reads back from the worktree via git log. At
+// is when taskman recorded it
 // (not the commit's own author/commit date) - it's what Next uses to tell
 // "a fresh commit was already made for the current pass" apart from "the
 // commit on file is stale, dispatch drafting a new one".
@@ -130,7 +128,7 @@ type Review struct {
 }
 
 // Finding is one automated reviewer's note against a file. Detail is the
-// full text of what was found, not a compressed summary - design.md §3.
+// full text of what was found, not a compressed summary.
 type Finding struct {
 	File   string `json:"file"   yaml:"file"`
 	Detail string `json:"detail" yaml:"detail"`
@@ -138,15 +136,14 @@ type Finding struct {
 
 // HumanReview is one human decision at the review stage, appended to
 // Task.HumanReviews. Deliberately flat - a single text block, not automated
-// review's structured per-file findings - design.md §3.
+// review's structured per-file findings.
 type HumanReview struct {
 	Approved bool      `json:"approved"          yaml:"approved"`
 	Comment  string    `json:"comment,omitempty" yaml:"comment,omitempty"`
 	At       time.Time `json:"at"                yaml:"at"`
 }
 
-// Blocked is present only while Task.State is StateBlocked - design.md §6
-// "The blocked overlay".
+// Blocked is present only while Task.State is StateBlocked.
 type Blocked struct {
 	Stage  string    `json:"stage"  yaml:"stage"`
 	Reason string    `json:"reason" yaml:"reason"`
@@ -164,8 +161,7 @@ const (
 )
 
 // well-known label keys, validated against a fixed low/medium/high enum
-// when present - design.md §3. Every other label key is an unchecked plain
-// user tag.
+// when present. Every other label key is an unchecked plain user tag.
 const (
 	LabelPriority   = "priority"
 	LabelComplexity = "complexity"

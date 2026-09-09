@@ -65,8 +65,7 @@ type commitPrompt struct {
 func (p commitPrompt) Render() string { return render(commitTmpl, p) }
 
 // dispatchWrapper wraps body (one of the prompts above, already rendered)
-// with the worktree/branch/report-back context common to every dispatch -
-// design.md §4.
+// with the worktree/branch/report-back context common to every dispatch.
 type dispatchWrapper struct {
 	Body       string
 	Worktree   string

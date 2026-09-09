@@ -6,9 +6,7 @@
   terminal task's own file - `task.RecordBookkeeping`)
 - `urfave/cli` v3 for the CLI frontend, `modelcontextprotocol/go-sdk` for the MCP frontend
 
-No database, no HTTP server - taskman is a one-shot process that validates and records the state
-transitions reported to it, either as a CLI command or (via `taskman mcp`) as an MCP/stdio tool
-call. See `notes/design/design.md` for the full design.
+Taskman is a one-shot process that validates and records the state transitions reported to it, either as a CLI command or (via `taskman mcp`) as an MCP/stdio tool call.
 
 ---
 
@@ -164,7 +162,7 @@ New slices must include a `README.md` file which explains what the slice is, wha
   Then ask the user for approval.
   If user provided a `-y` flag to the prompt (e.g. commit changes -y) you don't need to ask for approval.
 
-- Use conventional commits (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`, see `notes/resources/conventional-commits.md`).
+- Use conventional commits (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `chore:`).
 - Use conventional branch names such as `feat/...`, `fix/...`, `refactor/...`, `docs/...`, `test/...`. Do not use `codex/` prefixes.
 - Prefer small, incremental, focused commits. One logical change per commit.
 - Prefer package or slice-scoped commits. Do not mix unrelated changes in one commit.
@@ -180,7 +178,7 @@ New slices must include a `README.md` file which explains what the slice is, wha
 
 ## Deployment
 
-Use semantic versioning for release tags (see `notes/resources/semantic-versioning.md`).
+Use semantic versioning for release tags.
 
 --- 
 

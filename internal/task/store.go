@@ -14,8 +14,7 @@ import (
 
 const filePerm = 0o600
 
-// document is the on-disk shape: a task file is { task: <Task> }, matching
-// design.md §3's schema example.
+// document is the on-disk shape: a task file is { task: <Task> }.
 type document struct {
 	Task Task `yaml:"task"`
 }
@@ -60,9 +59,9 @@ func WriteTaskFile(tasksDir string, t Task) error {
 
 // MutateTask locks task id's file, loads it, calls fn to validate and apply
 // a transition, and writes the result back - the read-modify-write-rename
-// cycle every command in design.md §6 goes through. fn returning an error
-// aborts the mutation: nothing is written, and that error is returned as
-// MutateTask's own.
+// cycle every command goes through. fn returning an error aborts the
+// mutation: nothing is written, and that error is returned as MutateTask's
+// own.
 func MutateTask(tasksDir, id string, fn func(t *Task) error) (Task, error) {
 	// The lock is taken on a separate, stable file - never on the task
 	// file itself. WriteTaskFile's atomic rename replaces the task file's

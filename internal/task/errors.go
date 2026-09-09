@@ -9,15 +9,15 @@ var (
 	// ErrTaskNotFound is returned when a task id has no corresponding file.
 	ErrTaskNotFound = errors.New("task not found")
 	// ErrWorkingTreeDirty is returned by Create when the working tree isn't
-	// clean - design.md §5.
+	// clean.
 	ErrWorkingTreeDirty = errors.New("working tree is not clean")
 	// ErrInvalidLabel is returned when a well-known label key is set to a
-	// value outside its fixed enum - design.md §3.
+	// value outside its fixed enum.
 	ErrInvalidLabel = errors.New("invalid label value")
 )
 
 // InvalidTransitionError is returned when a command's precondition isn't
-// met - design.md §6's per-command precondition column.
+// met.
 type InvalidTransitionError struct {
 	Stage string
 	Have  string
@@ -30,7 +30,7 @@ func (e *InvalidTransitionError) Error() string {
 
 // NotInState builds the error every command's precondition check returns
 // when a stage isn't in the state it needs to be in for that command to
-// apply - design.md §6's per-command precondition column.
+// apply.
 func NotInState(stage, have, want string) error {
 	return &InvalidTransitionError{Stage: stage, Have: have, Want: want}
 }

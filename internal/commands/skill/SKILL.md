@@ -8,7 +8,7 @@ description: Drive taskman task lifecycles - create, next, verify, review record
 taskman is a file-backed, one-shot CLI task server: it holds tasks as `.tasks/*.yaml` files and
 validates and records the state transitions you report to it. It executes almost nothing itself -
 no builds, no commits, no merges. You (or a sub-agent you dispatch) do the work, then tell taskman
-what happened. Full design: `notes/design/design.md`.
+what happened.
 
 ## Invocation
 

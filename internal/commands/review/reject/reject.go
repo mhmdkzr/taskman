@@ -27,7 +27,7 @@ func (r Request) validate() error {
 }
 
 // RejectReview records a human's rejection and starts review-reject
-// recovery - design.md §6.
+// recovery.
 func RejectReview(tasksDir string, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("reject review: %w", err)

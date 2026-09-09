@@ -45,8 +45,8 @@ func newTestRepo(t *testing.T) string {
 	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("hello\n"), 0o644); err != nil {
 		t.Fatalf("write README: %v", err)
 	}
-	// .worktrees/ is where task create checks out each task's worktree
-	// (§5) - it must be gitignored, or every task after the first makes
+	// .worktrees/ is where task create checks out each task's worktree -
+	// it must be gitignored, or every task after the first makes
 	// the clean-working-tree precondition fail on the untracked directory
 	// the previous one left behind.
 	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte(".worktrees/\n"), 0o644); err != nil {

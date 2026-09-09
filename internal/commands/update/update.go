@@ -11,7 +11,7 @@ import (
 // Request is update's input - patch semantics, only non-nil/given fields
 // are applied. Shared verbatim by the CLI (cmd.go builds it from flags) and
 // MCP (mcp.go uses it as the tool's input type directly) frontends; the
-// json/jsonschema tags describe it to MCP clients. design.md §6.
+// json/jsonschema tags describe it to MCP clients.
 type Request struct {
 	ID              string            `json:"id"                         jsonschema:"the task id to patch"`
 	Title           *string           `json:"title,omitempty"            jsonschema:"new title"`
@@ -33,7 +33,7 @@ func (r Request) validate() error {
 // Update patches a task's metadata (title, labels, references, trunk,
 // auto-approve). It never touches specification/done_when (own command:
 // specify) or the rest of git/status (taskman-managed). No precondition on
-// State/Status - metadata isn't workflow state. design.md §6.
+// State/Status - metadata isn't workflow state.
 func Update(tasksDir string, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("update task: %w", err)

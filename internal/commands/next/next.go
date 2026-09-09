@@ -1,5 +1,5 @@
 // Package next owns the "next" command: it inspects a task's current state
-// and tells the caller what to do about it - design.md §6/§7.
+// and tells the caller what to do about it.
 // It is the one command that legitimately depends on every other stage,
 // since guiding a task means knowing what every stage's own commands would
 // accept next.
@@ -15,7 +15,7 @@ import (
 )
 
 // Action is Next's coarse signal for a caller with no way to read prose -
-// specifically loop, which has no LLM. design.md §7.
+// specifically loop, which has no LLM.
 type Action string
 
 const (
@@ -25,8 +25,7 @@ const (
 	ActionDone     Action = "done"
 )
 
-// Guidance is next's response - design.md §7's "task next: taskman talks,
-// the caller listens".
+// Guidance is next's response.
 type Guidance struct {
 	TaskID     string `json:"task_id"`
 	Action     Action `json:"action"`
@@ -52,8 +51,7 @@ func (r Request) validate() error {
 }
 
 // Next inspects req.ID's current state and returns what the caller should
-// do about it - design.md §6's "task next: what tells the caller what to
-// do".
+// do about it.
 func Next(tasksDir string, req Request) (Guidance, error) {
 	if err := req.validate(); err != nil {
 		return Guidance{}, fmt.Errorf("next: %w", err)
@@ -144,11 +142,10 @@ func guideImplement(t task.Task) Guidance {
 }
 
 // guideVerification handles every step of the build-check-fix-review loop
-// inside the verification stage - design.md §6's "The verification stage,
-// in full". It's only ever called while verification.state != done, so it
-// never itself dispatches the commit - that's the outer switch's job, the
-// moment verification.state (and, simultaneously, review.state: pending)
-// first appear.
+// inside the verification stage. It's only ever called while
+// verification.state != done, so it never itself dispatches the commit -
+// that's the outer switch's job, the moment verification.state (and,
+// simultaneously, review.state: pending) first appear.
 func guideVerification(t task.Task) Guidance {
 	lastVerify := lastVerification(t)
 	lastReview := lastReview(t)
@@ -184,9 +181,9 @@ func guideVerification(t task.Task) Guidance {
 	}
 }
 
-// guideReviewRejectRecovery handles the human-rejection recovery cycle -
-// design.md §6's "Review-reject recovery". It never re-dispatches an
-// automated review; the human is the reviewer for the rest of this cycle.
+// guideReviewRejectRecovery handles the human-rejection recovery cycle. It
+// never re-dispatches an automated review; the human is the reviewer for
+// the rest of this cycle.
 func guideReviewRejectRecovery(t task.Task) (Guidance, error) {
 	if len(t.HumanReviews) == 0 {
 		return Guidance{}, fmt.Errorf("task %s: review in_progress with no recorded rejection", t.ID)
