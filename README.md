@@ -107,7 +107,9 @@ outcome, and taskman refuses any transition that doesn't follow from the current
 Two commands leave the normal flow: `escalate <id> --stage <stage> --reason <text>`
 blocks a task because a dispatched agent gave up (state `blocked`), and
 `abandon <id> --reason <text>` marks a task failed for good (state `failed`). A task
-file can also be removed outright with `delete <id>`, a human housekeeping action.
+file can also be removed outright with `delete <id>`, or cleared out in bulk by state
+with `prune` (which removes every `completed` task, `--dry-run` to preview) - human
+housekeeping actions.
 
 ## Command reference
 
@@ -129,6 +131,7 @@ file can also be removed outright with `delete <id>`, a human housekeeping actio
 | `merge <id>` | record that the task's branch was already merged |
 | `abandon <id>` | mark the task failed for good |
 | `delete <id>` | remove the task file outright |
+| `prune [--dry-run]` | remove every completed task file (preview with `--dry-run`) |
 | `skill` | print the agent-facing driver skill to stdout |
 | `mcp` | serve the same operations over MCP/stdio instead of the CLI |
 

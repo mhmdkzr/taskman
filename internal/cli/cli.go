@@ -25,6 +25,7 @@ import (
 	"github.com/mhmdkzr/taskman/internal/commands/mcp"
 	"github.com/mhmdkzr/taskman/internal/commands/merge"
 	"github.com/mhmdkzr/taskman/internal/commands/next"
+	"github.com/mhmdkzr/taskman/internal/commands/prune"
 	"github.com/mhmdkzr/taskman/internal/commands/review"
 	"github.com/mhmdkzr/taskman/internal/commands/skill"
 	"github.com/mhmdkzr/taskman/internal/commands/specify"
@@ -83,6 +84,7 @@ func commands() []*cli.Command {
 		abandon.Command(),
 		next.Command(),
 		delete.Command(),
+		prune.Command(),
 		skill.Command(),
 		mcp.Command(),
 	}

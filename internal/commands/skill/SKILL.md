@@ -54,6 +54,7 @@ A caller that only ever calls `next`, does what `message` says, and reports with
 | `merge <id> [--commit <hash>]` | Report a merge you already made. |
 | `abandon <id> --reason <text>` | Mark the task failed for good. Human decision. |
 | `delete <id>` | Housekeeping. Never invoke as part of driving a task. |
+| `prune [--dry-run]` | Housekeeping: delete every completed task file (`--dry-run` previews). Never invoke as part of driving a task. |
 
 ## Lifecycle and rules
 
