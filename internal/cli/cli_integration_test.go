@@ -115,7 +115,7 @@ func TestCLIFullLifecycle(t *testing.T) {
 	runTaskman(t, dir, "commit", id)
 	runTaskman(t, dir, "review", "approve", id, "--comment", "LGTM")
 
-	mergeInto(t, dir, "task/"+id)
+	mergeInto(t, dir, getTaskJSON(t, dir, id).Git.Branch)
 	runTaskman(t, dir, "merge", id)
 
 	final := getTaskJSON(t, dir, id)

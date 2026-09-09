@@ -17,8 +17,8 @@ func TestSlugify(t *testing.T) {
 		"MiXeD CaSe 123":        "mixed-case-123",
 	}
 	for input, want := range cases {
-		if got := slugify(input); got != want {
-			t.Errorf("slugify(%q) = %q, want %q", input, got, want)
+		if got := Slugify(input); got != want {
+			t.Errorf("Slugify(%q) = %q, want %q", input, got, want)
 		}
 	}
 }

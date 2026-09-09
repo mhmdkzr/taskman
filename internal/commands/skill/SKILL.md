@@ -38,7 +38,7 @@ A caller that only ever calls `next`, does what `message` says, and reports with
 
 | Command | Purpose |
 |---|---|
-| `create --definition <text> [--title <text>] [--id <id>] [--label k=v ...] [--reference <ref> ...] [--specification <text> --done-when <text>] [--trunk] [--auto-approve]` | Create a task. Requires a **clean working tree**. Creates the worktree `.worktrees/<id>` on branch `task/<id>` itself - the one thing taskman executes. `.worktrees/` and `.tasks/*.lock` must both be gitignored first, or a leftover worktree or lock file from a previous task fails this precondition on the next one. With `--trunk`, skips the worktree/branch and records the repo root and current branch instead - the task is worked in place. With `--specification`/`--done-when`, the specify stage is skipped. With `--auto-approve`, `commit` completes the review stage on its own - see below. |
+| `create --definition <text> [--title <text>] [--id <id>] [--label k=v ...] [--reference <ref> ...] [--specification <text> --done-when <text>] [--trunk] [--auto-approve]` | Create a task. Requires a **clean working tree**. Creates the worktree `.worktrees/<id>` on branch `task/<slug>` itself - the one thing taskman executes. `.worktrees/` and `.tasks/*.lock` must both be gitignored first, or a leftover worktree or lock file from a previous task fails this precondition on the next one. With `--trunk`, skips the worktree/branch and records the repo root and current branch instead - the task is worked in place. With `--specification`/`--done-when`, the specify stage is skipped. With `--auto-approve`, `commit` completes the review stage on its own - see below. |
 | `next <id>` | Ask what to do next (see core loop). |
 | `get <id>` | Read one task. Prefer relying on `next`'s own message instead - it already carries the definition, specification, done_when and references you need for the current step, so `get` is usually not necessary mid-flow. |
 | `list [--state <state> ...] [--label k=v ...] [--limit <n>] [--offset <n>]` | List/filter tasks, paginated (`--limit` defaults to 50 to avoid dumping a huge tasks-dir; `0` means unlimited). `--json` returns `{tasks, total, limit, offset}` - use `total` to know whether more pages remain, and `--offset` to page through them. Never parse the YAML by hand for decisions. |
@@ -63,7 +63,7 @@ Stages run `definition → specification → implementation → verification →
   "just peek". Every read goes through `get`/`list`/`next`; every write goes through a taskman
   command. The file format is an implementation detail and can change.
 - **Work in the worktree named by the task's `git.worktree`/`git.branch` fields** (`get <id>`
-  or any command's output names them) - `.worktrees/<id>` on branch `task/<id>` by default, created
+  or any command's output names them) - `.worktrees/<id>` on branch `task/<slug>` by default, created
   by `create` and left in place for the task's whole life; the repo root on the current branch
   if the task was created with `--trunk`. Don't assume the default path - read it from the task.
 - **Verification loop** (two automated rounds max): run build checks → `verify`. Pass →

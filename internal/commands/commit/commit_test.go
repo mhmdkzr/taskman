@@ -64,7 +64,7 @@ func TestCommit(t *testing.T) {
 	ctx := context.Background()
 
 	worktreesDir := filepath.Join(t.TempDir(), "worktrees")
-	worktree, branch, err := gitClient.CreateWorktree(ctx, worktreesDir, "abc")
+	worktree, branch, err := gitClient.CreateWorktree(ctx, worktreesDir, "abc", "abc")
 	if err != nil {
 		t.Fatalf("create worktree: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestCommitAutoApproveSkipsHumanReview(t *testing.T) {
 	ctx := context.Background()
 
 	worktreesDir := filepath.Join(t.TempDir(), "worktrees")
-	worktree, branch, err := gitClient.CreateWorktree(ctx, worktreesDir, "abc")
+	worktree, branch, err := gitClient.CreateWorktree(ctx, worktreesDir, "abc", "abc")
 	if err != nil {
 		t.Fatalf("create worktree: %v", err)
 	}
@@ -224,7 +224,7 @@ func TestCommitRequiresVerificationDone(t *testing.T) {
 	ctx := context.Background()
 
 	worktreesDir := filepath.Join(t.TempDir(), "worktrees")
-	worktree, branch, err := gitClient.CreateWorktree(ctx, worktreesDir, "abc")
+	worktree, branch, err := gitClient.CreateWorktree(ctx, worktreesDir, "abc", "abc")
 	if err != nil {
 		t.Fatalf("create worktree: %v", err)
 	}

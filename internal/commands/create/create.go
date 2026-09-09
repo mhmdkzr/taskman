@@ -65,7 +65,7 @@ func Create(ctx context.Context, tasksDir, worktreesDir string, git *task.GitCli
 			return task.Task{}, fmt.Errorf("use trunk: %w", err)
 		}
 	} else {
-		worktree, branch, err = git.CreateWorktree(ctx, worktreesDir, id)
+		worktree, branch, err = git.CreateWorktree(ctx, worktreesDir, id, task.Slugify(req.Title))
 		if err != nil {
 			return task.Task{}, fmt.Errorf("create worktree: %w", err)
 		}

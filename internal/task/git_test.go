@@ -63,7 +63,7 @@ func TestGitClientCreateWorktreeAndReadCommit(t *testing.T) {
 	ctx := context.Background()
 
 	worktreesDir := filepath.Join(t.TempDir(), "worktrees")
-	worktree, branch, err := git.CreateWorktree(ctx, worktreesDir, "abc")
+	worktree, branch, err := git.CreateWorktree(ctx, worktreesDir, "abc", "abc")
 	if err != nil {
 		t.Fatalf("create worktree: %v", err)
 	}

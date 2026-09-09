@@ -33,12 +33,14 @@ func (g *GitClient) IsClean(ctx context.Context) (bool, error) {
 	return strings.TrimSpace(out) == "", nil
 }
 
-// CreateWorktree runs `git worktree add <worktreesDir>/<id> -b task/<id>`
+// CreateWorktree runs `git worktree add <worktreesDir>/<id> -b task/<slug>`
 // against the repo at g.dir, and returns the resulting worktree path and
-// branch name.
-func (g *GitClient) CreateWorktree(ctx context.Context, worktreesDir, id string) (string, string, error) {
+// branch name. The worktree directory is keyed by the full id (unique even
+// across tasks sharing a slug); the branch name uses only slug, per design.md
+// §3 ("`task/<slug>` becomes the git branch name").
+func (g *GitClient) CreateWorktree(ctx context.Context, worktreesDir, id, slug string) (string, string, error) {
 	worktree := filepath.Join(worktreesDir, id)
-	branch := "task/" + id
+	branch := "task/" + slug
 	if _, err := g.run(ctx, g.dir, "worktree", "add", worktree, "-b", branch); err != nil {
 		return "", "", err
 	}

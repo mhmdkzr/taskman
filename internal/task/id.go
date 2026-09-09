@@ -10,12 +10,13 @@ import (
 // slug comes from title; a title with no letters or digits at all falls
 // back to "task".
 func GenerateID(title string) string {
-	return uuid.NewV7().String() + "_" + slugify(title)
+	return uuid.NewV7().String() + "_" + Slugify(title)
 }
 
-// slugify lowercases title, replaces runs of non-alphanumeric characters
-// with a single hyphen, and trims leading/trailing hyphens.
-func slugify(title string) string {
+// Slugify lowercases title, replaces runs of non-alphanumeric characters
+// with a single hyphen, and trims leading/trailing hyphens. A title with no
+// letters or digits at all falls back to "task".
+func Slugify(title string) string {
 	var b strings.Builder
 	lastHyphen := true // avoid a leading hyphen
 	for _, r := range title {
