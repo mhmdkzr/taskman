@@ -68,9 +68,13 @@ Stages run `definition → specification → implementation → verification →
   if the task was created with `--trunk`. Don't assume the default path - read it from the task.
 - **Verification loop** (two automated rounds max): run build checks → `verify`. Pass →
   dispatch an automated reviewer with the task's `specification` and `done_when` as acceptance
-  criteria → `review record`. Rejected → dispatch a fix agent with the failure output or
-  findings, then `verify` again. A second automated rejection blocks the task automatically;
-  `next` will then say `wait`.
+  criteria → `review record`. **The reviewer must be a separate subagent, not you and not the
+  agent that implemented or fixed the code** - spawn it (e.g. via your Task/Agent tool) with a
+  clean context containing only the `specification`, `done_when`, and the diff/commit to review,
+  never the implementer's conversation history or reasoning. Reviewing your own work in the same
+  context defeats the point of the review stage. Rejected → dispatch a fix agent with the failure
+  output or findings, then `verify` again. A second automated rejection blocks the task
+  automatically; `next` will then say `wait`.
 - **Escalation**: if the dispatched agent gives up instead of iterating, report it with
   `escalate --stage <stage> --reason <text>`. There is no numeric retry cap on the
   build-fix loop - escalation is the only bound.
