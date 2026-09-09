@@ -634,9 +634,19 @@ committed alongside that code commit could never correctly name its own hash (a 
 contain, as tracked content, the hash of itself). And `review`/`merge` reaching `done` both
 require commands (`review approve`, `merge`) that by construction happen after the code
 commit already exists for them to act on. So no matter how it's sequenced, the task's fully final
-state can't land in the same commit as its code - `next`'s `done` message (§7) says as much
-and tells the caller to commit `.tasks/<id>.yaml` on its own once the task is complete, as one
-small trailing chore commit.
+state can't land in the same commit as its code - but rather than tell the caller to make that
+commit itself, taskman makes it directly: `merge`, `abandon`, and the two ways a trunk task goes
+terminal early (`commit`'s auto-approve path, `review approve`) all call
+`task.RecordBookkeeping` right after the task's own state write succeeds, staging and committing
+just `.tasks/<id>.yaml` with a fixed message (`chore(task): Record completion of task "<title>"
+(ID: <id>)` or `Record abandonment of task "<title>" (ID: <id>)` - no quoted title, just
+`(ID: <id>)`, for an untitled task). This is a third, narrow exception to "taskman executes
+nothing" -
+alongside `create`'s worktree setup (§5) and `commit`'s `git log` read - justified the same way:
+a single, well-known file, a fixed message shape, triggered only at a state transition that
+already happened. It relies on the same clean-working-tree discipline as everything else: a
+caller that follows §6's staging rule (stage only what it touched) never has anything of its own
+still pending in `.tasks/<id>.yaml`'s directory for this commit to accidentally sweep in.
 
 ### Unblocking a `blocked` task
 
@@ -654,8 +664,10 @@ unblocks it. `abandon` is always available instead.
 
 Everything in §6's command table is reachable one way: a human, a harness, or loop, at a
 terminal. `taskman verify abc --check test=ok` is a complete process lifecycle - open what
-it needs, validate, write, print, exit. There is no persistent `taskman` daemon, and no other
-interface - HTTP and MCP are out of scope entirely, not a deferred future mode.
+it needs, validate, write, print, exit. There is no persistent `taskman` daemon and no HTTP
+interface. `taskman mcp` is the one long-running exception: the same commands, over MCP/stdio
+instead of flags and stdout, for a caller that speaks MCP rather than shelling out - see
+`internal/mcp`'s README for how that frontend is wired up.
 
 ### One core, thin CLI
 

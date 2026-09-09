@@ -23,7 +23,12 @@ func Command() *cli.Command {
 			if err != nil {
 				return fmt.Errorf("require id: %w", err)
 			}
-			t, err := Abandon(cmd.String("tasks-dir"), Request{ID: id, Reason: cmd.String("reason")})
+			t, err := Abandon(
+				ctx,
+				cmd.String("tasks-dir"),
+				utils.GitFrom(cmd),
+				Request{ID: id, Reason: cmd.String("reason")},
+			)
 			if err != nil {
 				return utils.Fail(err)
 			}

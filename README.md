@@ -23,9 +23,15 @@ different tasks in the same repo safely.
 
 Creating a task also creates an isolated git worktree and branch under the worktrees
 directory (default `.worktrees`), guarded by a clean-working-tree check - use `--trunk` to
-work the task on the current branch instead. taskman's only other git operation is reading
-a commit back from the worktree; everything else (edits, checks, the commit itself, the
-merge) is done by the operator agent and merely reported to taskman. `git` must be on `PATH`.
+work the task on the current branch instead. taskman reads a commit back from the worktree
+rather than trust a caller's report of it, and, once a task goes terminal (`merge`, `abandon`,
+or an auto-approve/trunk completion), commits the task's own now-final file itself - the one
+commit nothing else can attribute to, since that file keeps changing through review and merge.
+Everything else (edits, checks, the code commit itself, the merge) is done by the operator
+agent and merely reported to taskman. `git` must be on `PATH`.
+
+Both `.worktrees/` and `.tasks/*.lock` (taskman's per-task file lock) must be gitignored, or a
+leftover one from a previous task fails the next `create`'s clean-working-tree check.
 
 ## Installing
 

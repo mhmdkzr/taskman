@@ -8,8 +8,8 @@ import (
 	"github.com/mhmdkzr/taskman/internal/task"
 )
 
-func RegisterMCP(server *mcp.Server, tasksDir string) {
-	mcp.AddTool(server, mcpTool(), mcpHandler(tasksDir))
+func RegisterMCP(server *mcp.Server, tasksDir string, git *task.GitClient) {
+	mcp.AddTool(server, mcpTool(), mcpHandler(tasksDir, git))
 }
 
 func mcpTool() *mcp.Tool {
@@ -19,9 +19,9 @@ func mcpTool() *mcp.Tool {
 	}
 }
 
-func mcpHandler(tasksDir string) mcp.ToolHandlerFor[Request, task.Task] {
-	return func(_ context.Context, _ *mcp.CallToolRequest, req Request) (*mcp.CallToolResult, task.Task, error) {
-		t, err := ApproveReview(tasksDir, req)
+func mcpHandler(tasksDir string, git *task.GitClient) mcp.ToolHandlerFor[Request, task.Task] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, req Request) (*mcp.CallToolResult, task.Task, error) {
+		t, err := ApproveReview(ctx, tasksDir, git, req)
 		if err != nil {
 			return nil, task.Task{}, err
 		}

@@ -1,6 +1,10 @@
 package merge
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,10 +15,28 @@ import (
 func newTestTaskDir(t *testing.T, id string, reviewDone bool) string {
 	t.Helper()
 	dir := t.TempDir()
+	git := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	git("init", "-q")
+	git("config", "user.email", "test@example.com")
+	git("config", "user.name", "Test")
+	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("*.lock\n"), 0o644); err != nil {
+		t.Fatalf("write .gitignore: %v", err)
+	}
+	git("add", ".gitignore")
+	git("commit", "-q", "-m", "chore: init")
+
 	now := time.Now().UTC()
 	tk := task.Task{
 		ID:         id,
 		State:      task.StateStarted,
+		Title:      "Test Task",
 		Definition: "def",
 		Status: task.Status{
 			Definition:     task.StageStatus{State: task.StageDone},
@@ -35,12 +57,14 @@ func newTestTaskDir(t *testing.T, id string, reviewDone bool) string {
 	if err := task.WriteTaskFile(dir, tk); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
+	git("add", id+".yaml")
+	git("commit", "-q", "-m", "chore: seed task")
 	return dir
 }
 
 func TestMerge(t *testing.T) {
 	dir := newTestTaskDir(t, "abc", true)
-	got, err := Merge(dir, Request{ID: "abc"})
+	got, err := Merge(t.Context(), dir, task.NewGit(dir), Request{ID: "abc"})
 	if err != nil {
 		t.Fatalf("Merge: %v", err)
 	}
@@ -52,10 +76,36 @@ func TestMerge(t *testing.T) {
 	}
 }
 
+func TestMergeRecordsBookkeepingCommit(t *testing.T) {
+	dir := newTestTaskDir(t, "abc", true)
+	git := task.NewGit(dir)
+	if _, err := Merge(t.Context(), dir, git, Request{ID: "abc"}); err != nil {
+		t.Fatalf("Merge: %v", err)
+	}
+	clean, err := git.IsClean(t.Context())
+	if err != nil {
+		t.Fatalf("IsClean: %v", err)
+	}
+	if !clean {
+		t.Fatal("working tree not clean after Merge: want the task file committed")
+	}
+	cmd := exec.Command("git", "log", "-1", "--format=%s")
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git log: %v", err)
+	}
+	msg := strings.TrimSpace(string(out))
+	want := `chore(task): Record completion of task "Test Task" (ID: abc)`
+	if msg != want {
+		t.Fatalf("bookkeeping commit message = %q, want %q", msg, want)
+	}
+}
+
 func TestMergeWithCommitOverride(t *testing.T) {
 	dir := newTestTaskDir(t, "abc", true)
 	newCommit := "def456"
-	got, err := Merge(dir, Request{ID: "abc", Commit: newCommit})
+	got, err := Merge(t.Context(), dir, task.NewGit(dir), Request{ID: "abc", Commit: newCommit})
 	if err != nil {
 		t.Fatalf("Merge: %v", err)
 	}
@@ -69,7 +119,7 @@ func TestMergeWithCommitOverride(t *testing.T) {
 
 func TestMergeRequiresReview(t *testing.T) {
 	dir := newTestTaskDir(t, "abc", false)
-	if _, err := Merge(dir, Request{ID: "abc"}); err == nil {
+	if _, err := Merge(t.Context(), dir, task.NewGit(dir), Request{ID: "abc"}); err == nil {
 		t.Fatal("merge before review done: want error, got nil")
 	}
 }

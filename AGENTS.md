@@ -2,7 +2,8 @@
 
 - Go 1.27+
 - File-backed YAML task store (`.tasks/*.yaml`) with per-task file locking
-- `git` on `PATH` (taskman shells out to it for worktrees and reading commits)
+- `git` on `PATH` (taskman shells out to it for worktrees, reading commits, and committing a
+  terminal task's own file - `task.RecordBookkeeping`)
 - `urfave/cli` v3 for the CLI frontend, `modelcontextprotocol/go-sdk` for the MCP frontend
 
 No database, no HTTP server - taskman is a one-shot process that validates and records the state

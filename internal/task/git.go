@@ -3,6 +3,7 @@ package task
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -89,6 +90,45 @@ func (g *GitClient) ReadCommit(ctx context.Context, worktreeDir, ref string) (Gi
 		commitType = m[1]
 	}
 	return GitCommit{Type: commitType, Message: message, Hash: hash}, nil
+}
+
+// CommitBookkeeping stages path and commits it with message - taskman's own
+// commit, the one exception beyond §5's worktree creation. A terminal
+// task's own file keeps changing through review and merge, so it can never
+// ride along with the code commit that finished it (design.md §"final
+// bookkeeping commit"); rather than dispatch that as another round trip,
+// taskman makes this one commit itself. A no-op if path has nothing to
+// commit (already committed, or gitignored).
+func (g *GitClient) CommitBookkeeping(ctx context.Context, path, message string) error {
+	if _, err := g.run(ctx, g.dir, "add", "--", path); err != nil {
+		return err
+	}
+	staged, err := g.hasStagedChanges(ctx)
+	if err != nil {
+		return fmt.Errorf("check staged changes: %w", err)
+	}
+	if !staged {
+		return nil
+	}
+	_, err = g.run(ctx, g.dir, "commit", "-m", message)
+	return err
+}
+
+// hasStagedChanges reports whether the index has anything staged, via `git
+// diff --cached --quiet`'s exit code (0 clean, 1 staged changes - anything
+// else is a real error, not an answer).
+func (g *GitClient) hasStagedChanges(ctx context.Context) (bool, error) {
+	cmd := exec.CommandContext(ctx, "git", "diff", "--cached", "--quiet")
+	cmd.Dir = g.dir
+	err := cmd.Run()
+	if err == nil {
+		return false, nil
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+		return true, nil
+	}
+	return false, fmt.Errorf("git diff --cached --quiet: %w", err)
 }
 
 func (g *GitClient) run(ctx context.Context, dir string, args ...string) (string, error) {

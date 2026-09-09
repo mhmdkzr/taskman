@@ -3,6 +3,7 @@
 package approve
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/mhmdkzr/taskman/internal/task"
@@ -23,8 +24,10 @@ func (r Request) validate() error {
 	return nil
 }
 
-// ApproveReview records a human's approval at the review stage.
-func ApproveReview(tasksDir string, req Request) (task.Task, error) {
+// ApproveReview records a human's approval at the review stage. For a
+// trunk task, this also completes it (task.CompleteTrunkMerge) - so this is
+// where its own now-terminal file gets committed too (task.RecordBookkeeping).
+func ApproveReview(ctx context.Context, tasksDir string, git *task.GitClient, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("approve review: %w", err)
 	}
@@ -42,6 +45,11 @@ func ApproveReview(tasksDir string, req Request) (task.Task, error) {
 	})
 	if err != nil {
 		return task.Task{}, fmt.Errorf("approve review: %w", err)
+	}
+	if t.State == task.StateCompleted {
+		if err := task.RecordBookkeeping(ctx, git, tasksDir, t, "completion"); err != nil {
+			return task.Task{}, fmt.Errorf("approve review: %w", err)
+		}
 	}
 	return t, nil
 }

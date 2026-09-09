@@ -1,6 +1,9 @@
 package approve
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"github.com/mhmdkzr/taskman/internal/task"
@@ -31,7 +34,7 @@ func newTestTaskDir(t *testing.T, id string) string {
 func TestApproveReview(t *testing.T) {
 	dir := newTestTaskDir(t, "abc")
 	comment := "LGTM"
-	got, err := ApproveReview(dir, Request{ID: "abc", Comment: comment})
+	got, err := ApproveReview(t.Context(), dir, task.NewGit(dir), Request{ID: "abc", Comment: comment})
 	if err != nil {
 		t.Fatalf("ApproveReview: %v", err)
 	}
@@ -52,8 +55,37 @@ func TestApproveReview(t *testing.T) {
 	}
 }
 
-func TestApproveReviewTrunkCompletesTask(t *testing.T) {
+// newTestGitTaskDir is like newTestTaskDir, but dir is also a real git repo
+// with tk committed - needed whenever ApproveReview is expected to complete
+// the task (a trunk task), since that also commits the task's own file.
+func newTestGitTaskDir(t *testing.T, tk task.Task) string {
+	t.Helper()
 	dir := t.TempDir()
+	git := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	git("init", "-q")
+	git("config", "user.email", "test@example.com")
+	git("config", "user.name", "Test")
+	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("*.lock\n"), 0o644); err != nil {
+		t.Fatalf("write .gitignore: %v", err)
+	}
+	git("add", ".gitignore")
+	git("commit", "-q", "-m", "chore: init")
+	if err := task.WriteTaskFile(dir, tk); err != nil {
+		t.Fatalf("write task file: %v", err)
+	}
+	git("add", tk.ID+".yaml")
+	git("commit", "-q", "-m", "chore: seed task")
+	return dir
+}
+
+func TestApproveReviewTrunkCompletesTask(t *testing.T) {
 	tk := task.Task{
 		ID:         "abc",
 		State:      task.StateStarted,
@@ -65,13 +97,12 @@ func TestApproveReviewTrunkCompletesTask(t *testing.T) {
 			Verification:   task.StageStatus{State: task.StageDone},
 			Review:         task.StageStatus{State: task.StagePending},
 		},
-		Git: task.Git{Worktree: dir, Branch: "main", Trunk: true},
+		Git: task.Git{Branch: "main", Trunk: true},
 	}
-	if err := task.WriteTaskFile(dir, tk); err != nil {
-		t.Fatalf("write task file: %v", err)
-	}
+	dir := newTestGitTaskDir(t, tk)
+	git := task.NewGit(dir)
 
-	got, err := ApproveReview(dir, Request{ID: "abc"})
+	got, err := ApproveReview(t.Context(), dir, git, Request{ID: "abc"})
 	if err != nil {
 		t.Fatalf("ApproveReview: %v", err)
 	}
@@ -81,14 +112,22 @@ func TestApproveReviewTrunkCompletesTask(t *testing.T) {
 	if got.State != task.StateCompleted {
 		t.Errorf("state = %v, want completed", got.State)
 	}
+	clean, err := git.IsClean(t.Context())
+	if err != nil {
+		t.Fatalf("IsClean: %v", err)
+	}
+	if !clean {
+		t.Fatal("working tree not clean after ApproveReview completed the task: want the task file committed")
+	}
 }
 
 func TestApproveReviewTwice(t *testing.T) {
 	dir := newTestTaskDir(t, "abc")
-	if _, err := ApproveReview(dir, Request{ID: "abc", Comment: "LGTM"}); err != nil {
+	git := task.NewGit(dir)
+	if _, err := ApproveReview(t.Context(), dir, git, Request{ID: "abc", Comment: "LGTM"}); err != nil {
 		t.Fatalf("first ApproveReview: %v", err)
 	}
-	if _, err := ApproveReview(dir, Request{ID: "abc", Comment: "LGTM again"}); err == nil {
+	if _, err := ApproveReview(t.Context(), dir, git, Request{ID: "abc", Comment: "LGTM again"}); err == nil {
 		t.Fatal("second ApproveReview: want error, got nil")
 	}
 }

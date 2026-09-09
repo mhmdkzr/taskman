@@ -45,10 +45,10 @@ func NewServer(tasksDir, worktreesDir string, git *task.GitClient) *mcp.Server {
 	record.RegisterMCP(server, tasksDir)
 	commit.RegisterMCP(server, tasksDir, git)
 	escalate.RegisterMCP(server, tasksDir)
-	approve.RegisterMCP(server, tasksDir)
+	approve.RegisterMCP(server, tasksDir, git)
 	reject.RegisterMCP(server, tasksDir)
-	merge.RegisterMCP(server, tasksDir)
-	abandon.RegisterMCP(server, tasksDir)
+	merge.RegisterMCP(server, tasksDir, git)
+	abandon.RegisterMCP(server, tasksDir, git)
 	next.RegisterMCP(server, tasksDir)
 	delete.RegisterMCP(server, tasksDir)
 	return server

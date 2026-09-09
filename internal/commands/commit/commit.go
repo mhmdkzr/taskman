@@ -27,7 +27,9 @@ func (r Request) validate() error {
 // Commit reads the caller's already-made commit directly out of the
 // worktree via git log, rather than trusting reported text - design.md §6
 // "When the commit happens". Called once right after verification first
-// passes, and again each time a review-reject-recovery cycle clears.
+// passes, and again each time a review-reject-recovery cycle clears. For an
+// auto-approve trunk task, this call completes the task outright, so it's
+// also where its own now-terminal file gets committed (task.RecordBookkeeping).
 func Commit(ctx context.Context, tasksDir string, git *task.GitClient, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("commit task: %w", err)
@@ -67,6 +69,11 @@ func Commit(ctx context.Context, tasksDir string, git *task.GitClient, req Reque
 	})
 	if err != nil {
 		return task.Task{}, fmt.Errorf("commit task: %w", err)
+	}
+	if updated.State == task.StateCompleted {
+		if err := task.RecordBookkeeping(ctx, git, tasksDir, updated, "completion"); err != nil {
+			return task.Task{}, fmt.Errorf("commit task: %w", err)
+		}
 	}
 	return updated, nil
 }

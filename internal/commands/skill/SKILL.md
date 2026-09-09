@@ -38,7 +38,7 @@ A caller that only ever calls `next`, does what `message` says, and reports with
 
 | Command | Purpose |
 |---|---|
-| `create --definition <text> [--title <text>] [--id <id>] [--label k=v ...] [--reference <ref> ...] [--specification <text> --done-when <text>] [--trunk] [--auto-approve]` | Create a task. Requires a **clean working tree**. Creates the worktree `.worktrees/<id>` on branch `task/<id>` itself - the one thing taskman executes. `.worktrees/` must be gitignored first. With `--trunk`, skips the worktree/branch and records the repo root and current branch instead - the task is worked in place. With `--specification`/`--done-when`, the specify stage is skipped. With `--auto-approve`, `commit` completes the review stage on its own - see below. |
+| `create --definition <text> [--title <text>] [--id <id>] [--label k=v ...] [--reference <ref> ...] [--specification <text> --done-when <text>] [--trunk] [--auto-approve]` | Create a task. Requires a **clean working tree**. Creates the worktree `.worktrees/<id>` on branch `task/<id>` itself - the one thing taskman executes. `.worktrees/` and `.tasks/*.lock` must both be gitignored first, or a leftover worktree or lock file from a previous task fails this precondition on the next one. With `--trunk`, skips the worktree/branch and records the repo root and current branch instead - the task is worked in place. With `--specification`/`--done-when`, the specify stage is skipped. With `--auto-approve`, `commit` completes the review stage on its own - see below. |
 | `next <id>` | Ask what to do next (see core loop). |
 | `get <id>` | Read one task. Prefer relying on `next`'s own message instead - it already carries the definition, specification, done_when and references you need for the current step, so `get` is usually not necessary mid-flow. |
 | `list [--state <state> ...] [--label k=v ...] [--limit <n>] [--offset <n>]` | List/filter tasks, paginated (`--limit` defaults to 50 to avoid dumping a huge tasks-dir; `0` means unlimited). `--json` returns `{tasks, total, limit, offset}` - use `total` to know whether more pages remain, and `--offset` to page through them. Never parse the YAML by hand for decisions. |
@@ -99,10 +99,9 @@ Stages run `definition → specification → implementation → verification →
   `merge <id>`. A task created with `--trunk` never reaches this step - there's nothing to merge
   (the branch is already the target), so it completes automatically the moment review does.
 - **Final bookkeeping commit**: the task's own `.tasks/<id>.yaml` keeps changing after the code
-  commit (through review and merge), so it can never be part of that commit - `next`'s `done`
-  message says so and tells you to commit it now, on its own, as a small chore commit (e.g. `chore
-  (.tasks): record completion of <id>`). Don't try to fold it into the code commit or leave it
-  uncommitted.
+  commit (through review and merge), so it can never be part of that commit. taskman commits it
+  itself, the moment the task goes terminal (`merge`, `abandon`, or an auto-approve/trunk
+  completion inside `commit`/`review approve`) - there's nothing for you to do here.
 
 ## Errors and exit codes
 

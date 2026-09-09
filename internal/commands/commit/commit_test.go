@@ -11,7 +11,8 @@ import (
 )
 
 // newTestRepo creates a fresh git repository with one commit and a
-// .gitignore excluding .worktrees/, and returns its path.
+// .gitignore excluding .worktrees/ and MutateTask's *.lock files, and
+// returns its path.
 func newTestRepo(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -29,7 +30,7 @@ func newTestRepo(t *testing.T) string {
 	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("hello\n"), 0o644); err != nil {
 		t.Fatalf("write README: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte(".worktrees/\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte(".worktrees/\n*.lock\n"), 0o644); err != nil {
 		t.Fatalf("write .gitignore: %v", err)
 	}
 	git("add", "README.md", ".gitignore")
@@ -165,7 +166,7 @@ func TestCommitAutoApproveTrunkCompletesTask(t *testing.T) {
 	gitClient := task.NewGit(gitDir)
 	ctx := context.Background()
 
-	tasksDir := t.TempDir()
+	tasksDir := gitDir
 	tk := task.Task{
 		ID:          "abc",
 		State:       task.StateStarted,
@@ -207,6 +208,13 @@ func TestCommitAutoApproveTrunkCompletesTask(t *testing.T) {
 	}
 	if got.State != task.StateCompleted {
 		t.Errorf("state = %v, want completed", got.State)
+	}
+	clean, err := gitClient.IsClean(ctx)
+	if err != nil {
+		t.Fatalf("IsClean: %v", err)
+	}
+	if !clean {
+		t.Fatal("working tree not clean after Commit completed the task: want the task file committed")
 	}
 }
 

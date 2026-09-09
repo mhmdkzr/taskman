@@ -23,7 +23,9 @@ func Command() *cli.Command {
 			if err != nil {
 				return fmt.Errorf("require id: %w", err)
 			}
-			t, err := ApproveReview(cmd.String("tasks-dir"), Request{ID: id, Comment: cmd.String("comment")})
+			t, err := ApproveReview(
+				ctx, cmd.String("tasks-dir"), utils.GitFrom(cmd), Request{ID: id, Comment: cmd.String("comment")},
+			)
 			if err != nil {
 				return utils.Fail(err)
 			}

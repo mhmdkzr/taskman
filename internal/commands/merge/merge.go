@@ -2,6 +2,7 @@
 package merge
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/mhmdkzr/taskman/internal/task"
@@ -22,8 +23,11 @@ func (r Request) validate() error {
 	return nil
 }
 
-// Merge records that the caller already merged the task's branch.
-func Merge(tasksDir string, req Request) (task.Task, error) {
+// Merge records that the caller already merged the task's branch, then
+// commits the task's own now-terminal file itself - see
+// task.RecordBookkeeping. Never reached for a trunk task; its merge stage
+// completes automatically once review does (task.CompleteTrunkMerge).
+func Merge(ctx context.Context, tasksDir string, git *task.GitClient, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("merge task: %w", err)
 	}
@@ -39,6 +43,9 @@ func Merge(tasksDir string, req Request) (task.Task, error) {
 		return nil
 	})
 	if err != nil {
+		return task.Task{}, fmt.Errorf("merge task: %w", err)
+	}
+	if err := task.RecordBookkeeping(ctx, git, tasksDir, t, "completion"); err != nil {
 		return task.Task{}, fmt.Errorf("merge task: %w", err)
 	}
 	return t, nil

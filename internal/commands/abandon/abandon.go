@@ -3,6 +3,7 @@
 package abandon
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/mhmdkzr/taskman/internal/task"
@@ -26,8 +27,9 @@ func (r Request) validate() error {
 	return nil
 }
 
-// Abandon marks a task failed for good.
-func Abandon(tasksDir string, req Request) (task.Task, error) {
+// Abandon marks a task failed for good, then commits the task's own now-
+// terminal file itself - see task.RecordBookkeeping.
+func Abandon(ctx context.Context, tasksDir string, git *task.GitClient, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("abandon task: %w", err)
 	}
@@ -40,6 +42,9 @@ func Abandon(tasksDir string, req Request) (task.Task, error) {
 		return nil
 	})
 	if err != nil {
+		return task.Task{}, fmt.Errorf("abandon task: %w", err)
+	}
+	if err := task.RecordBookkeeping(ctx, git, tasksDir, t, "abandonment"); err != nil {
 		return task.Task{}, fmt.Errorf("abandon task: %w", err)
 	}
 	return t, nil

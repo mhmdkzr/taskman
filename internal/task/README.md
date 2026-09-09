@@ -43,10 +43,21 @@ exclusion. `Now()` is the exported seam onto this package's fakeable clock, for 
 - `commit_timing.go` - `HasCommitSince`/`NeedsFreshCommit`, kept here (rather than moving to the
   `next` slice with the rest of its guidance logic) because `internal/utils.CurrentStage` needs
   `NeedsFreshCommit`, and `utils` can't import `next` without a cycle.
+- `trunk.go` - `CompleteTrunkMerge`, called wherever a task's review stage completes (`commit`'s
+  auto-approve path, `review approve`): a trunk task has no real merge to record, so this marks
+  its merge stage done and the task completed right there instead of waiting for a `merge` call.
+- `bookkeeping.go` - `RecordBookkeeping`, see "Git" below.
 
 ## Git
 
 `GitClient` (`git.go`) wraps the only git operations taskman performs itself: `IsClean` (the
-clean-working-tree precondition), `CreateWorktree`, and `ReadCommit` (parses a leading
-conventional-commit type prefix out of the message). Every other git operation - build checks,
+clean-working-tree precondition), `CreateWorktree`, `ReadCommit` (parses a leading
+conventional-commit type prefix out of the message), and `CommitBookkeeping` (stages and commits
+one path - a no-op if it has nothing to commit). Every other git operation - build checks, code
 commits, merges - is caller-executed and only reported to taskman.
+
+`bookkeeping.go`'s `RecordBookkeeping` is the one caller of `CommitBookkeeping`: once a task goes
+terminal, it commits that task's own now-final file under `tasksDir`, since that file keeps
+changing through review and merge and can never ride along with the code commit that finished it.
+Called from `merge`, `abandon`, and the two places a trunk task can go terminal early (`commit`'s
+auto-approve path, `review approve`) - see each slice's own doc comment.

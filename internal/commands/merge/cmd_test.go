@@ -16,13 +16,14 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-func runCmd(t *testing.T, tasksDir string, args ...string) (string, error) {
+func runCmd(t *testing.T, gitDir string, args ...string) (string, error) {
 	t.Helper()
 	var buf bytes.Buffer
 	root := &cli.Command{
 		Name: "taskman",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "tasks-dir", Value: tasksDir},
+			&cli.StringFlag{Name: "git-dir", Value: gitDir},
+			&cli.StringFlag{Name: "tasks-dir", Value: gitDir},
 			&cli.BoolFlag{Name: "json"},
 		},
 		Commands: []*cli.Command{Command()},

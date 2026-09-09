@@ -26,7 +26,12 @@ func Command() *cli.Command {
 			if err != nil {
 				return fmt.Errorf("require id: %w", err)
 			}
-			t, err := Merge(cmd.String("tasks-dir"), Request{ID: id, Commit: cmd.String("commit")})
+			t, err := Merge(
+				ctx,
+				cmd.String("tasks-dir"),
+				utils.GitFrom(cmd),
+				Request{ID: id, Commit: cmd.String("commit")},
+			)
 			if err != nil {
 				return utils.Fail(err)
 			}
