@@ -1,97 +1,35 @@
 # taskman
 
-taskman holds tasks and prompts as files, takes every directory it needs as a CLI flag, and
-validates and records state transitions reported to it - it executes almost nothing itself: no
-build checks, no merges, no LLM calls. Two narrow exceptions: creating a task's own worktree and
-branch (§5), and reading back the commit a caller already made via `git log` rather than trusting
-reported text (§6's `commit`). Everything else that requires judgment or execution is done by
-whatever calls taskman, and reported back. taskman itself carries no state between invocations -
-anything it needs is either already in a task file, or read fresh from git (worktree cleanliness,
-a commit's real hash and message) at the moment it's needed.
+Taskman is a task management system for AI agents that helps them define and progress through tasks in structured workflow until completion.
+
+taskman holds tasks as files, takes every directory it needs as a CLI flag, and
+validates and records state transitions reported to it. taskman itself carries no state between invocations, state is kept in task files.
 
 ## 0. Two kinds of caller, and taskman itself
 
 Three things exist, and only one of them is this repo.
 
-**taskman - this repo.** Knows *what to do*, never decides *when*, and executes almost nothing
-itself - not `go vet`, not `git commit`, not `git merge`; those are reported to it, never run by
-it. The one exception is `git worktree add` at `create` time (§5) - a single deterministic
-setup step, guarded by its own clean-working-tree precondition, that has to happen exactly once
-before any caller can start work. It also reads git directly in one other, read-only spot: `task
-commit` reads the caller's already-made commit via `git log` rather than trusting reported text
-(§6) - it never writes via git except the worktree/branch step. taskman owns the data and the
-state machine: `.tasks/*.yaml` (prompt templates compiled into the binary, §4), the directories it's told to use via flags at
-invocation, and the process-stage rules in §6 (what's pending, what a rejection or an escalation
-means, what unblocks a task). It validates that a reported transition is legal and records it.
-Exposed as a CLI (§7) - the only interface in scope. taskman assumes **nothing** about whether
-anything is even listening: it never spawns a sub-agent, never calls a model API, never assumes a
-particular caller exists on the other end. It answers "what's the state of this task, what should
-happen next, here's the prompt for that" when asked, and accepts "here's what happened, record it"
-when told.
+**taskman (this repo)** 
+Knows *what to do*, never decides *when*, and never calls the Agents, instead, when an agent calls it, it guides the agent through the task workflow. Taskman owns the data and the state machine: `.tasks/*.yaml` (prompt templates compiled into the binary, §4), the directories it's told to use via flags at invocation, and the process-stage rules in §6 (what's pending, what a rejection or an escalation means, what unblocks a task). It validates that a reported transition is legal and records it. It answers "what's the state of this task, what should happen next, here's what you should do for that" when asked, and accepts "here's what happened, record it" when told.
 
-**A harness** - unnamed, generic, not a project this design owns. This very kind of session
-(Claude Code), or opencode, Codex, or any other CLI-capable agent runtime with sub-agent support,
-used directly and interactively: a human (or the harness's own running LLM session) calls taskman
-to read a task's state and its prompt, spawns its own sub-agents to do the implement/review/fix
-work using whatever tools *it* already has, and calls taskman back to record outcomes. taskman is
-just another CLI it knows how to drive. A human sitting in a chat session, polling `next` by
-hand or asking their harness to, is a complete, valid way to work a task - nothing requires more
-than this.
+**An agent harness** 
+Could be any agent harness that supports sub-agents (e.g. Claude Code, Codex, Opencode, etc). This is the user of taskman, who interacts with it directly and uses it to drive a task workflow, not a human developer.
 
-**loop - the operator, its own separate project, not in this repo.** No LLM inside it - a plain,
-code-only program whose job is to run *unattended*: on a schedule, with nobody sitting in a chat
-session, it polls taskman (`next`) and drives a harness (the kind above) on its own behalf
-to actually do the work - shelling out to an agent CLI, calling a model API directly, whatever
-it's built against - then reports the result back the same way a human-driven harness would.
-loop is what makes progress happen without a human present; it is not itself the thing with
-judgment (that's still whatever harness it drives) - it's the scheduler/glue that decides *when*
-to invoke one.
-
-Either kind of caller can be present, both can, or neither - taskman can't tell, and doesn't get
-to assume: a task can sit in `.tasks/` indefinitely with nothing happening, and that's a valid,
-unremarkable state, not an error condition. Whether anything is watching is entirely outside
-taskman's knowledge.
+**Loop - the automated taskman operator agent (separate project, not in this repo)** 
+It sits between taskman and the agent harness, polling taskman for work and running the harness on its own behalf to do the work. Loop is what makes progress happen without a human present (unless for review, when required in the task).
 
 ## 1. Directories
 
-taskman is fully offline - no network calls of its own, ever (no provider APIs, no GitHub, no
-telemetry) - and has nothing to configure beyond where its files live. There is no config file:
-every directory taskman needs is a CLI flag with a default, resolved fresh on every invocation.
+taskman is fully offline and has nothing to configure beyond where its files live. Every directory taskman needs is a CLI flag with a default, resolved fresh on every invocation. Pass a flag to override its default for that invocation.
 
 | Flag | Default | What it names |
 |---|---|---|
 | `--git-dir` | `.` | The repository root taskman operates against - worktrees, commits, the clean-working-tree check (§5). |
 | `--tasks-dir` | `.tasks` | Where task files live (§3). |
 | `--worktrees-dir` | `.worktrees` | Where `create` creates worktrees (§5). Ignored when `create` is passed `--trunk`. |
-
-Prompt templates (§4) aren't a directory flag at all - they're compiled into the taskman binary
-itself (`go:embed`), not read from disk at runtime, so there's nothing to point a flag at.
-
-Pass a flag to override its default for that invocation; omit it and the default applies - there
-is nothing to load, parse, or validate before a command runs, and no interpolation of any kind
-(no `.env`, no `${VAR}`) since there are no secrets in this picture at all. Logging verbosity is
-also a flag (`--log-level`, `--log-format`), not persisted state - a one-shot process has no
-reason to carry a standing logger configuration between invocations.
-
-`.tasks/*.yaml` is the only file taskman reads and writes on its own -
-content, not configuration: it grows without bound, is authored by humans or agents, and is meant
-to be `git diff`-able and read on its own.
-
-## 2. No database
-
-Tasks and prompts are files - nothing here needs a relational store: no `internal/store`, no
-migrations, no `modernc.org/sqlite` dependency.
-
-| Data | Lives in |
-|---|---|
-| Directory locations | CLI flags, not persisted (§1) |
-| Prompt templates | compiled into the taskman binary (`go:embed`, one per owning slice - §4) |
-| Tasks, labels | `.tasks/*.yaml` |
-| Build-check attempts | `.tasks/*.yaml` (`verifications:` list) |
-| Review attempts | `.tasks/*.yaml` (`reviews:` list, automated; `human_reviews:` list, human - §3) |
-| Tool catalog | not taskman's data at all - taskman has no tools, no tool registry, no schema field for them anywhere |
-
-This is a from-scratch start: no existing database content migrates forward into files.
+| `--json` | `false` | Print the full JSON envelope instead of the human-readable summary (§7). |
+| `--log-level` | `info` | Logging verbosity level. |
+| `--log-format` | `text` | Logging output format. | 
 
 ## 3. Tasks as files
 
@@ -102,20 +40,15 @@ creation time) followed by an underscore and a lowercase, hyphenated slug genera
 task's title, e.g.:
 
 ```
-.tasks/01a07e83-31e1-759f-a01f-58f0f99a37c5_fix-doc-drift-in-internal-task.yaml
+.tasks/01a07e83-31e1-759f-a01f-58f0f99a37c5_fix-doc-drift-in-user-package.yaml
 ```
 
-Generated once at creation, never regenerated - a UUID v7 doesn't collide, so there's no
-collision case to handle the way a short slug-only id would need. `task/<id>` becomes the git
-branch name (§5) - long, but still readable via the slug half. The rest of this document
-abbreviates the id as `abc` in examples, for readability, standing in for the full
-`<uuid-v7>_<slug>` form.
+Generated once at creation, never regenerated. `task/<slug>` becomes the git branch name (§5).
 
 **No task YAML file is ever written or edited by hand**, including by its own creator. Every write
 - create, update, a stage advancing, a human recording a review decision - goes through taskman's
 own command functions (§7), which own the read-modify-write-rename cycle and validation. A
-human's own interaction with a task is: read the file, inspect the worktree, then invoke a
-taskman command that writes the file on their behalf.
+human's own interaction with a task is through the agent.
 
 ### Schema
 
@@ -194,19 +127,14 @@ Notes:
 - `status` stages run `definition → specification → implementation → verification → review →
   merge`, matching `notes/process.md`'s stage list - *automated* review lives inside
   `verification`, and `review` is the human gate. Each stage is `{state, completed_at}`, plus an
-  `attempts` counter where a stage can retry (`verification` only, §6). No `started_at`: no
-  command in this design ever reports "I've begun this stage but not finished" as a distinct
-  event from "here's the outcome" - even `review`'s `in_progress` (the one real multi-value
-  stage) doesn't have a clean single start/end pair once more than one reject cycle happens, so a
-  field that would be `null` or ambiguous more often than not isn't worth carrying.
+  `attempts` counter where a stage can retry (`verification` only, §6).
 - `verifications`/`reviews`/`human_reviews` make a task file self-contained and portable - its
   full history travels with a `git mv` or a copy.
 - `verifications` is an append-only log of every `verify` call - one entry per attempt, not
   just the latest, so a blocked task's history shows exactly which check failed and when, not
   just an aggregate pass/fail. `checks` is whatever check names the caller reported that time
-  (`vet`/`lint`/`test` here, but not fixed by taskman - it's whatever the caller actually ran);
-  each value is `ok` or `error`. No separate pass/fail flag - a verification attempt passed if
-  every reported check is `ok`. `output` is one free-text field for the whole call, not
+  (`vet`/`lint`/`test` here); each value is `ok` or `error`. `output` is one free-text field
+  for the whole call, not
   per-check - if several checks fail in the same attempt, their output is whatever the caller
   concatenated into that one string; `checks` is what's structured, `output` is just supporting
   detail for a human to read.
@@ -228,23 +156,25 @@ Notes:
 - `blocked` is present only while `task.State: blocked`, and records which stage was in flight
   and why, rather than giving any stage its own "stuck" value (§6).
 - `task.State` (top-level, coarse; the YAML key is `state`) is one of `created`, `started`,
-  `blocked`, `completed`, `failed` - no `cancelled`: it would only ever mean "abandoned before any
-  work happened," which `failed` (via `abandon`) already covers.
+  `blocked`, `completed`, `failed`.
+- A few optional fields the schema example above omits but the repo records when relevant:
+  `auto_approve` (`true` when the task was created with `--auto-approve`, §6's review stage),
+  `failure_reason` (set by `abandon`), `git.trunk` (`true` for a `--trunk` task, §5), and
+  `git.commit.at` (when taskman recorded the commit - what `next` reads to tell a fresh commit
+  from a stale one, §6 "When the commit happens").
 
 ### Repository implementation
 
 - **Read**: `os.ReadFile` + `yaml.Unmarshal`. Listing reads every `*.yaml` in the directory and
-  filters in Go - no query planner to lean on, fine at this scale.
+  filters in Go.
 - **Write**: marshal to YAML, write to `<id>.yaml.tmp` in the same directory, `os.Rename` over
   the final path - atomic on the same filesystem, so a crash mid-write never leaves a
   half-written or corrupt task file.
-- **Concurrency**: `taskman` is a one-shot CLI - each invocation is its own process that reads,
-  validates, writes, and exits, not a long-running daemon holding an in-memory lock table between
-  calls. Two invocations touching the same task at nearly the same moment are two separate OS
-  processes, so the read-modify-write-rename cycle takes a real OS-level advisory lock (`flock`,
-  held for the duration of the read-modify-write) rather than an in-process mutex - a per-process
-  lock would provide no protection at all here, since there's no shared process for it to live
-  in. The lock is held on a separate, stable `<id>.yaml.lock` file, never on the task file
+- **Concurrency**: two invocations touching the same task at nearly the same moment are two
+  separate OS processes, so the read-modify-write-rename cycle takes an OS-level advisory lock
+  (`flock`, held for the duration of the read-modify-write) to keep the read and write mutually
+  exclusive across processes. The lock is held on a separate, stable `<id>.yaml.lock` file, never
+  on the task file
   itself: the write's atomic rename replaces the task file's inode on every write, and a lock
   survives only as long as the inode it was opened against - locking the renamed file directly
   would let a concurrent process's fresh open onto the new inode acquire an independent,
@@ -252,7 +182,7 @@ Notes:
   succeeded. This lock is per-file, not global: two invocations against
   *different* task ids never contend at all, since they touch different files - see "Task-scoped,
   not global" below.
-- **Delete**: removes the file outright, no soft-delete/tombstone - git history covers "undo."
+- **Delete**: removes the file outright - git history covers "undo."
 - **IDs**: `<uuid-v7>_<slug>`, generated once at `create` time and never regenerated - the
   slug comes from the title, the UUID guarantees the filename is unique even if two tasks share a
   title.
@@ -266,12 +196,11 @@ have to type into a prompt by hand.** That's a prompt file.
 ### Location and format
 
 One file per stage-role, plain Markdown, no wrapper format: each stage-role's `prompt.md` lives
-inside the slice package that dispatches it (`internal/task/specify/prompt.md`,
-`internal/task/implement/prompt.md`, and so on for the `fix`, `review`, and `commit`
-stage roles). Each is a
-**user-prompt template only** - deliberately no system-prompt file, since not every harness lets
-a caller override the system prompt; taskman doesn't assume that capability exists on the other
-end. `{{ .Field }}` placeholders, rendered with Go's `text/template` against the task's own
+inside the slice package that dispatches it (`internal/commands/specify/prompt.md`,
+`internal/commands/implement/prompt.md`, and - for the `fix`, `review`, and `commit`
+stage roles, which `next` dispatches - `internal/commands/next/*.md`). Each is a **user-prompt
+template**, with `{{ .Field }}` placeholders rendered with
+Go's `text/template` against the task's own
 fields:
 
 ```markdown
@@ -292,9 +221,8 @@ preamble/postamble itself (§7's `next`) rather than have every prompt file repe
 `next`'s `dispatch` response carries the fully wrapped, rendered text as `message` - the
 caller never touches a prompt file directly and never has to assemble the pieces itself.
 Every prompt file is embedded into the taskman binary at compile time (`go:embed`, in the
-Go package of the slice that owns that prompt - e.g. `internal/task/specify`) and parsed once
-at startup - there's no runtime file lookup, no `--prompts-dir` flag, and no way to edit a prompt
-without rebuilding taskman. Each such package also defines one typed params struct and `Render`
+Go package of the slice that owns that prompt - e.g. `internal/commands/specify`) and parsed once
+at startup. Each such package also defines one typed params struct and `Render`
 method per template, so a caller can't pass the wrong shape of data into the wrong template - a
 compile-time guarantee, not a runtime check. This applies to
 every natural-language template taskman renders, not just the five judgment-dispatch prompts
@@ -303,29 +231,25 @@ create`'s own CLI summary are each their own small embedded template too, for th
 one typed struct per shape of message, never hand-built strings scattered across the command
 layer.
 
-## 5. No GitHub
+## 5. Opting in, and where the work lives
 
-taskman has no GitHub integration - no issue polling, no PR creation, no webhook. A task file
-existing under `.tasks/` **is** the opt-in for working it; a human (or another agent) creating
-the file is the deliberate act. There's no separate enable/disable flag - pausing a task is what
-the `blocked` state is for.
+A task file existing under `.tasks/` **is** the opt-in for working it; a human (or another agent)
+creating the file is the deliberate act. Pausing a task is what the `blocked` state is for.
 
 **Specification stage**: a task created with only `definition` filled in (`status.specification.
 state: pending`) gets `specify` dispatched (§7's `next`) to draft `specification`/
 `done_when` from `definition` and any `references`, written back into the task file. A task
 authored with `specification`/`done_when` already filled in skips straight to `implementation`.
 
-**Git and worktrees**: `create` is the one place taskman executes git itself (§0). Before
+**Git and worktrees**: `create` creates the task's worktree and branch itself. Before
 writing anything, it checks the working tree at the git dir (`--git-dir`) is clean (`git status
 --porcelain` empty) - if not, it errors and creates nothing, rather than leave a task file
 pointing at a worktree that was never safely created. If clean, it runs `git worktree add
-<worktrees-dir>/<id> -b task/<slug>` against the local repo (no clone, no network, no remote
-required) and records the result as `git.worktree`/`git.branch`. This is deliberately narrow:
+<worktrees-dir>/<id> -b task/<slug>` against the local repo
+and records the result as `git.worktree`/`git.branch`. This is deliberately narrow:
 it's the one setup step nobody else could safely do first (a caller can't dispatch `implement`
 into a worktree that doesn't exist yet, and letting every caller create its own risks two callers
-racing to create the same one) - every git operation *after* this point that changes state (build
-checks, commits, merges) stays caller-executed and reported, per §6; taskman's only other git
-involvement is the read-only `git log` lookup in `commit` (§6). Once created, the worktree is
+racing to create the same one). Once created, the worktree is
 left in place for the rest of the task's life, inspectable at any time (`cd <worktrees-dir>/<id>`).
 
 **`--trunk`**: `create --trunk` skips `git worktree add` entirely and records the repo root
@@ -349,21 +273,11 @@ tree as the code it's tracking, a caller staging its own commit must stage expli
 blanket `git add -A`/`git commit -a`), or it risks sweeping in unrelated pending changes sitting
 in that shared tree.
 
-**No push, no PR, no remote required**: the `review` stage is just human review of a worktree and
-branch - there's no PR to create. The stage's own approve/reject actions (§6) are what a human
-uses instead of reviewing a PR.
-
 ## 6. The task state machine
 
-taskman never advances a task on its own - everything below is a set of **commands** a caller
-invokes, each a guarded transition taskman validates and applies. taskman's whole job is: hold
-the state, tell the caller what's legal to do next (`next`, below), and refuse anything
-that isn't. Every command here, including `verify` and `merge`, is the caller
-*reporting* something it (or an agent it dispatched) already did - taskman never runs `go vet`,
-`git merge`, or anything else itself. (`create`'s worktree/branch setup, §5, and `task
-commit`'s read of the resulting commit via `git log`, are the only two exceptions in this whole
-design - one writes, one only reads, and both happen where no caller could safely substitute for
-taskman doing it itself.)
+Everything below is a set of **commands** a caller invokes, each a guarded transition taskman
+validates and applies. taskman's whole job is: hold the state, tell the caller what's legal to do
+next (`next`, below), and refuse anything that isn't.
 
 The stage split follows `notes/process.md`:
 
@@ -378,8 +292,7 @@ the human gate; `merge` is its own terminal stage.
 
 Every command in §6's own table below takes a task id as its first argument, except `task
 create` (which mints one); §7 adds `list` on top, the one command with no single task to
-scope to at all. taskman has no notion of "the current task," no session, no working
-directory-implied context. A caller working N tasks at once - N agents, N worktrees, N terminal
+scope to at all. A caller working N tasks at once - N agents, N worktrees, N terminal
 tabs, whatever - just invokes taskman N times concurrently, each call scoped to its own id, same
 as invoking it once. Nothing about taskman's design assumes only one task is in flight at a time:
 each command reads, validates, and writes exactly one task file (§3), and the per-file `flock`
@@ -448,25 +361,16 @@ stateDiagram-v2
     Failed --> [*]
 ```
 
-A hand-drawn SVG rendering of the same machine lives in `notes/design/task-fsm.html`.
-
 **Per-stage `status.<stage>.state`:**
 
 | Stage | Values | Notes |
 |---|---|---|
 | `definition` | `pending` → `done` | Done the moment `create` is given a `definition` - a task without one doesn't exist yet. |
-| `specification` | `pending` → `done` | Already `done` at creation if `specification`/`done_when` are provided up front; otherwise flips straight to `done` on `specify`'s report - see below for why there's no `in_progress`. |
+| `specification` | `pending` → `done` | Already `done` at creation if `specification`/`done_when` are provided up front; otherwise flips straight to `done` on `specify`'s report. |
 | `implementation` | `pending` → `done` | `done` means a diff exists, not that it's clean - the build check is `verification`'s job. |
-| `verification` | `pending` → `done` | Owns the build-check-fix loop and up to two automated review rounds; `attempts`/`reviews[]` already show whether work has started, so a separate `in_progress` value would be redundant. Never holds a "stuck" value itself - see the `blocked` overlay. |
-| `review` | `pending` → `in_progress` → `done` | The human gate - the only stage where `in_progress` is real, entered by `review reject` and exited back to `pending` once the fix-and-recheck cycle clears (see "Review-reject recovery"). |
+| `verification` | `pending` → `done` | Owns the build-check-fix loop and up to two automated review rounds; `attempts`/`reviews[]` already show whether work has started. Never holds a "stuck" value itself - see the `blocked` overlay. |
+| `review` | `pending` → `in_progress` → `done` | The human gate, entered by `review reject` and exited back to `pending` once the fix-and-recheck cycle clears (see "Review-reject recovery"). |
 | `merge` | `pending` → `done` | Only two values. |
-
-Only two values for `definition`/`specification`/`implementation`/`verification`, not three:
-nothing in the command table (§6's "Commands," below) ever reports "I've started this stage but
-haven't finished" - every command is a completed outcome. An `in_progress` value nothing sets is
-worse than no value at all, so it's dropped for the stages where it would be unreachable.
-`review` is the one exception because `review reject` genuinely sets it, and something
-later genuinely clears it.
 
 ### The `blocked` overlay
 
@@ -498,19 +402,19 @@ validation error if unmet, never a silent no-op) and an effect.
 
 | Command | Precondition | Effect |
 |---|---|---|
-| `create --definition <text> [--id <id>] [--title <text>] [--label k=v ...] [--reference <ref> ...] [--specification <text> --done-when <text>]` | working tree at the git dir is clean | New task file. `definition` required; `id` generated as `<uuid-v7>_<slug>` if not given (slug from `--title`, §3). taskman itself creates a worktree on branch `task/<slug>` under the worktrees dir (§5's exception to "taskman never executes anything") and records them as `git.worktree`/`git.branch`. Errors instead of creating anything if the working tree isn't clean. `definition.state: done`; every other stage `pending`, `task.State: created` - unless `--specification`/`--done-when` are both given, in which case `specification.state: done` too, the specify stage is skipped (§5), and `task.State: started` immediately (matching what `specify` would otherwise be the one command to set). |
-| `update <id> [--title <text>] [--label k=v ...] [--unset-label k ...] [--reference <ref> ...] [--clear-references]` | task exists | Patch semantics - only the fields given are changed, everything else on the task is untouched. No precondition on `task.State`/`status`: these are metadata, not workflow state, so a `completed`/`failed`/`blocked` task can still be relabeled without that implying anything about its progress. Doesn't touch `specification`/`done_when` (workflow content, own command: `specify`) or `git`/`status` (taskman-managed, not user-editable). `definition` isn't editable at all, by any command - it's fixed at creation (§3: "a task without one doesn't exist yet"). |
+| `create --definition <text> [--id <id>] [--title <text>] [--label k=v ...] [--reference <ref> ...] [--specification <text> --done-when <text>] [--trunk] [--auto-approve]` | working tree at the git dir is clean | New task file. `definition` required; `id` generated as `<uuid-v7>_<slug>` if not given (slug from `--title`, §3). taskman itself creates a worktree on branch `task/<slug>` under the worktrees dir (§5) and records them as `git.worktree`/`git.branch` - or, with `--trunk`, records the repo root and current branch instead, with `git.trunk: true` (§5). With `--auto-approve`, records `auto_approve: true` (§6's review stage). Errors instead of creating anything if the working tree isn't clean. `definition.state: done`; every other stage `pending`, `task.State: created` - unless `--specification`/`--done-when` are both given, in which case `specification.state: done` too, the specify stage is skipped (§5), and `task.State: started` immediately (matching what `specify` would otherwise be the one command to set). |
+| `update <id> [--title <text>] [--label k=v ...] [--unset-label k ...] [--reference <ref> ...] [--clear-references] [--trunk <bool>] [--auto-approve <bool>]` | task exists | Patch semantics - only the fields given are changed, everything else on the task is untouched. No precondition on `task.State`/`status`: these are metadata, not workflow state, so a `completed`/`failed`/`blocked` task can still be relabeled without that implying anything about its progress. Doesn't touch `specification`/`done_when` (workflow content, own command: `specify`) or `git`/`status` except the two policy flags `--trunk` and `--auto-approve`, which update it directly (as `git.trunk`/`auto_approve`, §5 and §6's review stage). |
 | `specify <id> --result <text> --done-when <text>` | `specification.state != done` | Writes `specification`/`done_when`; `specification.state: done`; `task.State: started`. |
 | `implement <id>` | `specification.state == done`, `implementation.state != done` | `implementation.state: done`. (The diff lives in the worktree; this just marks an attempt exists.) |
-| `verify <id> --check <name>=<ok\|error> ... [--output <text>]` | `implementation.state == done`, task not `blocked`/`failed` | The caller (or an agent it dispatched) ran the build checks itself (`--check vet=ok --check lint=error --check test=ok`, one per check actually run) and reports each outcome; overall pass/fail is `ok` for every `--check` given, not a separate flag - a caller can't report `passed` while also reporting a failing check. Appends to `verifications[]` (§3). Failed → recorded; expected to be followed by a fix and another `verify` call. The `blocked`/`failed` guard matches `review record`'s - a `blocked` task's two-round cap doesn't get quietly worked around by continuing the build-fix loop. |
+| `verify <id> --check <name>=<ok\|error> ... [--output <text>]` | `implementation.state == done`, task not `blocked`/`failed` | The caller (or an agent it dispatched) ran the build checks itself (`--check vet=ok --check lint=error --check test=ok`, one per check actually run) and reports each outcome; overall pass/fail is `ok` for every `--check` given. Appends to `verifications[]` (§3). Failed → recorded; expected to be followed by a fix and another `verify` call. The `blocked`/`failed` guard matches `review record`'s - a `blocked` task's two-round cap doesn't get quietly worked around by continuing the build-fix loop. |
 | `review record <id> --approved <bool> [--finding <file>=<text> ...]` | `implementation.state == done`, task not `blocked`/`failed` | Reports the automated review's verdict. Appends to `reviews[]`, one `{file, detail}` entry per `--finding` given - `detail` is the full text of what was found, not a compressed summary. Approved → `verification.state: done`, `review.state: pending`. Rejected on attempt 1 → attempt becomes 2, stay in `verification`. Rejected on attempt 2 → `task.State: blocked` (`blocked.stage: verification`). |
-| `commit <id> [--commit <hash>]` | `verification.state == done` | The caller already ran `git commit` itself (a new commit, never an amend) in the worktree. taskman doesn't trust caller-reported text for this - it reads the commit directly from the worktree via `git log` (`HEAD`, or the commit given by `--commit <hash>`), extracting the real `hash` and full `message`, and parsing a leading conventional-commit `type:` prefix out of the message for `git.commit.type` when present. Writes/overwrites `git.commit: {type, message, hash}`. If `auto_approve`, sets `review.state: done` directly (no `human_reviews[]` entry) and, if also `git.trunk`, completes the task right there (`task.CompleteTrunkMerge`); otherwise ensures `review.state: pending` (a no-op the first time - already `pending` - but this is what actually ends a review-reject-recovery cycle the second-or-later time, flipping it back from `in_progress`). Called once right after the automated review first approves, and again each time a review-reject-recovery cycle clears, each a distinct new commit on the branch (§ "When the commit happens"). `verification.state` stays `done` throughout recovery, so the same precondition covers every call. |
+| `commit <id> [--commit <hash>]` | `verification.state == done` | The caller already ran `git commit` itself in the worktree. taskman reads the resulting commit directly from the worktree via `git log` (`HEAD`, or the commit given by `--commit <hash>`), extracting the real `hash` and full `message`, and parsing a leading conventional-commit `type:` prefix out of the message for `git.commit.type` when present. Writes/overwrites `git.commit: {type, message, hash, at}`. If `auto_approve`, sets `review.state: done` directly (no `human_reviews[]` entry) and, if also `git.trunk`, completes the task right there (`task.CompleteTrunkMerge`); otherwise ensures `review.state: pending` (a no-op the first time - already `pending` - but this is what actually ends a review-reject-recovery cycle the second-or-later time, flipping it back from `in_progress`). Called once right after the automated review first approves, and again each time a review-reject-recovery cycle clears, each a distinct new commit on the branch (§ "When the commit happens"). `verification.state` stays `done` throughout recovery, so the same precondition covers every call. |
 | `escalate <id> --stage <stage> --reason <text>` | task not already terminal | `task.State: blocked`, `blocked: {stage, reason, at: now}`. `stage` is one of `definition`/`specification`/`implementation`/`verification`/`review`/`merge` - whichever stage was in flight when the agent gave up. |
 | `review approve <id> [--comment <text>]` | `review.state == pending` | `review.state: done`; appends `{approved: true, comment, at}` to `human_reviews[]` - `comment` is whatever the human typed, empty if they didn't bother (an approval doesn't need a comment; a human who wants to leave a quick note like `LGTM` can). If `git.trunk`, also completes the task right there (`task.CompleteTrunkMerge`) - the same as `commit` does for an auto-approved trunk task. |
 | `review reject <id> --reason <text>` | `review.state == pending` | Appends `{approved: false, comment: reason, at}` to `human_reviews[]` and starts review-reject recovery (below); `review.state: in_progress` for its duration. |
-| `merge <id> [--commit <hash>]` | `review.state == done` | The caller already ran `git merge` itself; records `merge.state: done`, `task.State: completed`. `--commit`, if given, overwrites `git.commit.hash` with the final merged commit (only differs from what `commit` recorded for a non-fast-forward merge). Never reached for a `git.trunk` task - `task.CompleteTrunkMerge` already completed it the moment review did. |
+| `merge <id> [--commit <hash>]` | `review.state == done` | The caller ran `git merge` itself; records `merge.state: done`, `task.State: completed`. `--commit`, if given, overwrites `git.commit.hash` with the final merged commit (only differs from what `commit` recorded for a non-fast-forward merge). Never reached for a `git.trunk` task - `task.CompleteTrunkMerge` already completed it the moment review did. |
 | `abandon <id> --reason <text>` | task not already `completed` | `task.State: failed`, reason recorded. Terminal. |
-| `delete <id>` | task exists | Removes the task file outright (§3 - no soft-delete). No restriction on `task.State`/`status`: git history covers "undo," so there's nothing this precondition would protect against. A human housekeeping action, not something loop or any automated caller should invoke (§7). |
+| `delete <id>` | task exists | Removes the task file outright (§3). No restriction on `task.State`/`status`: git history covers "undo," so there's nothing this precondition would protect against. A human housekeeping action, not something loop or any automated caller should invoke (§7). |
 | `next <id>` | - | Read-only; see below. |
 
 ### `next`: what tells the caller what to do
@@ -529,19 +433,12 @@ The "guide it, tell it what to do, give it prompts" interface. Given a task id, 
   not the caller. Still an open task, just not one to act on right now.
 - **Done** - `task.State` is `completed` or `failed`: over, nothing will change again.
 
-A caller that only ever calls `next` in a loop and does what it says is, by construction,
-correctly driving the state machine above.
-
 ### Giving up: the `escalate` command
 
-Neither the build-check-fix loop nor a post-rejection fix round gets a numeric retry cap.
-Instead, whatever agent is dispatched for implement/fix work is expected to have its own
-`escalate` tool available - the caller's own concern, not something taskman provides or
-executes - and when that tool is called, the caller reports it via `escalate`. This is the
-*only* bound on the build-check-fix loop - `blocked` has two distinct triggers worth telling
-apart in the recorded reason ("the agent chose to stop" vs. "two automated review rounds
-rejected it"), but both land on the same state and the same recovery path. The two-round review
-cap and `escalate` are independent - a task can be blocked by either one, whichever comes first.
+Whatever agent is dispatched for implement/fix work can stop early by calling its own
+`escalate` tool; when that tool is called, the caller reports it via `escalate`, and the task
+lands in `blocked` the same way and on the same recovery path as the two-round cap does (§ "The
+`blocked` overlay" above).
 
 ### The `verification` stage, in full
 
@@ -566,14 +463,14 @@ reporting `escalate` at any point:
      doesn't change it; predictability was preferred over per-task tunability here.
 
 `status.verification.attempts` records which attempt (1 or 2) the task settled on; `reviews[]`
-has the full per-attempt detail. A `blocked` task isn't retried automatically.
+has the full per-attempt detail.
 
 ### The `review` stage: human, out of band, program-mediated
 
 Not to be confused with automated review, which lives inside `verification` and writes to
 `reviews[]` (previous section) - this stage is only about the human gate, which writes to
 `human_reviews[]`. The human reviews a **real commit** on the branch - `cd <worktrees-dir>/<id>`,
-`git log`/`git diff` against the base branch, their own IDE/git tooling; no in-tool diff viewer.
+`git log`/`git diff` against the base branch, in their own IDE/git tooling.
 The commit already exists by the time this stage is reached (§ "When the commit happens" - it's
 made the moment automated review approves, before `review` is ever entered). What's needed is a
 way to record their decision without ever hand-editing the task's YAML file: `review
@@ -603,7 +500,7 @@ review agent on the way back - the human is now the reviewer for this task:
 2. `verify` re-runs (fix-and-recheck loop, same as verification's own) until clean or
    escalated.
 3. Once clean, the caller drafts a message (the `commit` prompt template again) for **a new commit** -
-   not an amend of the first one - addressing the human's feedback, runs `git commit` itself, and
+   addressing the human's feedback, runs `git commit` itself, and
    reports it via `commit`, whose effect resets `status.review.state` to `pending` (§6's
    command table). The task is back in front of the human, now looking at a second commit on top
    of the first.
@@ -622,11 +519,11 @@ up `blocked` instead (attempt 2's rejection sets `blocked` without ever setting
 committing if verification never actually passed). At that point the caller drafts a commit
 message (the `commit` prompt template, dispatched via `next`, §7), runs `git commit` itself, and
 reports it via `commit`, which reads the real commit back out of the worktree via `git log`
-rather than trusting whatever the caller says about it (§6's command table) - this is what the
+(§6's command table) - this is what the
 human at `review` is looking at. A human rejection doesn't touch that commit; it adds a new one
 on top (see "Review-reject recovery" above), so a task can end its life with one commit (no human
 rejections) or several (one per rejection cycle), but never zero once it's reached `review` at
-all, and never an amend.
+all.
 
 **The task file's own commit is necessarily a separate, later one.** `git.commit.hash` is read
 back from git itself, so it can only be known once the code commit already exists - a task file
@@ -634,25 +531,22 @@ committed alongside that code commit could never correctly name its own hash (a 
 contain, as tracked content, the hash of itself). And `review`/`merge` reaching `done` both
 require commands (`review approve`, `merge`) that by construction happen after the code
 commit already exists for them to act on. So no matter how it's sequenced, the task's fully final
-state can't land in the same commit as its code - but rather than tell the caller to make that
-commit itself, taskman makes it directly: `merge`, `abandon`, and the two ways a trunk task goes
+state can't land in the same commit as its code, and taskman records it directly: `merge`,
+`abandon`, and the two ways a trunk task goes
 terminal early (`commit`'s auto-approve path, `review approve`) all call
 `task.RecordBookkeeping` right after the task's own state write succeeds, staging and committing
 just `.tasks/<id>.yaml` with a fixed message (`chore(task): Record completion of task "<title>"
 (ID: <id>)` or `Record abandonment of task "<title>" (ID: <id>)` - no quoted title, just
-`(ID: <id>)`, for an untitled task). This is a third, narrow exception to "taskman executes
-nothing" -
-alongside `create`'s worktree setup (§5) and `commit`'s `git log` read - justified the same way:
-a single, well-known file, a fixed message shape, triggered only at a state transition that
+`(ID: <id>)`, for an untitled task) - a single, well-known file and a fixed message shape,
+triggered only at a state transition that
 already happened. It relies on the same clean-working-tree discipline as everything else: a
 caller that follows §6's staging rule (stage only what it touched) never has anything of its own
 still pending in `.tasks/<id>.yaml`'s directory for this commit to accidentally sweep in.
 
 ### Unblocking a `blocked` task
 
-There's no separate "unblock" command, and no table mapping `blocked.stage` values to a specific
-resume command - `blocked.stage` is informational (what a human reads to know where to look),
-not a lookup key. Resuming means calling `next` again: it inspects the *whole* current state
+`blocked.stage` is informational (what a human reads to know where to look), not a lookup key.
+Resuming means calling `next` again: it inspects the *whole* current state
 (`verification`/`review` states, `attempts`, `reviews[]`), not just `blocked.stage`, so it can
 always tell exactly which command is next - the build-check-fix loop, an automated review, or a
 review-reject-recovery cycle - the same way it would for any non-blocked task. `blocked` clears
@@ -664,55 +558,47 @@ unblocks it. `abandon` is always available instead.
 
 Everything in §6's command table is reachable one way: a human, a harness, or loop, at a
 terminal. `taskman verify abc --check test=ok` is a complete process lifecycle - open what
-it needs, validate, write, print, exit. There is no persistent `taskman` daemon and no HTTP
-interface. `taskman mcp` is the one long-running exception: the same commands, over MCP/stdio
+it needs, validate, write, print, exit. `taskman mcp` is the one long-running exception: the
+same commands, over MCP/stdio
 instead of flags and stdout, for a caller that speaks MCP rather than shelling out - see
 `internal/mcp`'s README for how that frontend is wired up.
 
 ### One core, thin CLI
 
-Every command in §6 gets **one Go function** in `internal/task`, alongside the repo functions it
-calls. The CLI is a few lines that parses flags into the same request struct, calls the function,
-and renders the result:
+Every command in §6 gets **one Go function** in its own vertical-slice package under
+`internal/commands/<name>` (with the review slice nested as
+`internal/commands/review/{record,approve,reject}`), calling into `internal/task`'s shared
+primitives. The CLI is a few lines that parses flags into the same request struct, calls the
+function, and renders the result:
 
 ```go
-package task
+package create
 
-// Command layer - one function per §6 command. Each: reads the task file, checks
-// its precondition, applies the mutation via the same read-modify-write-rename
-// cycle as UpdateTask (§3), and returns the updated Task or a dedicated result.
-
-func Create(ctx context.Context, repo Repo, req CreateRequest) (Task, error)
-func Update(ctx context.Context, repo Repo, id string, req UpdateRequest) (Task, error)
-func Specify(ctx context.Context, repo Repo, id string, req SpecifyRequest) (Task, error)
-func Implement(ctx context.Context, repo Repo, id string) (Task, error)
-func Verify(ctx context.Context, repo Repo, id string, req VerifyRequest) (Task, error)
-func RecordReview(ctx context.Context, repo Repo, id string, req ReviewRecordRequest) (Task, error)
-func Commit(ctx context.Context, repo Repo, git Git, id string, req CommitRequest) (Task, error)
-func Escalate(ctx context.Context, repo Repo, id string, req EscalateRequest) (Task, error)
-func ApproveReview(ctx context.Context, repo Repo, id string, comment string) (Task, error)
-func RejectReview(ctx context.Context, repo Repo, id string, reason string) (Task, error)
-func Merge(ctx context.Context, repo Repo, id string, req MergeRequest) (Task, error)
-func Abandon(ctx context.Context, repo Repo, id string, reason string) (Task, error)
-func Next(ctx context.Context, repo Repo, prompts PromptRepo, id string) (Guidance, error)
-func Delete(ctx context.Context, repo Repo, id string) error
+// Create makes the task file and, unless --trunk, its worktree/branch.
+func Create(ctx context.Context, tasksDir, worktreesDir string, git *task.GitClient, req Request) (task.Task, error)
 ```
 
-(`ListTasks`/`GetTask` already exist and need no new command wrapper - they're plain reads.)
+Each slice defines its own `Request` struct (create.Request, update.Request, ...) with
+json/jsonschema tags, shared verbatim by the CLI and MCP frontends. Runtime deps the frontend
+doesn't get from the caller - `tasksDir`, `worktreesDir`, `*task.GitClient` - stay function
+parameters, not `Request` fields. (`list.List`/`get.Get` are the plain reads: `list` returns a
+paginated `Result` of matching tasks, `get` one task.)
+
 Every function validates a precondition against the current `status` and either applies the
-write or returns a typed error - `ErrInvalidTransition{Stage, Have, Want}` or similar, one error
-type reused by every command so the CLI only needs to handle it once. `Commit` takes a `Git`
-dependency (§ "When the commit happens") because it reads the worktree's actual commit rather
-than trusting caller-supplied text (§6).
+write or returns a typed error - `task.InvalidTransitionError{Stage, Have, Want}` or similar, one
+error type reused by every command so the CLI only needs to handle it once. `create`, `commit`,
+`merge`, `approve`, and `abandon` take a `*task.GitClient` dependency (§ "When the commit
+happens"): `create` for its worktree/branch setup, and the terminal ones to commit the task's own
+file once it's done.
 
 ### The command table
 
 | Command | CLI |
 |---|---|
-| List | `taskman list [--state ...] [--label ...] ...` |
+| List | `taskman list [--state ...] [--label k=v ...] [--limit <n>] [--offset <n>]` |
 | Get | `taskman get <id>` |
-| Create | `taskman create --definition <text> [--id ...] [--title ...] [--label k=v ...] [--reference ...] [--specification ... --done-when ...]` |
-| Update | `taskman update <id> [--title ...] [--label k=v ...] [--unset-label ...] [--reference ...] [--clear-references]` |
+| Create | `taskman create --definition <text> [--id ...] [--title ...] [--label k=v ...] [--reference ...] [--specification ... --done-when ...] [--trunk] [--auto-approve]` |
+| Update | `taskman update <id> [--title ...] [--label k=v ...] [--unset-label ...] [--reference ...] [--clear-references] [--trunk ...] [--auto-approve ...]` |
 | Specify | `taskman specify <id> --result <text> --done-when <text>` |
 | Implement | `taskman implement <id>` |
 | Verify | `taskman verify <id> --check <name>=<ok\|error> ... [--output <text>]` |
@@ -725,6 +611,7 @@ than trusting caller-supplied text (§6).
 | Abandon | `taskman abandon <id> --reason <text>` |
 | Next | `taskman next <id>` |
 | Delete | `taskman delete <id>` |
+| Skill | `taskman skill` |
 
 Every command's name matches its Go function 1:1 (`Specify` → `specify`) - nothing invents
 its own vocabulary. `Delete` is a human housekeeping action (§6) - nothing restricts calling it,
@@ -733,7 +620,8 @@ next`'s guidance never points a caller at it.
 
 ### Shared request shapes
 
-Each `*Request` struct lives once in `internal/task`; `urfave/cli` v3 flags map onto the same
+Each `*Request` struct lives once, in the slice package that owns its command (see "One core,
+thin CLI" above); `urfave/cli` v3 flags map onto the same
 struct's fields via the command's `Action`.
 
 The full JSON envelope is always available behind `--json` (a persistent root-command flag, for
@@ -754,9 +642,10 @@ Created task abc ("Test Task"). Worktree: .worktrees/abc, branch: task/abc.
 | Error | CLI |
 |---|---|
 | `task.ErrTaskNotFound` | exit 1, `task not found: <id>` |
-| `task.ErrInvalidTransition` | exit 1, states the precondition that failed |
+| `task.InvalidTransitionError` | exit 1, states the precondition that failed |
 | `task.ErrWorkingTreeDirty` (`create` only, §5) | exit 1, `working tree at <git-dir> is not clean` |
-| malformed input | exit 2 |
+| `task.ErrInvalidLabel` | exit 2, `invalid label value` |
+| malformed input (bad label, bad `--check` value, missing id) | exit 2 |
 | unexpected/internal | exit 1, generic message + logged detail |
 
 ### `next`: taskman talks, the caller listens
@@ -765,10 +654,8 @@ The guiding principle for this whole interface, stated once here because it appl
 **taskman talks to whatever's calling it the way a person talks to an agent they've delegated
 work to - not a data feed an agent has to reverse-engineer intent from.** A harness reading
 `next`'s response should feel briefed, the way this session is briefed by a message in this
-conversation: told where to work, what the situation is, and what's expected back, in prose - not
-handed a pile of separate fields (`worktree`, `since`, `attempts`, `blocked_reason`,
-`last_findings`, ...) it has to reassemble into a sentence itself before it can act or brief a
-human. Every prompt template already renders to natural language (§4); `next` extends
+conversation: told where to work, what the situation is, and what's expected back, in prose.
+Every prompt template already renders to natural language (§4); `next` extends
 that the same way to every response it gives, not just the ones that hand off a prompt.
 
 Concretely, every response has:
@@ -791,9 +678,8 @@ Concretely, every response has:
   narrative, and shouldn't have to be parsed out of a sentence either.
 - `message` is everything else - where to work, what the situation is, what happened, what's
   expected back - written as one piece of prose. This is what a harness (or a human) actually
-  reads. There is no separate `worktree`/`branch`/`title`/`since`/`attempts`/`blocked_reason`
-  field alongside it; all of that is *in* the message, the same way it'd be in a sentence a
-  person wrote.
+  reads. All of the worktree/branch/title/since/attempts/blocked_reason detail is *in* the
+  message, the same way it'd be in a sentence a person wrote.
 
 **`dispatch`** - work is needed and requires judgment. `message` is the stage's prompt template
 template rendered with the task's own fields, wrapped in the same worktree/branch/report-back
@@ -806,8 +692,8 @@ for it to approve or reject:
 {
   "task_id": "abc",
   "action": "dispatch",
-  "report_with": "verify",
-  "message": "Fix the issues found in the last automated review of task abc ('Test Task').\n\nWork in .worktrees/abc, on branch task/abc.\n\nFindings:\n- main.go: missing error check\n\nWhen you're done, report back with:\n    verify --check vet=<ok|error> --check lint=<ok|error> --check test=<ok|error> [--output <text>]"
+  "report_with": "verify abc",
+  "message": "Fix the issue below in the worktree.\n\n## Specification\n<task's specification>\n\n## Acceptance criteria (done_when)\n<task's done_when>\n\n## What needs fixing\nBuild check failed:\n<last verify output>\n\nWork in .worktrees/abc, on branch task/abc.\n\nWhen you're done, report back with:\n    verify abc --check vet=<ok|error> --check lint=<ok|error> --check test=<ok|error> [--output <text>]"
 }
 ```
 
@@ -819,8 +705,8 @@ clean, the next dispatch is drafting the commit message - the one place `report_
 {
   "task_id": "abc",
   "action": "dispatch",
-  "report_with": "commit",
-  "message": "Draft a commit message for task abc ('Test Task').\n\nWork in .worktrees/abc, on branch task/abc.\n\nSpecification:\n<task's specification>\n\nWhen you're done, run git commit yourself, then report back with:\n    commit [--commit <hash>]\n(taskman reads the commit's real message and hash itself - you don't need to repeat them)."
+  "report_with": "commit abc",
+  "message": "Draft a commit message for this change, following the conventional-commit style, then run `git commit` yourself in the worktree to commit changes.\n\n## Task\nTest Task\n\n## Specification\n<task's specification>\n\nStage only the files this task actually touched (`git add <path> ...`) - never a blanket `git add -A` or `git commit -a`. Run `git status` first; if anything unrelated to this task shows as changed, leave it out - including this task's own .tasks/abc.yaml, which will keep changing after this commit (through review and merge) and gets committed separately once the task is actually done.\n\ntaskman reads the commit's real message and hash back out of git itself once you report it - you don't need to repeat them.\n\nWork in .worktrees/abc, on branch task/abc.\n\nWhen you're done, report back with:\n    commit abc [--commit <hash>]"
 }
 ```
 
@@ -831,8 +717,8 @@ plain instructions:
 {
   "task_id": "abc",
   "action": "run",
-  "report_with": "verify",
-  "message": "Run go vet, make lint, and go test in .worktrees/abc (branch task/abc) yourself, then report each result with:\n    verify --check vet=<ok|error> --check lint=<ok|error> --check test=<ok|error> [--output <text>]"
+  "report_with": "verify abc",
+  "message": "Run the build checks yourself in .worktrees/abc (branch task/abc). Scope them to what this task actually changed (e.g. `go build`/`go test` on the affected package, not the whole repo). If a check is inherently repo-wide (a formatter, a linter run with a fix flag), run `git status` afterward - anything it touched outside this task's own change is not part of this task and must not be committed with it.\n\nReport each result with:\n    verify abc --check vet=<ok|error> --check lint=<ok|error> --check test=<ok|error> [--output <text>]"
 }
 ```
 
@@ -866,7 +752,7 @@ Distinct from `done` on purpose: `done` means drop this task, nothing will ever 
   "task_id": "abc",
   "action": "done",
   "report_with": null,
-  "message": "Task abc ('Test Task') is complete - merged into main as 12345asdf."
+  "message": "Task abc ('Test Task') is complete - branch task/abc merged as 12345asdf."
 }
 {
   "task_id": "abc",
@@ -881,11 +767,3 @@ harness or reads it as-is, is by construction correctly driving the whole state 
 `next` reports what the task file currently says, nothing more - it's not a lock and doesn't
 know whether some other caller is already mid-dispatch against the same task; two concurrent
 callers get the same answer.
-
-### CLI framework
-
-[`urfave/cli` v3](https://cli.urfave.org/v3/getting-started/), added via `go get`. A root `task`
-command with one `cli.Command` child per row in the command table, each declaring its own
-`cli.Flag`s and an `Action` that builds the shared `*Request` struct and calls straight into the
-one Go function from "One core, thin CLI." `--json` is a persistent flag on the root command,
-inherited by every subcommand, alongside `--git-dir`/`--tasks-dir`/`--worktrees-dir` (§1).

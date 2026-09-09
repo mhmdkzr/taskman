@@ -1,6 +1,6 @@
 # taskman
 
-Taskman let's you define tasks and guides AI agents through their lifecycle until their completion. After a task is defined, the agent would simply run `taskman next <id>` and taskman will tell the agent exactly what to do next, and keeps track of the state transitions in the task files as the task progresses. Taskman has CLI and MCP interfaces. Taskman is currently in alpha phase, expect breaking changes and potential bugs.
+Taskman lets you define tasks and guides AI agents through their lifecycle until completion. Once a task is defined, an agent simply runs `taskman next <id>`: taskman tells it exactly what to do next and records the state transitions in the task files as the task progresses. Taskman has both CLI and MCP interfaces. It is currently in alpha phase - expect breaking changes and potential bugs.
 
 ## A task
 
@@ -16,8 +16,8 @@ A task is one unit of work, serialized as a YAML file in the tasks directory (de
 - append-only logs of verification attempts, automated review rounds, and human reviews;
 - block/failure details, when applicable.
 
-Concurrent writers are handled with per-task file locks, so multiple processes can drive
-different tasks in the same repo safely.
+Concurrent writers are handled with per-task file locks (`<id>.yaml.lock`), so multiple
+processes can drive different tasks in the same repo safely.
 
 ## Git integration
 
@@ -25,8 +25,10 @@ Creating a task also creates an isolated git worktree and branch under the workt
 directory (default `.worktrees`), guarded by a clean-working-tree check - use `--trunk` to
 work the task on the current branch instead. taskman reads a commit back from the worktree
 rather than trust a caller's report of it, and, once a task goes terminal (`merge`, `abandon`,
-or an auto-approve/trunk completion), commits the task's own now-final file itself - the one
-commit nothing else can attribute to, since that file keeps changing through review and merge.
+or an auto-approve/trunk completion), commits the task's own now-final file itself. That
+bookkeeping commit is the one taskman makes directly: the file keeps changing through review
+and merge, so it can't ride along with the code commit, and there's no caller left to make a
+separate commit for it.
 Everything else (edits, checks, the code commit itself, the merge) is done by the operator
 agent and merely reported to taskman. `git` must be on `PATH`.
 
@@ -49,8 +51,9 @@ go install github.com/mhmdkzr/taskman@latest
 
 ## Driving a task
 
-Use `taskman list` to get list of tasks, once a task is chosen, the primary interface is `taskman next <id>`. It inspects a task's current state and
-answers with an action plus, where relevant, the exact command to run next:
+Use `taskman list` to list tasks; once a task is chosen, the primary interface is
+`taskman next <id>`. It inspects a task's current state and answers with an action plus, where
+relevant, the exact command to run next:
 
 | Action | Meaning |
 | --- | --- |
@@ -64,7 +67,9 @@ until it says `done`.
 
 By default the guidance is printed as natural language; `--json` returns a machine-readable
 envelope (the `action` and `report_with` fields are what a non-LLM driver loop keys on).
-To use with AI agents, you can run `taskman skill` to print taskman's own agent-facing driver skill, which teaches an agent how to drive tasks with these commands.
+
+To drive tasks with an AI agent, run `taskman skill` to print taskman's own agent-facing
+driver skill - it teaches an agent how to work tasks with these commands.
 
 ## The lifecycle
 
@@ -75,8 +80,8 @@ outcome, and taskman refuses any transition that doesn't follow from the current
 1. **create** - record what the task should accomplish and create its worktree/branch.
    Pass `--label key=value`, `--reference path`, a fixed `--id`, or a `--title`. Provide
    `--specification` plus `--done-when` up front to skip the specification stage entirely,
-   or `--auto-approve` to skip the human review gate. The task is created with the
-   definition stage done.
+   `--trunk` to work in place on the current branch, or `--auto-approve` to skip the human
+   review gate. The task is created with the definition stage done.
 2. **specify** - draft the task's `specification` and `done_when` acceptance criteria from
    its definition and record them (`specify <id> --result <text> --done-when <text>`).
    This starts the task.
@@ -108,7 +113,7 @@ file can also be removed outright with `delete <id>`, a human housekeeping actio
 
 | Command | What it does |
 | --- | --- |
-| `list` | list tasks, optionally filtered by state/label and paginated |
+| `list [--state ...] [--label k=v ...] [--limit <n>] [--offset <n>]` | list tasks, optionally filtered and paginated (default page size 50; `--limit 0` for unlimited) |
 | `get <id>` | show one task |
 | `next <id>` | show what should happen next for this task |
 | `create` | create a task and its worktree/branch (`--trunk` to work it in place) |
@@ -125,6 +130,7 @@ file can also be removed outright with `delete <id>`, a human housekeeping actio
 | `abandon <id>` | mark the task failed for good |
 | `delete <id>` | remove the task file outright |
 | `skill` | print the agent-facing driver skill to stdout |
+| `mcp` | serve the same operations over MCP/stdio instead of the CLI |
 
 Each task file is validated and mutated under lock, and invalid transitions are rejected
 with a distinct exit code rather than silently ignored. Every command's flags have `--help`.
