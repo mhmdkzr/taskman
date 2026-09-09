@@ -9,17 +9,7 @@ An agent does the actual work: inspecting the repository, writing code, running 
 Taskman owns the lifecycle around that work. It keeps the authoritative task state, validates transitions, and at each state, it tells the agent what should happen next.
 
 ```text
-definition
-    ↓
-specification
-    ↓
-implementation
-    ↓
-verification
-    ↓
-review
-    ↓
-merge
+definition -> specification -> implementation -> verification -> review -> merge
 ```
 
 The main interaction is:
@@ -27,28 +17,9 @@ The main interaction is:
 ```bash
 taskman next <id>
 ```
-
-Taskman responds with a natural-language instruction to agent, describing the next valid step.
-
-The agent follows it, reports the outcome with the indicated command to taskman, and calls `next` again, until the task is complete.
-
-```text
-agent runs taskman next
-          ↓
-taskman responds with instruction
-          ↓
-agent does the work
-          ↓
-agent reports outcome to taskman
-          ↓
-agent runs taskman next
-          ↓
-         ...
-          ↓
-        done
-```
-
 Taskman is designed to be operated **by agents**. It can be used as a CLI or as a MCP server (stdio). Humans typically interact with taskman indirectly through an agent.
+
+Taskman responds with a natural-language instruction to agent, describing what to do next, depending on the current task state. The agent follows it, reports the outcome with the indicated command to taskman, and calls `next` again, until the task is complete.
 
 > **Status:** alpha. Expect breaking changes and potential bugs.
 
