@@ -38,7 +38,7 @@ A caller that only ever calls `next`, does what `message` says, and reports with
 
 | Command | Purpose |
 |---|---|
-| `create --definition <text> [--title <text>] [--id <id>] [--label k=v ...] [--reference <ref> ...] [--specification <text> --done-when <text>] [--trunk] [--auto-approve]` | Create a task. Requires a **clean working tree**. Creates the worktree `.worktrees/<id>` on branch `task/<id>` itself - the one thing taskman executes. `.worktrees/` must be gitignored first. With `--trunk`, skips the worktree/branch and records the repo root and current branch instead - the task is worked in place. With `--specification`/`--done-when`, the specify stage is skipped. With `--auto-approve`, the review stage never waits for a human - see below. |
+| `create --definition <text> [--title <text>] [--id <id>] [--label k=v ...] [--reference <ref> ...] [--specification <text> --done-when <text>] [--trunk] [--auto-approve]` | Create a task. Requires a **clean working tree**. Creates the worktree `.worktrees/<id>` on branch `task/<id>` itself - the one thing taskman executes. `.worktrees/` must be gitignored first. With `--trunk`, skips the worktree/branch and records the repo root and current branch instead - the task is worked in place. With `--specification`/`--done-when`, the specify stage is skipped. With `--auto-approve`, `commit` completes the review stage on its own - see below. |
 | `next <id>` | Ask what to do next (see core loop). |
 | `get <id>` | Read one task. Prefer relying on `next`'s own message instead - it already carries the definition, specification, done_when and references you need for the current step, so `get` is usually not necessary mid-flow. |
 | `list [--state <state> ...] [--label k=v ...] [--limit <n>] [--offset <n>]` | List/filter tasks, paginated (`--limit` defaults to 50 to avoid dumping a huge tasks-dir; `0` means unlimited). `--json` returns `{tasks, total, limit, offset}` - use `total` to know whether more pages remain, and `--offset` to page through them. Never parse the YAML by hand for decisions. |
@@ -49,7 +49,7 @@ A caller that only ever calls `next`, does what `message` says, and reports with
 | `review record <id> --approved <bool> [--finding <file>=<text> ...]` | Report the **automated** review round's verdict. Findings carry the full detail text, not summaries. |
 | `commit <id> [--commit <hash>]` | Report a commit you already made (see committing below). |
 | `escalate <id> --stage <stage> --reason <text>` | Report that the dispatched agent gave up (called its escalate tool). Blocks the task. |
-| `review approve <id> [--comment <text>]` | **Human** approval only - never call this yourself, unless the task was created with `--auto-approve`, in which case `next` explicitly tells you to. |
+| `review approve <id> [--comment <text>]` | **Human** approval only - never call this yourself. For a task created with `--auto-approve`, `commit` already completed review; this command has nothing left to do there. |
 | `review reject <id> --reason <text>` | **Human** rejection only - never call this yourself. |
 | `merge <id> [--commit <hash>]` | Report a merge you already made. |
 | `abandon <id> --reason <text>` | Mark the task failed for good. Human decision. |
@@ -59,7 +59,9 @@ A caller that only ever calls `next`, does what `message` says, and reports with
 
 Stages run `definition → specification → implementation → verification → review → merge`.
 
-- **Never edit `.tasks/*.yaml` by hand.** Every write goes through a taskman command.
+- **Never read or edit `.tasks/*.yaml` by hand** - not with `cat`/`read`/an editor, not even to
+  "just peek". Every read goes through `get`/`list`/`next`; every write goes through a taskman
+  command. The file format is an implementation detail and can change.
 - **Work in the worktree named by the task's `git.worktree`/`git.branch` fields** (`get <id>`
   or any command's output names them) - `.worktrees/<id>` on branch `task/<id>` by default, created
   by `create` and left in place for the task's whole life; the repo root on the current branch
@@ -87,15 +89,15 @@ Stages run `definition → specification → implementation → verification →
   grep-stale-refs=ok` for a targeted search), not a placeholder that claims a build ran when none
   did.
 - **Human review**: after `commit`, `next` says `wait` until a human runs
-  `review approve` or `review reject`. Exception: a task created with `--auto-approve`
-  never waits here - `next` says `run` and tells you to approve your own review, since no
-  human gate applies to that task.
+  `review approve` or `review reject`. Exception: a task created with `--auto-approve` never
+  reaches this wait at all - `commit` completes review in the same call that records the commit,
+  since the automated round already run inside verification is the only review that task gets.
 - **Review-reject recovery**: on a human rejection, fix, re-verify, make **another new commit**,
   and `commit` again. This cycle skips the automated reviewer - the human is now the
   reviewer. Each cycle adds one commit; never amend.
 - **Merge**: `next` says `run` - merge the task's branch into the base branch yourself, then
-  `merge <id>`. For a task created with `--trunk`, `next`'s message says there's nothing
-  to merge (the branch is already the target) - just report `merge <id>` directly.
+  `merge <id>`. A task created with `--trunk` never reaches this step - there's nothing to merge
+  (the branch is already the target), so it completes automatically the moment review does.
 - **Final bookkeeping commit**: the task's own `.tasks/<id>.yaml` keeps changing after the code
   commit (through review and merge), so it can never be part of that commit - `next`'s `done`
   message says so and tells you to commit it now, on its own, as a small chore commit (e.g. `chore

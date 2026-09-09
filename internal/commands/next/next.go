@@ -91,9 +91,6 @@ func Next(tasksDir string, req Request) (Guidance, error) {
 		if !task.HasCommitSince(t, t.Status.Verification.CompletedAt) {
 			return guideDraftCommit(t), nil
 		}
-		if t.AutoApprove {
-			return guideAutoApprove(t), nil
-		}
 		return guideWaitHumanReview(t), nil
 	case t.Status.Review.State == task.StageInProgress:
 		return guideReviewRejectRecovery(t)
@@ -122,11 +119,6 @@ func verifyReport(id string) (string, string) {
 func reviewRecordReport(id string) (string, string) {
 	short := "review record " + id
 	return short, short + " --approved <bool> [--finding <file>=<text> ...]"
-}
-
-func reviewApproveReport(id string) (string, string) {
-	short := "review approve " + id
-	return short, short + " [--comment <text>]"
 }
 
 func commitReport(id string) (string, string) {
@@ -237,6 +229,12 @@ func guideRunVerify(t task.Task) Guidance {
 	return Guidance{TaskID: t.ID, Action: ActionRun, Message: message, ReportWith: short}
 }
 
+// guideMerge is reached only for a non-trunk task: a trunk task's merge
+// stage completes automatically the moment review does (task.CompleteTrunkMerge,
+// called from commit's auto-approve path and from review approve), so it
+// never sits at merge.state != done waiting for this. The Trunk-conditional
+// message in run_merge.md is a defensive fallback for a task file written
+// by an older taskman that didn't complete trunk merges this way.
 func guideMerge(t task.Task) Guidance {
 	message := runMerge{
 		TaskID: t.ID, Worktree: t.Git.Worktree, Branch: t.Git.Branch, Trunk: t.Git.Trunk,
@@ -248,19 +246,6 @@ func guideDraftCommit(t task.Task) Guidance {
 	body := commitPrompt{TaskID: t.ID, Title: t.Title, Specification: t.Specification}.Render()
 	short, full := commitReport(t.ID)
 	return dispatch(t, body, short, full)
-}
-
-// guideAutoApprove is guideWaitHumanReview's counterpart for a task created
-// with --auto-approve: the same point in the state machine, but the caller
-// is told to approve its own review rather than wait for a human.
-func guideAutoApprove(t task.Task) Guidance {
-	hash := ""
-	if t.Git.Commit != nil {
-		hash = t.Git.Commit.Hash
-	}
-	message := runAutoApprove{TaskID: t.ID, CommitHash: hash}.Render()
-	short, _ := reviewApproveReport(t.ID)
-	return Guidance{TaskID: t.ID, Action: ActionRun, Message: message, ReportWith: short}
 }
 
 func guideWaitHumanReview(t task.Task) Guidance {

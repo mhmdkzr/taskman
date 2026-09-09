@@ -170,13 +170,8 @@ func TestCLIFullLifecycleTrunk(t *testing.T) {
 	runTaskman(t, dir, "commit", id)
 	runTaskman(t, dir, "review", "approve", id, "--comment", "LGTM")
 
-	preMerge := runTaskman(t, dir, "next", id)
-	if !strings.Contains(preMerge, "nothing to merge") {
-		t.Fatalf("next before merge = %q, want it to say there's nothing to merge in trunk mode", preMerge)
-	}
-
-	runTaskman(t, dir, "merge", id)
-
+	// A trunk task has nothing to merge, so review approve completes it
+	// directly - no separate merge call is needed or expected.
 	final := getTaskJSON(t, dir, id)
 	if final.State != task.StateCompleted {
 		t.Fatalf("final state = %v, want completed", final.State)

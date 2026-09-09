@@ -335,10 +335,13 @@ on the task, the one bit of state that distinguishes it from a task whose worktr
 happen to equal the repo root/current branch. The clean-working-tree precondition still applies -
 it's the only thing protecting a trunk task from starting on top of someone else's uncommitted
 changes, since there's no isolated worktree to fall back on. Everything downstream (`task
-commit`'s `git log` read, `merge` recording completion) works unchanged, since both already
-take the worktree path as given rather than assuming it's under `--worktrees-dir`; `next`'s
-merge-stage guidance reads `git.trunk` to say there's nothing to actually merge, rather than
-telling the caller to merge a branch into itself. Trunk mode is for solo, sequential work where a
+commit`'s `git log` read) works unchanged, since it already takes the worktree path as given
+rather than assuming it's under `--worktrees-dir`. There's genuinely nothing to merge for a
+trunk task, so the merge stage isn't left for the caller to close out at all:
+`task.CompleteTrunkMerge`, called the moment review completes (from `commit`'s auto-approve path
+and from `review approve`), marks `merge.state: done` and `task.State: completed` right there -
+no separate `merge` call, no telling the caller to merge a branch into itself. Trunk mode is for
+solo, sequential work where a
 separate worktree/branch per task is overhead rather than isolation - concurrent tasks on the same
 trunk will still collide on the clean-working-tree check, same as two callers would collide
 creating the same worktree. Because the task's own `.tasks/<id>.yaml` lives in the same working
@@ -501,11 +504,11 @@ validation error if unmet, never a silent no-op) and an effect.
 | `implement <id>` | `specification.state == done`, `implementation.state != done` | `implementation.state: done`. (The diff lives in the worktree; this just marks an attempt exists.) |
 | `verify <id> --check <name>=<ok\|error> ... [--output <text>]` | `implementation.state == done`, task not `blocked`/`failed` | The caller (or an agent it dispatched) ran the build checks itself (`--check vet=ok --check lint=error --check test=ok`, one per check actually run) and reports each outcome; overall pass/fail is `ok` for every `--check` given, not a separate flag - a caller can't report `passed` while also reporting a failing check. Appends to `verifications[]` (§3). Failed → recorded; expected to be followed by a fix and another `verify` call. The `blocked`/`failed` guard matches `review record`'s - a `blocked` task's two-round cap doesn't get quietly worked around by continuing the build-fix loop. |
 | `review record <id> --approved <bool> [--finding <file>=<text> ...]` | `implementation.state == done`, task not `blocked`/`failed` | Reports the automated review's verdict. Appends to `reviews[]`, one `{file, detail}` entry per `--finding` given - `detail` is the full text of what was found, not a compressed summary. Approved → `verification.state: done`, `review.state: pending`. Rejected on attempt 1 → attempt becomes 2, stay in `verification`. Rejected on attempt 2 → `task.State: blocked` (`blocked.stage: verification`). |
-| `commit <id> [--commit <hash>]` | `verification.state == done` | The caller already ran `git commit` itself (a new commit, never an amend) in the worktree. taskman doesn't trust caller-reported text for this - it reads the commit directly from the worktree via `git log` (`HEAD`, or the commit given by `--commit <hash>`), extracting the real `hash` and full `message`, and parsing a leading conventional-commit `type:` prefix out of the message for `git.commit.type` when present. Writes/overwrites `git.commit: {type, message, hash}`, and ensures `review.state: pending` (a no-op the first time - already `pending` - but this is what actually ends a review-reject-recovery cycle the second-or-later time, flipping it back from `in_progress`). Called once right after the automated review first approves, and again each time a review-reject-recovery cycle clears, each a distinct new commit on the branch (§ "When the commit happens"). `verification.state` stays `done` throughout recovery, so the same precondition covers every call. |
+| `commit <id> [--commit <hash>]` | `verification.state == done` | The caller already ran `git commit` itself (a new commit, never an amend) in the worktree. taskman doesn't trust caller-reported text for this - it reads the commit directly from the worktree via `git log` (`HEAD`, or the commit given by `--commit <hash>`), extracting the real `hash` and full `message`, and parsing a leading conventional-commit `type:` prefix out of the message for `git.commit.type` when present. Writes/overwrites `git.commit: {type, message, hash}`. If `auto_approve`, sets `review.state: done` directly (no `human_reviews[]` entry) and, if also `git.trunk`, completes the task right there (`task.CompleteTrunkMerge`); otherwise ensures `review.state: pending` (a no-op the first time - already `pending` - but this is what actually ends a review-reject-recovery cycle the second-or-later time, flipping it back from `in_progress`). Called once right after the automated review first approves, and again each time a review-reject-recovery cycle clears, each a distinct new commit on the branch (§ "When the commit happens"). `verification.state` stays `done` throughout recovery, so the same precondition covers every call. |
 | `escalate <id> --stage <stage> --reason <text>` | task not already terminal | `task.State: blocked`, `blocked: {stage, reason, at: now}`. `stage` is one of `definition`/`specification`/`implementation`/`verification`/`review`/`merge` - whichever stage was in flight when the agent gave up. |
-| `review approve <id> [--comment <text>]` | `review.state == pending` | `review.state: done`; appends `{approved: true, comment, at}` to `human_reviews[]` - `comment` is whatever the human typed, empty if they didn't bother (an approval doesn't need a comment; a human who wants to leave a quick note like `LGTM` can). |
+| `review approve <id> [--comment <text>]` | `review.state == pending` | `review.state: done`; appends `{approved: true, comment, at}` to `human_reviews[]` - `comment` is whatever the human typed, empty if they didn't bother (an approval doesn't need a comment; a human who wants to leave a quick note like `LGTM` can). If `git.trunk`, also completes the task right there (`task.CompleteTrunkMerge`) - the same as `commit` does for an auto-approved trunk task. |
 | `review reject <id> --reason <text>` | `review.state == pending` | Appends `{approved: false, comment: reason, at}` to `human_reviews[]` and starts review-reject recovery (below); `review.state: in_progress` for its duration. |
-| `merge <id> [--commit <hash>]` | `review.state == done` | The caller already ran `git merge` itself; records `merge.state: done`, `task.State: completed`. `--commit`, if given, overwrites `git.commit.hash` with the final merged commit (only differs from what `commit` recorded for a non-fast-forward merge). |
+| `merge <id> [--commit <hash>]` | `review.state == done` | The caller already ran `git merge` itself; records `merge.state: done`, `task.State: completed`. `--commit`, if given, overwrites `git.commit.hash` with the final merged commit (only differs from what `commit` recorded for a non-fast-forward merge). Never reached for a `git.trunk` task - `task.CompleteTrunkMerge` already completed it the moment review did. |
 | `abandon <id> --reason <text>` | task not already `completed` | `task.State: failed`, reason recorded. Terminal. |
 | `delete <id>` | task exists | Removes the task file outright (§3 - no soft-delete). No restriction on `task.State`/`status`: git history covers "undo," so there's nothing this precondition would protect against. A human housekeeping action, not something loop or any automated caller should invoke (§7). |
 | `next <id>` | - | Read-only; see below. |
@@ -578,15 +581,17 @@ approve`, `review reject --reason ...`, `abandon --reason ...` (the release valv
 human is never stuck rejecting forever just to avoid giving up).
 
 **`--auto-approve`**: `create --auto-approve` records `auto_approve: true` on the task,
-opting it out of this gate entirely - for solo, low-stakes work where a second human pass adds
-nothing. `next` reads it the same place it reads `git.trunk`: once the commit exists, it
-tells the caller to run `review approve` itself (`action: run`, not `wait`) instead of
-stopping for a human. Nothing else changes - `review reject` is still a real command a human
-can call to override an auto-approved task mid-flight (dropping it into the same review-reject
-recovery cycle as any other rejection), and `review approve`'s own guard (`review.state` must
-be `pending`) doesn't care who called it. The flag is a policy decision made once, at creation,
-because `next` has to make the same wait-or-run call every time it's asked, from just the
-task file on disk - the same reason `--trunk` is stored on `git`, not re-derived per call.
+opting it out of this gate entirely - for solo, low-stakes work where a second, human pass adds
+nothing beyond the automated review the task already went through inside `verification`. Rather
+than open the gate and immediately tell the caller to close it again, `commit` skips it outright
+for such a task: in the same mutation that records the commit, it sets `review.state: done`
+directly instead of `pending`, with no `human_reviews[]` entry - recording one there would claim a
+human decision that never happened. This also means there's no window in which `review reject`
+could apply to an auto-approved task; that command's own guard (`review.state` must be `pending`)
+already rules it out, since the state simply never stops there. The flag is a policy decision made
+once, at creation, because `commit` has to make the same skip-or-not call every time it's asked,
+from just the task file on disk - the same reason `--trunk` is stored on `git`, not re-derived per
+call.
 
 ### Review-reject recovery
 

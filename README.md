@@ -1,6 +1,6 @@
 # taskman
 
-Taskman let's you define tasks and guides AI agents through their lifecycle until their completion. After a task is defined, the agent would simply run `taskman next <id>` and taskman will tell the agent exactly what to do next, and keeps track of the state transitions in the task files as the task progresses.
+Taskman let's you define tasks and guides AI agents through their lifecycle until their completion. After a task is defined, the agent would simply run `taskman next <id>` and taskman will tell the agent exactly what to do next, and keeps track of the state transitions in the task files as the task progresses. Taskman has CLI and MCP interfaces.
 
 ## A task
 
@@ -83,13 +83,15 @@ outcome, and taskman refuses any transition that doesn't follow from the current
    [--finding file=<detail>]`). A failed check or a rejected review round loops back to
    fix and re-verify.
 5. **review** - once the automated round approves, commit the work in the worktree and
-   record it (`commit <id> [--commit <hash>]`). Then, unless the task was created
-   with `--auto-approve`, a human reviews the branch and records their decision with
-   `review approve <id> [--comment <text>]` or `review reject <id>
-   --reason <text>`. A rejection starts a recovery loop: fix, re-verify, fresh commit,
-   re-review.
+   record it (`commit <id> [--commit <hash>]`). If the task was created with
+   `--auto-approve`, review completes right there - the automated round it already went
+   through is the only review this task gets, so there's no separate approval step.
+   Otherwise a human reviews the branch and records their decision with `review approve
+   <id> [--comment <text>]` or `review reject <id> --reason <text>`. A rejection starts a
+   recovery loop: fix, re-verify, fresh commit, re-review.
 6. **merge** - merge the task's branch back into the target and record it
-   (`merge <id> [--commit <hash>]`). The task is now `completed`.
+   (`merge <id> [--commit <hash>]`). The task is now `completed`. A task created with
+   `--trunk` has no real merge to do - it completes automatically the moment review does.
 
 Two commands leave the normal flow: `escalate <id> --stage <stage> --reason <text>`
 blocks a task because a dispatched agent gave up (state `blocked`), and

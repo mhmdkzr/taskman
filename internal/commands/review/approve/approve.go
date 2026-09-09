@@ -37,6 +37,7 @@ func ApproveReview(tasksDir string, req Request) (task.Task, error) {
 		t.HumanReviews = append(
 			t.HumanReviews, task.HumanReview{Approved: true, Comment: req.Comment, At: task.Now()},
 		)
+		task.CompleteTrunkMerge(t)
 		return nil
 	})
 	if err != nil {

@@ -93,17 +93,6 @@ func TestCurrentStage(t *testing.T) {
 			Verification:   task.StageStatus{State: task.StageDone, CompletedAt: &verifiedAt},
 			Review:         task.StageStatus{State: task.StagePending},
 		}, Git: task.Git{Commit: &task.GitCommit{Hash: "abc", At: verifiedAt.Add(time.Minute)}}}, "awaiting human review"},
-		{"awaiting review approval for auto-approve task", task.Task{
-			State:       task.StateStarted,
-			AutoApprove: true,
-			Status: task.Status{
-				Specification:  task.StageStatus{State: task.StageDone},
-				Implementation: task.StageStatus{State: task.StageDone},
-				Verification:   task.StageStatus{State: task.StageDone, CompletedAt: &verifiedAt},
-				Review:         task.StageStatus{State: task.StagePending},
-			},
-			Git: task.Git{Commit: &task.GitCommit{Hash: "abc", At: verifiedAt.Add(time.Minute)}},
-		}, "awaiting review approval (--auto-approve)"},
 	}
 	for _, c := range cases {
 		if got := CurrentStage(c.t); got != c.want {

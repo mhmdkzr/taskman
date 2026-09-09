@@ -52,6 +52,37 @@ func TestApproveReview(t *testing.T) {
 	}
 }
 
+func TestApproveReviewTrunkCompletesTask(t *testing.T) {
+	dir := t.TempDir()
+	tk := task.Task{
+		ID:         "abc",
+		State:      task.StateStarted,
+		Definition: "def",
+		Status: task.Status{
+			Definition:     task.StageStatus{State: task.StageDone},
+			Specification:  task.StageStatus{State: task.StageDone},
+			Implementation: task.StageStatus{State: task.StageDone},
+			Verification:   task.StageStatus{State: task.StageDone},
+			Review:         task.StageStatus{State: task.StagePending},
+		},
+		Git: task.Git{Worktree: dir, Branch: "main", Trunk: true},
+	}
+	if err := task.WriteTaskFile(dir, tk); err != nil {
+		t.Fatalf("write task file: %v", err)
+	}
+
+	got, err := ApproveReview(dir, Request{ID: "abc"})
+	if err != nil {
+		t.Fatalf("ApproveReview: %v", err)
+	}
+	if got.Status.Merge.State != task.StageDone {
+		t.Errorf("merge.state = %v, want done - a trunk task has nothing left to merge", got.Status.Merge.State)
+	}
+	if got.State != task.StateCompleted {
+		t.Errorf("state = %v, want completed", got.State)
+	}
+}
+
 func TestApproveReviewTwice(t *testing.T) {
 	dir := newTestTaskDir(t, "abc")
 	if _, err := ApproveReview(dir, Request{ID: "abc", Comment: "LGTM"}); err != nil {

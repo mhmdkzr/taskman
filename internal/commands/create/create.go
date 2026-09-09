@@ -22,7 +22,7 @@ type Request struct {
 	Specification string            `json:"specification,omitempty" jsonschema:"skip straight to implementation by providing the specification up front (requires done_when)"`
 	DoneWhen      string            `json:"done_when,omitempty"     jsonschema:"acceptance criteria - required together with specification"`
 	Trunk         bool              `json:"trunk,omitempty"         jsonschema:"work this task on the current branch instead of creating a worktree and branch"`
-	AutoApprove   bool              `json:"auto_approve,omitempty"  jsonschema:"skip the human review gate - next lets the caller approve its own review"`
+	AutoApprove   bool              `json:"auto_approve,omitempty"  jsonschema:"skip the human review gate - review completes on its own once the commit is made"`
 }
 
 func (r Request) validate() error {

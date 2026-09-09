@@ -31,7 +31,7 @@ func Command() *cli.Command {
 			},
 			&cli.BoolFlag{
 				Name:  "auto-approve",
-				Usage: "skip the human review gate - task next lets the caller approve its own review",
+				Usage: "skip the human review gate - review completes on its own once the commit is made",
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {

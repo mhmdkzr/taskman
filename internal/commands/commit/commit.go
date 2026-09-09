@@ -52,7 +52,17 @@ func Commit(ctx context.Context, tasksDir string, git *task.GitClient, req Reque
 			return task.NotInState("verification", string(t.Status.Verification.State), "done")
 		}
 		t.Git.Commit = &commit
-		t.Status.Review.State = task.StagePending
+		if t.AutoApprove {
+			// A task created with --auto-approve has no human review gate -
+			// the automated review the caller already ran inside
+			// verification is the only review this task gets. Recording a
+			// HumanReviews entry here would misrepresent that as a human
+			// decision, so review simply completes without one.
+			t.Status.Review = task.StageStatus{State: task.StageDone, CompletedAt: new(task.Now())}
+			task.CompleteTrunkMerge(t)
+		} else {
+			t.Status.Review.State = task.StagePending
+		}
 		return nil
 	})
 	if err != nil {

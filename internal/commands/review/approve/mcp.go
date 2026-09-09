@@ -15,7 +15,7 @@ func RegisterMCP(server *mcp.Server, tasksDir string) {
 func mcpTool() *mcp.Tool {
 	return &mcp.Tool{
 		Name:        "task_review_approve",
-		Description: "Record a human's approval at the review stage. Only call this on a task's own behalf when explicitly told to (e.g. --auto-approve) - never approve a human review yourself otherwise.",
+		Description: "Record a human's approval at the review stage. Never call this yourself.",
 	}
 }
 

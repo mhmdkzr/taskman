@@ -188,11 +188,12 @@ func TestNextDraftCommitThenWaitHumanReview(t *testing.T) {
 	}
 }
 
-// TestNextAutoApprove mirrors TestNextDraftCommitThenWaitHumanReview for a
-// task created with --auto-approve (task.AutoApprove): once the commit
-// exists, task next should tell the caller to approve its own review
-// itself (action run) rather than wait for a human.
-func TestNextAutoApprove(t *testing.T) {
+// TestNextAutoApproveSkipsHumanReview covers a task created with
+// --auto-approve (task.AutoApprove): commit.Commit completes its review
+// stage directly (no HumanReviews entry - see commit.go), so by the time a
+// fresh commit is recorded, task next should already see review done and
+// move straight to the merge stage rather than waiting for a human.
+func TestNextAutoApproveSkipsHumanReview(t *testing.T) {
 	dir := t.TempDir()
 	newTestTask(t, dir, "abc")
 	if _, err := task.MutateTask(dir, "abc", func(tk *task.Task) error {
@@ -213,8 +214,12 @@ func TestNextAutoApprove(t *testing.T) {
 		t.Fatalf("next after verification passes = %+v, want dispatch commit", g)
 	}
 
+	// Simulate what commit.Commit does for an auto-approve task: the commit
+	// is recorded and review completes in the same step, with no
+	// HumanReviews entry - no human reviewed this.
 	if _, err := task.MutateTask(dir, "abc", func(tk *task.Task) error {
 		tk.Git.Commit = &task.GitCommit{Hash: "deadbeef", Message: "docs: x", Type: "docs", At: time.Now().UTC()}
+		tk.Status.Review = task.StageStatus{State: task.StageDone, CompletedAt: new(task.Now())}
 		return nil
 	}); err != nil {
 		t.Fatalf("simulate commit: %v", err)
@@ -224,14 +229,8 @@ func TestNextAutoApprove(t *testing.T) {
 	if err != nil {
 		t.Fatalf("next: %v", err)
 	}
-	if g.Action != ActionRun || g.ReportWith != "review approve abc" {
-		t.Fatalf("next after commit recorded for auto-approve task = %+v, want run review approve", g)
-	}
-	if !strings.Contains(g.Message, "deadbeef") {
-		t.Errorf("auto-approve message = %q, want it to mention the commit hash", g.Message)
-	}
-	if !strings.Contains(g.Message, "no human review is required") {
-		t.Errorf("auto-approve message = %q, want it to say no human review is required", g.Message)
+	if g.Action != ActionRun || g.ReportWith != "merge abc" {
+		t.Fatalf("next after auto-approve commit = %+v, want run merge (no human-review wait)", g)
 	}
 }
 

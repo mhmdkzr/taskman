@@ -104,6 +104,112 @@ func TestCommit(t *testing.T) {
 	}
 }
 
+func TestCommitAutoApproveSkipsHumanReview(t *testing.T) {
+	gitDir := newTestRepo(t)
+	gitClient := task.NewGit(gitDir)
+	ctx := context.Background()
+
+	worktreesDir := filepath.Join(t.TempDir(), "worktrees")
+	worktree, branch, err := gitClient.CreateWorktree(ctx, worktreesDir, "abc")
+	if err != nil {
+		t.Fatalf("create worktree: %v", err)
+	}
+
+	tasksDir := t.TempDir()
+	tk := task.Task{
+		ID:          "abc",
+		State:       task.StateStarted,
+		Definition:  "def",
+		AutoApprove: true,
+		Status: task.Status{
+			Definition:   task.StageStatus{State: task.StageDone},
+			Verification: task.StageStatus{State: task.StageDone},
+		},
+		Git: task.Git{Worktree: worktree, Branch: branch},
+	}
+	if err := task.WriteTaskFile(tasksDir, tk); err != nil {
+		t.Fatalf("write task file: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(worktree, "FIX.md"), []byte("fix\n"), 0o644); err != nil {
+		t.Fatalf("write FIX.md: %v", err)
+	}
+	commitInWorktree := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = worktree
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	commitInWorktree("add", "FIX.md")
+	commitInWorktree("commit", "-q", "-m", "feat: add fix")
+
+	got, err := Commit(ctx, tasksDir, gitClient, Request{ID: "abc"})
+	if err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+	if got.Status.Review.State != task.StageDone {
+		t.Errorf(
+			"review.state = %v, want done (auto-approve skips the pending human-review wait)",
+			got.Status.Review.State,
+		)
+	}
+	if len(got.HumanReviews) != 0 {
+		t.Errorf("human_reviews = %+v, want empty - no human reviewed this", got.HumanReviews)
+	}
+}
+
+func TestCommitAutoApproveTrunkCompletesTask(t *testing.T) {
+	gitDir := newTestRepo(t)
+	gitClient := task.NewGit(gitDir)
+	ctx := context.Background()
+
+	tasksDir := t.TempDir()
+	tk := task.Task{
+		ID:          "abc",
+		State:       task.StateStarted,
+		Definition:  "def",
+		AutoApprove: true,
+		Status: task.Status{
+			Definition:   task.StageStatus{State: task.StageDone},
+			Verification: task.StageStatus{State: task.StageDone},
+		},
+		Git: task.Git{Worktree: gitDir, Branch: "main", Trunk: true},
+	}
+	if err := task.WriteTaskFile(tasksDir, tk); err != nil {
+		t.Fatalf("write task file: %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(gitDir, "FIX.md"), []byte("fix\n"), 0o644); err != nil {
+		t.Fatalf("write FIX.md: %v", err)
+	}
+	commitInRepo := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = gitDir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	commitInRepo("add", "FIX.md")
+	commitInRepo("commit", "-q", "-m", "feat: add fix")
+
+	got, err := Commit(ctx, tasksDir, gitClient, Request{ID: "abc"})
+	if err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+	if got.Status.Review.State != task.StageDone {
+		t.Errorf("review.state = %v, want done", got.Status.Review.State)
+	}
+	if got.Status.Merge.State != task.StageDone {
+		t.Errorf("merge.state = %v, want done - a trunk task has nothing left to merge", got.Status.Merge.State)
+	}
+	if got.State != task.StateCompleted {
+		t.Errorf("state = %v, want completed", got.State)
+	}
+}
+
 func TestCommitRequiresVerificationDone(t *testing.T) {
 	gitDir := newTestRepo(t)
 	gitClient := task.NewGit(gitDir)
