@@ -190,6 +190,72 @@ func TestCommandTitleAndLabel(t *testing.T) {
 	}
 }
 
+func TestCommandSetTrunk(t *testing.T) {
+	dir := newTestTaskDir(t, "abc")
+	out, err := runCmd(t, dir, "abc", "--trunk")
+	if err != nil {
+		t.Fatalf("update: %v\noutput:\n%s", err, out)
+	}
+	got, err := task.ReadTask(dir, "abc")
+	if err != nil {
+		t.Fatalf("read task: %v", err)
+	}
+	if !got.Git.Trunk {
+		t.Fatal("Git.Trunk = false, want true")
+	}
+}
+
+func TestCommandUnsetTrunk(t *testing.T) {
+	dir := newTestTaskDir(t, "abc")
+	if _, err := runCmd(t, dir, "abc", "--trunk"); err != nil {
+		t.Fatalf("set trunk: %v", err)
+	}
+	out, err := runCmd(t, dir, "abc", "--trunk=false")
+	if err != nil {
+		t.Fatalf("update: %v\noutput:\n%s", err, out)
+	}
+	got, err := task.ReadTask(dir, "abc")
+	if err != nil {
+		t.Fatalf("read task: %v", err)
+	}
+	if got.Git.Trunk {
+		t.Fatal("Git.Trunk = true, want false")
+	}
+}
+
+func TestCommandSetAutoApprove(t *testing.T) {
+	dir := newTestTaskDir(t, "abc")
+	out, err := runCmd(t, dir, "abc", "--auto-approve")
+	if err != nil {
+		t.Fatalf("update: %v\noutput:\n%s", err, out)
+	}
+	got, err := task.ReadTask(dir, "abc")
+	if err != nil {
+		t.Fatalf("read task: %v", err)
+	}
+	if !got.AutoApprove {
+		t.Fatal("AutoApprove = false, want true")
+	}
+}
+
+func TestCommandUnsetAutoApprove(t *testing.T) {
+	dir := newTestTaskDir(t, "abc")
+	if _, err := runCmd(t, dir, "abc", "--auto-approve"); err != nil {
+		t.Fatalf("set auto-approve: %v", err)
+	}
+	out, err := runCmd(t, dir, "abc", "--auto-approve=false")
+	if err != nil {
+		t.Fatalf("update: %v\noutput:\n%s", err, out)
+	}
+	got, err := task.ReadTask(dir, "abc")
+	if err != nil {
+		t.Fatalf("read task: %v", err)
+	}
+	if got.AutoApprove {
+		t.Fatal("AutoApprove = true, want false")
+	}
+}
+
 func TestCommandMissingID(t *testing.T) {
 	dir := t.TempDir()
 	_, err := runCmd(t, dir)

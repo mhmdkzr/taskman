@@ -1,6 +1,6 @@
 # taskman
 
-Taskman let's you define tasks and guides AI agents through their lifecycle until their completion. After a task is defined, the agent would simply run `taskman next <id>` and taskman will tell the agent exactly what to do next, and keeps track of the state transitions in the task files as the task progresses. Taskman has CLI and MCP interfaces.
+Taskman let's you define tasks and guides AI agents through their lifecycle until their completion. After a task is defined, the agent would simply run `taskman next <id>` and taskman will tell the agent exactly what to do next, and keeps track of the state transitions in the task files as the task progresses. Taskman has CLI and MCP interfaces. Taskman is currently in alpha phase, expect breaking changes and potential bugs.
 
 ## A task
 
@@ -112,7 +112,7 @@ file can also be removed outright with `delete <id>`, a human housekeeping actio
 | `get <id>` | show one task |
 | `next <id>` | show what should happen next for this task |
 | `create` | create a task and its worktree/branch (`--trunk` to work it in place) |
-| `update <id>` | patch a task's title, labels, or references |
+| `update <id>` | patch a task's title, labels, references, trunk, or auto-approve setting |
 | `specify <id>` | record the drafted specification and acceptance criteria |
 | `implement <id>` | mark the implementation attempt as done |
 | `verify <id>` | report one build-check attempt |

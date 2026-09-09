@@ -208,6 +208,75 @@ func TestUpdateClearReferences(t *testing.T) {
 	}
 }
 
+func TestUpdateSetTrunk(t *testing.T) {
+	dir := newTestTaskDir(t, "abc")
+	trunk := true
+	req := Request{ID: "abc", Trunk: &trunk}
+	got, err := Update(dir, req)
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if !got.Git.Trunk {
+		t.Fatal("Git.Trunk = false, want true")
+	}
+}
+
+func TestUpdateUnsetTrunk(t *testing.T) {
+	dir := t.TempDir()
+	tk := task.Task{
+		ID:         "abc",
+		State:      task.StateStarted,
+		Title:      "original title",
+		Definition: "def",
+		Git:        task.Git{Trunk: true},
+	}
+	if err := task.WriteTaskFile(dir, tk); err != nil {
+		t.Fatalf("write task file: %v", err)
+	}
+	trunk := false
+	got, err := Update(dir, Request{ID: "abc", Trunk: &trunk})
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if got.Git.Trunk {
+		t.Fatal("Git.Trunk = true, want false")
+	}
+}
+
+func TestUpdateSetAutoApprove(t *testing.T) {
+	dir := newTestTaskDir(t, "abc")
+	autoApprove := true
+	got, err := Update(dir, Request{ID: "abc", AutoApprove: &autoApprove})
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if !got.AutoApprove {
+		t.Fatal("AutoApprove = false, want true")
+	}
+}
+
+func TestUpdateUnsetAutoApprove(t *testing.T) {
+	dir := t.TempDir()
+	tk := task.Task{
+		ID:          "abc",
+		State:       task.StateStarted,
+		Title:       "original title",
+		Definition:  "def",
+		AutoApprove: true,
+	}
+	if err := task.WriteTaskFile(dir, tk); err != nil {
+		t.Fatalf("write task file: %v", err)
+	}
+	autoApprove := false
+	got, err := Update(dir, Request{ID: "abc", AutoApprove: &autoApprove})
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if got.AutoApprove {
+		t.Fatal("AutoApprove = true, want false")
+	}
+}
+
 func TestUpdateNoChange(t *testing.T) {
 	dir := newTestTaskDir(t, "abc")
 	req := Request{ID: "abc"}

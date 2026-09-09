@@ -42,7 +42,7 @@ A caller that only ever calls `next`, does what `message` says, and reports with
 | `next <id>` | Ask what to do next (see core loop). |
 | `get <id>` | Read one task. Prefer relying on `next`'s own message instead - it already carries the definition, specification, done_when and references you need for the current step, so `get` is usually not necessary mid-flow. |
 | `list [--state <state> ...] [--label k=v ...] [--limit <n>] [--offset <n>]` | List/filter tasks, paginated (`--limit` defaults to 50 to avoid dumping a huge tasks-dir; `0` means unlimited). `--json` returns `{tasks, total, limit, offset}` - use `total` to know whether more pages remain, and `--offset` to page through them. Never parse the YAML by hand for decisions. |
-| `update <id> [--title ...] [--label k=v ...] [--unset-label k ...] [--reference <ref> ...] [--clear-references]` | Patch metadata only - safe on tasks in any state. |
+| `update <id> [--title ...] [--label k=v ...] [--unset-label k ...] [--reference <ref> ...] [--clear-references] [--trunk[=false]] [--auto-approve[=false]]` | Patch metadata only - safe on tasks in any state. `--trunk`/`--auto-approve` set the same flags `create` does; pass `=false` to unset either one. |
 | `specify <id> --result <text> --done-when <text>` | Record a drafted specification and acceptance criteria. |
 | `implement <id>` | Record that an implementation attempt exists (a diff in the worktree). |
 | `verify <id> --check <name>=<ok\|error> ... [--output <text>]` | Report one build-check attempt. One `--check` per check actually run (e.g. `--check vet=ok --check test=ok`); the attempt passes only if every check is `ok`. |

@@ -19,6 +19,8 @@ type Request struct {
 	UnsetLabels     []string          `json:"unset_labels,omitempty"     jsonschema:"label keys to remove"`
 	References      []string          `json:"references,omitempty"       jsonschema:"replace the reference list"`
 	ClearReferences bool              `json:"clear_references,omitempty" jsonschema:"remove every reference"`
+	Trunk           *bool             `json:"trunk,omitempty"            jsonschema:"set or unset whether the task works on the current branch instead of an isolated worktree/branch"`
+	AutoApprove     *bool             `json:"auto_approve,omitempty"     jsonschema:"set or unset whether the task's review stage completes on its own without a human gate"`
 }
 
 func (r Request) validate() error {
@@ -28,10 +30,10 @@ func (r Request) validate() error {
 	return nil
 }
 
-// Update patches a task's metadata (title, labels, references). It never
-// touches specification/done_when (own command: specify) or git/status
-// (taskman-managed). No precondition on State/Status - metadata isn't
-// workflow state. design.md §6.
+// Update patches a task's metadata (title, labels, references, trunk,
+// auto-approve). It never touches specification/done_when (own command:
+// specify) or the rest of git/status (taskman-managed). No precondition on
+// State/Status - metadata isn't workflow state. design.md §6.
 func Update(tasksDir string, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("update task: %w", err)
@@ -56,6 +58,12 @@ func Update(tasksDir string, req Request) (task.Task, error) {
 			t.References = nil
 		} else if len(req.References) > 0 {
 			t.References = req.References
+		}
+		if req.Trunk != nil {
+			t.Git.Trunk = *req.Trunk
+		}
+		if req.AutoApprove != nil {
+			t.AutoApprove = *req.AutoApprove
 		}
 		return nil
 	})

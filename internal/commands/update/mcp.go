@@ -15,7 +15,7 @@ func RegisterMCP(server *mcp.Server, tasksDir string) {
 func mcpTool() *mcp.Tool {
 	return &mcp.Tool{
 		Name:        "task_update",
-		Description: "Patch a task's title, labels, or references. Only fields given are changed.",
+		Description: "Patch a task's title, labels, references, trunk, or auto-approve setting. Only fields given are changed.",
 	}
 }
 
