@@ -15,7 +15,6 @@ import (
 	"github.com/mhmdkzr/taskman/internal/commands/implement"
 	"github.com/mhmdkzr/taskman/internal/commands/list"
 	"github.com/mhmdkzr/taskman/internal/commands/merge"
-	"github.com/mhmdkzr/taskman/internal/commands/migrate"
 	"github.com/mhmdkzr/taskman/internal/commands/next"
 	"github.com/mhmdkzr/taskman/internal/commands/prune"
 	"github.com/mhmdkzr/taskman/internal/commands/review/approve"
@@ -54,6 +53,5 @@ func NewServer(tasksDir, worktreesDir string, gitClient *git.Client) *mcp.Server
 	next.RegisterMCP(server, tasksDir)
 	delete.RegisterMCP(server, tasksDir)
 	prune.RegisterMCP(server, tasksDir)
-	migrate.RegisterMCP(server, tasksDir)
 	return server
 }

@@ -127,7 +127,6 @@ test that did not run.
 | `review approved <id> [--comment <text>]` | Record a human approval after the human explicitly supplies it. |
 | `review rejected <id> --reason <text>` | Record a human rejection after the human explicitly supplies it. |
 | `abandoned <id> --reason <text>` | Permanently abandon a task; a human-authorized decision. |
-| `migrate [--dry-run]` | Convert legacy task files; run the dry run first. |
 | `delete <id>` | Delete one task file. Human-authorized housekeeping, not part of the driver loop. |
 | `prune [--dry-run]` | Delete all completed task files. Preview first; not part of the driver loop. |
 

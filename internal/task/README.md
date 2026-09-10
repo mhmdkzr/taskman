@@ -19,5 +19,4 @@ second real workflow should exist before common workflow machinery is
 extracted.
 
 Persistence lives in `internal/taskstore`, Git execution in
-`internal/gitclient`, ID generation in `internal/taskid`, and legacy schema
-conversion in `internal/migration/taskv1`.
+`internal/gitclient`, and ID generation in `internal/taskid`.
