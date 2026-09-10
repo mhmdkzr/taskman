@@ -15,6 +15,7 @@ var workflow = mustBuild(definition{
 	},
 	states: map[State]stateDefinition{
 		StateSpecify:                    specifyStateDefinition,
+		StateSpecificationReview:        specificationReviewStateDefinition,
 		StateImplement:                  implementStateDefinition,
 		StateVerify:                     verifyStateDefinition,
 		StateFixVerificationFailure:     fixVerificationFailureStateDefinition,
@@ -37,8 +38,25 @@ var specifyStateDefinition = stateDefinition{
 	},
 	on: map[EventKind]transition{
 		EventSpecificationSubmitted: {
-			to:     StateImplement,
+			to:     StateSpecificationReview,
 			reduce: recordSpecification,
+		},
+	},
+}
+
+var specificationReviewStateDefinition = stateDefinition{
+	instruction: Instruction{
+		Kind:   InstructionSpecificationReview,
+		Action: InstructionWait,
+	},
+	on: map[EventKind]transition{
+		EventSpecificationApproved: {
+			to:     StateImplement,
+			reduce: recordSpecificationApproval,
+		},
+		EventSpecificationRejected: {
+			to:     StateSpecify,
+			reduce: recordSpecificationRejection,
 		},
 	},
 }

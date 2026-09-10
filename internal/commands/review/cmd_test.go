@@ -3,7 +3,7 @@ package review
 import "testing"
 
 func TestCommandListsEveryReviewSubcommand(t *testing.T) {
-	want := []string{"recorded", "approved", "rejected"}
+	want := []string{"approved", "rejected"}
 	cmd := Command()
 	if cmd.Name != "review" {
 		t.Fatalf("Name = %q, want review", cmd.Name)

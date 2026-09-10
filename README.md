@@ -68,7 +68,7 @@ Run `taskman skill` to print Taskman's agent operating instructions.
 The main path is:
 
 ```text
-specify → implement → verify → automated_review → commit → human_review → merge → completed
+specify → specification_review → implement → verify → automated_review → commit → human_review → merge → completed
 ```
 
 Each task has one authoritative workflow state.
@@ -84,6 +84,16 @@ If a task has no specification, `next` asks an agent to write one. Record it wit
 ```bash
 taskman specified <id> --result "..." --done-when "..."
 ```
+
+The task then waits for a human decision before implementation begins:
+
+```bash
+taskman specification approved <id> --comment "Looks good"
+taskman specification rejected <id> --reason "Clarify the error behavior"
+```
+
+Tasks created with both `--specification` and `--done-when` enter `implement`
+directly; those creation-time fields are treated as already approved.
 
 After implementation, report that the change is ready for checks:
 
@@ -117,9 +127,9 @@ automated_review again, using another sub-agent
 Report the verdict with:
 
 ```bash
-taskman review recorded <id> --approved true
+taskman reviewed <id> --approved true
 
-taskman review recorded <id> \
+taskman reviewed <id> \
   --approved false \
   --finding internal/http/limiter.go="Limiter is shared across clients"
 ```

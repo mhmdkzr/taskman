@@ -8,6 +8,7 @@ type State string
 
 const (
 	StateSpecify                    State = "specify"
+	StateSpecificationReview        State = "specification_review"
 	StateImplement                  State = "implement"
 	StateVerify                     State = "verify"
 	StateFixVerificationFailure     State = "fix_verification_failure"
@@ -27,21 +28,22 @@ func (s State) Terminal() bool { return s == StateCompleted || s == StateAbandon
 
 // Task is one unit of work, serialized as .tasks/<id>.yaml.
 type Task struct {
-	ID            string            `json:"id"                       yaml:"id"`
-	State         State             `json:"state"                    yaml:"state"`
-	Title         string            `json:"title"                    yaml:"title"`
-	Labels        map[string]string `json:"labels,omitempty"         yaml:"labels,omitempty"`
-	Definition    string            `json:"definition"               yaml:"definition"`
-	Specification string            `json:"specification,omitempty"  yaml:"specification,omitempty"`
-	DoneWhen      string            `json:"done_when,omitempty"      yaml:"done_when,omitempty"`
-	References    []string          `json:"references,omitempty"     yaml:"references,omitempty"`
-	Git           Git               `json:"git"                      yaml:"git"`
-	Verifications []Verification    `json:"verifications,omitempty"  yaml:"verifications,omitempty"`
-	Reviews       []Review          `json:"reviews,omitempty"        yaml:"reviews,omitempty"`
-	HumanReviews  []HumanReview     `json:"human_reviews,omitempty"  yaml:"human_reviews,omitempty"`
-	Blocked       *Blocked          `json:"blocked,omitempty"        yaml:"blocked,omitempty"`
-	FailureReason string            `json:"failure_reason,omitempty" yaml:"failure_reason,omitempty"`
-	AutoApprove   bool              `json:"auto_approve,omitempty"   yaml:"auto_approve,omitempty"`
+	ID                   string                `json:"id"                              yaml:"id"`
+	State                State                 `json:"state"                           yaml:"state"`
+	Title                string                `json:"title"                           yaml:"title"`
+	Labels               map[string]string     `json:"labels,omitempty"                yaml:"labels,omitempty"`
+	Definition           string                `json:"definition"                      yaml:"definition"`
+	Specification        string                `json:"specification,omitempty"         yaml:"specification,omitempty"`
+	DoneWhen             string                `json:"done_when,omitempty"             yaml:"done_when,omitempty"`
+	References           []string              `json:"references,omitempty"            yaml:"references,omitempty"`
+	Git                  Git                   `json:"git"                             yaml:"git"`
+	Verifications        []Verification        `json:"verifications,omitempty"         yaml:"verifications,omitempty"`
+	Reviews              []Review              `json:"reviews,omitempty"               yaml:"reviews,omitempty"`
+	SpecificationReviews []SpecificationReview `json:"specification_reviews,omitempty" yaml:"specification_reviews,omitempty"`
+	HumanReviews         []HumanReview         `json:"human_reviews,omitempty"         yaml:"human_reviews,omitempty"`
+	Blocked              *Blocked              `json:"blocked,omitempty"               yaml:"blocked,omitempty"`
+	FailureReason        string                `json:"failure_reason,omitempty"        yaml:"failure_reason,omitempty"`
+	AutoApprove          bool                  `json:"auto_approve,omitempty"          yaml:"auto_approve,omitempty"`
 }
 
 // Git holds the task's worktree/branch and its recorded commit, if any.
@@ -101,6 +103,13 @@ type Finding struct {
 
 // HumanReview is one human decision at the human-review state.
 type HumanReview struct {
+	Approved bool      `json:"approved"          yaml:"approved"`
+	Comment  string    `json:"comment,omitempty" yaml:"comment,omitempty"`
+	At       time.Time `json:"at"                yaml:"at"`
+}
+
+// SpecificationReview is one human decision on a drafted specification.
+type SpecificationReview struct {
 	Approved bool      `json:"approved"          yaml:"approved"`
 	Comment  string    `json:"comment,omitempty" yaml:"comment,omitempty"`
 	At       time.Time `json:"at"                yaml:"at"`

@@ -26,7 +26,7 @@ func runCmd(t *testing.T, tasksDir string, args ...string) (string, error) {
 			&cli.StringFlag{Name: "tasks-dir", Value: tasksDir},
 			&cli.BoolFlag{Name: "json"},
 		},
-		Commands: []*cli.Command{Command()},
+		Commands: []*cli.Command{SpecifiedCommand()},
 	}
 	root.Writer = &buf
 	root.ErrWriter = &buf
@@ -49,8 +49,8 @@ func TestCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read task: %v", err)
 	}
-	if got.State != task.StateImplement {
-		t.Fatalf("state = %v, want implement", got.State)
+	if got.State != task.StateSpecificationReview {
+		t.Fatalf("state = %v, want specification_review", got.State)
 	}
 	if got.Specification != "spec" {
 		t.Fatalf("specification = %q, want spec", got.Specification)

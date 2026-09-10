@@ -59,6 +59,8 @@ func Next(tasksDir string, req Request) (Guidance, error) {
 	switch instruction.Kind {
 	case task.InstructionSpecify:
 		guidance = guideSpecify(t)
+	case task.InstructionSpecificationReview:
+		guidance = guideWaitSpecificationReview(t)
 	case task.InstructionImplement:
 		guidance = guideImplement(t)
 	case task.InstructionVerify:
@@ -101,7 +103,7 @@ func verifyReport(id string) (string, string) {
 }
 
 func reviewRecordReport(id string) (string, string) {
-	short := "review recorded " + id
+	short := "reviewed " + id
 	return short, short + " --approved <bool> [--finding <file>=<text> ...]"
 }
 
@@ -111,9 +113,20 @@ func commitReport(id string) (string, string) {
 }
 
 func guideSpecify(t task.Task) Guidance {
-	body := specify.Prompt{Definition: t.Definition, References: t.References}.Render()
+	feedback := ""
+	if review := lastSpecificationReview(t); review != nil && !review.Approved {
+		feedback = review.Comment
+	}
+	body := specify.Prompt{Definition: t.Definition, References: t.References, Feedback: feedback}.Render()
 	short, full := specifyReport(t.ID)
 	return dispatch(t, body, short, full)
+}
+
+func guideWaitSpecificationReview(t task.Task) Guidance {
+	message := waitSpecificationReview{
+		TaskID: t.ID, Title: t.Title, Specification: t.Specification, DoneWhen: t.DoneWhen,
+	}.Render()
+	return Guidance{TaskID: t.ID, Action: ActionWait, Message: message}
 }
 
 func guideImplement(t task.Task) Guidance {
@@ -285,6 +298,13 @@ func lastHumanReview(t task.Task) *task.HumanReview {
 		return nil
 	}
 	return &t.HumanReviews[len(t.HumanReviews)-1]
+}
+
+func lastSpecificationReview(t task.Task) *task.SpecificationReview {
+	if len(t.SpecificationReviews) == 0 {
+		return nil
+	}
+	return &t.SpecificationReviews[len(t.SpecificationReviews)-1]
 }
 
 func formatTime(value time.Time) string {

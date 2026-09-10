@@ -143,6 +143,8 @@ func CurrentStage(t task.Task) string {
 	switch t.State {
 	case task.StateSpecify:
 		return "awaiting specification"
+	case task.StateSpecificationReview:
+		return "awaiting specification approval"
 	case task.StateImplement:
 		return "awaiting implementation"
 	case task.StateVerify:

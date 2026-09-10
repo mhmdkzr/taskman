@@ -105,9 +105,10 @@ func TestCLIFullLifecycle(t *testing.T) {
 	id := onlyTaskID(t, dir)
 
 	runTaskman(t, dir, "specified", id, "--result", "Update the README", "--done-when", "README reflects reality")
+	runTaskman(t, dir, "specification", "approved", id, "--comment", "Approved")
 	runTaskman(t, dir, "implemented", id)
 	runTaskman(t, dir, "verified", id, "--check", "vet=ok")
-	runTaskman(t, dir, "review", "recorded", id, "--approved=true")
+	runTaskman(t, dir, "reviewed", id, "--approved=true")
 
 	worktree := filepath.Join(dir, ".worktrees", id)
 	gitCommit(t, worktree, "docs: update readme")
@@ -161,9 +162,10 @@ func TestCLIFullLifecycleTrunk(t *testing.T) {
 	}
 
 	runTaskman(t, dir, "specified", id, "--result", "Update the README", "--done-when", "README reflects reality")
+	runTaskman(t, dir, "specification", "approved", id, "--comment", "Approved")
 	runTaskman(t, dir, "implemented", id)
 	runTaskman(t, dir, "verified", id, "--check", "vet=ok")
-	runTaskman(t, dir, "review", "recorded", id, "--approved=true")
+	runTaskman(t, dir, "reviewed", id, "--approved=true")
 
 	gitCommit(t, dir, "docs: update readme")
 

@@ -8,7 +8,13 @@ import (
 )
 
 func workflowTask(state State) Task {
-	return Task{ID: "abc", State: state, Definition: "definition", Specification: "spec", DoneWhen: "done"}
+	return Task{
+		ID:            "abc",
+		State:         state,
+		Definition:    "definition",
+		Specification: "spec",
+		DoneWhen:      "done",
+	}
 }
 
 func TestApplyTransitions(t *testing.T) {
@@ -24,10 +30,37 @@ func TestApplyTransitions(t *testing.T) {
 		event Event
 		want  State
 	}{
-		{"specification", workflowTask(StateSpecify), SpecificationSubmitted{"spec", "done"}, StateImplement},
+		{
+			"specification",
+			workflowTask(StateSpecify),
+			SpecificationSubmitted{"spec", "done"},
+			StateSpecificationReview,
+		},
+		{
+			"specification approved",
+			workflowTask(StateSpecificationReview),
+			SpecificationApproved{At: now},
+			StateImplement,
+		},
+		{
+			"specification rejected",
+			workflowTask(StateSpecificationReview),
+			SpecificationRejected{Reason: "narrow scope", At: now},
+			StateSpecify,
+		},
 		{"implementation", workflowTask(StateImplement), ImplementationCompleted{}, StateVerify},
-		{"verification passes", workflowTask(StateVerify), VerificationReported{passing}, StateAutomatedReview},
-		{"verification fails", workflowTask(StateVerify), VerificationReported{failing}, StateFixVerificationFailure},
+		{
+			"verification passes",
+			workflowTask(StateVerify),
+			VerificationReported{passing},
+			StateAutomatedReview,
+		},
+		{
+			"verification fails",
+			workflowTask(StateVerify),
+			VerificationReported{failing},
+			StateFixVerificationFailure,
+		},
 		{
 			"verification fix passes",
 			workflowTask(StateFixVerificationFailure),
@@ -70,7 +103,12 @@ func TestApplyTransitions(t *testing.T) {
 			AutomatedReviewRecorded{At: now},
 			StateBlocked,
 		},
-		{"commit awaits human", workflowTask(StateCommit), CommitRecorded{commit}, StateHumanReview},
+		{
+			"commit awaits human",
+			workflowTask(StateCommit),
+			CommitRecorded{commit},
+			StateHumanReview,
+		},
 		{
 			"auto commit merges",
 			func() Task { v := workflowTask(StateCommit); v.AutoApprove = true; return v }(),
@@ -83,7 +121,12 @@ func TestApplyTransitions(t *testing.T) {
 			CommitRecorded{commit},
 			StateCompleted,
 		},
-		{"human approves", workflowTask(StateHumanReview), HumanReviewApproved{At: now}, StateMerge},
+		{
+			"human approves",
+			workflowTask(StateHumanReview),
+			HumanReviewApproved{At: now},
+			StateMerge,
+		},
 		{
 			"human approves trunk",
 			func() Task { v := workflowTask(StateHumanReview); v.Git.Trunk = true; return v }(),
@@ -96,7 +139,12 @@ func TestApplyTransitions(t *testing.T) {
 			HumanReviewRejected{Reason: "fix", At: now},
 			StateFixHumanReviewFindings,
 		},
-		{"human fix passes", workflowTask(StateFixHumanReviewFindings), VerificationReported{passing}, StateCommit},
+		{
+			"human fix passes",
+			workflowTask(StateFixHumanReviewFindings),
+			VerificationReported{passing},
+			StateCommit,
+		},
 		{
 			"human fix fails",
 			workflowTask(StateFixHumanReviewFindings),
@@ -135,7 +183,9 @@ func TestApplyDoesNotMutateInput(t *testing.T) {
 
 	_, err := Apply(
 		original,
-		VerificationReported{Verification: Verification{Checks: map[string]CheckResult{"new": CheckOK}}},
+		VerificationReported{
+			Verification: Verification{Checks: map[string]CheckResult{"new": CheckOK}},
+		},
 	)
 	if err != nil {
 		t.Fatalf("Apply: %v", err)
@@ -157,6 +207,7 @@ func TestWorkflowAcceptsOnlyDeclaredStateEvents(t *testing.T) {
 	t.Parallel()
 	expected := map[State][]EventKind{
 		StateSpecify:                    {EventSpecificationSubmitted},
+		StateSpecificationReview:        {EventSpecificationApproved, EventSpecificationRejected},
 		StateImplement:                  {EventImplementationCompleted},
 		StateVerify:                     {EventVerificationReported},
 		StateFixVerificationFailure:     {EventVerificationReported},
@@ -171,7 +222,8 @@ func TestWorkflowAcceptsOnlyDeclaredStateEvents(t *testing.T) {
 		StateAbandoned:                  nil,
 	}
 	localEvents := []EventKind{
-		EventSpecificationSubmitted, EventImplementationCompleted, EventVerificationReported,
+		EventSpecificationSubmitted, EventSpecificationApproved, EventSpecificationRejected,
+		EventImplementationCompleted, EventVerificationReported,
 		EventAutomatedReviewRecorded, EventCommitRecorded, EventHumanReviewApproved,
 		EventHumanReviewRejected, EventMergeCompleted,
 	}
@@ -184,7 +236,13 @@ func TestWorkflowAcceptsOnlyDeclaredStateEvents(t *testing.T) {
 			}
 			err := Accepts(workflowTask(state), event)
 			if (err == nil) != wantAccepted {
-				t.Errorf("Accepts(%s, %s) error = %v, want accepted=%t", state, event, err, wantAccepted)
+				t.Errorf(
+					"Accepts(%s, %s) error = %v, want accepted=%t",
+					state,
+					event,
+					err,
+					wantAccepted,
+				)
 			}
 		}
 	}
@@ -193,7 +251,11 @@ func TestWorkflowAcceptsOnlyDeclaredStateEvents(t *testing.T) {
 func TestValidateRejectsInvalidBlockedResumeState(t *testing.T) {
 	t.Parallel()
 	value := workflowTask(StateBlocked)
-	value.Blocked = &Blocked{ResumeState: StateCompleted, Stage: StageImplementation, Reason: "stopped"}
+	value.Blocked = &Blocked{
+		ResumeState: StateCompleted,
+		Stage:       StageImplementation,
+		Reason:      "stopped",
+	}
 	if err := Validate(value); err == nil {
 		t.Fatal("Validate: want invalid resume state error, got nil")
 	}
@@ -202,10 +264,11 @@ func TestValidateRejectsInvalidBlockedResumeState(t *testing.T) {
 func TestNextUsesStateDefinition(t *testing.T) {
 	t.Parallel()
 	tests := map[State]Instruction{
-		StateSpecify:     {InstructionSpecify, InstructionDispatch},
-		StateVerify:      {InstructionVerify, InstructionRun},
-		StateHumanReview: {InstructionHumanReview, InstructionWait},
-		StateCompleted:   {InstructionCompleted, InstructionDone},
+		StateSpecify:             {InstructionSpecify, InstructionDispatch},
+		StateSpecificationReview: {InstructionSpecificationReview, InstructionWait},
+		StateVerify:              {InstructionVerify, InstructionRun},
+		StateHumanReview:         {InstructionHumanReview, InstructionWait},
+		StateCompleted:           {InstructionCompleted, InstructionDone},
 	}
 	for state, want := range tests {
 		got, err := Next(workflowTask(state))

@@ -1,4 +1,4 @@
-// Package record owns the "review recorded" command: its domain logic and
+// Package record owns the "reviewed" command: its domain logic and
 // CLI wiring.
 package record
 
@@ -10,7 +10,7 @@ import (
 	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
-// Request is review recorded's input - one automated review round's verdict.
+// Request is reviewed's input - one automated review round's verdict.
 // Shared verbatim by the CLI (cmd.go builds it from flags) and MCP (mcp.go
 // uses it as the tool's input type directly) frontends; the json/jsonschema
 // tags describe it to MCP clients.

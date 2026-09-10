@@ -23,16 +23,17 @@ func render(t *template.Template, data any) string {
 }
 
 var (
-	fixTmpl             = parse("fix.md")
-	reviewTmpl          = parse("review.md")
-	commitTmpl          = parse("commit.md")
-	dispatchWrapperTmpl = parse("dispatch_wrapper.md")
-	runVerifyTmpl       = parse("run_verify.md")
-	runMergeTmpl        = parse("run_merge.md")
-	waitHumanReviewTmpl = parse("wait_human_review.md")
-	waitBlockedTmpl     = parse("wait_blocked.md")
-	doneMergedTmpl      = parse("done_merged.md")
-	doneAbandonedTmpl   = parse("done_abandoned.md")
+	fixTmpl                     = parse("fix.md")
+	reviewTmpl                  = parse("review.md")
+	commitTmpl                  = parse("commit.md")
+	dispatchWrapperTmpl         = parse("dispatch_wrapper.md")
+	runVerifyTmpl               = parse("run_verify.md")
+	runMergeTmpl                = parse("run_merge.md")
+	waitHumanReviewTmpl         = parse("wait_human_review.md")
+	waitSpecificationReviewTmpl = parse("wait_specification_review.md")
+	waitBlockedTmpl             = parse("wait_blocked.md")
+	doneMergedTmpl              = parse("done_merged.md")
+	doneAbandonedTmpl           = parse("done_abandoned.md")
 )
 
 // fixPrompt addresses a reported problem - a failed build check, a rejected
@@ -108,6 +109,17 @@ type waitHumanReview struct {
 }
 
 func (p waitHumanReview) Render() string { return render(waitHumanReviewTmpl, p) }
+
+// waitSpecificationReview briefs the caller that a specification needs a
+// human decision before implementation can start.
+type waitSpecificationReview struct {
+	TaskID        string
+	Title         string
+	Specification string
+	DoneWhen      string
+}
+
+func (p waitSpecificationReview) Render() string { return render(waitSpecificationReviewTmpl, p) }
 
 // waitBlocked briefs the caller that a task is blocked and needs a human.
 type waitBlocked struct {

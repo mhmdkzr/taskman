@@ -22,6 +22,7 @@ func (t Task) Clone() Task {
 		}
 	}
 	out.HumanReviews = append([]HumanReview(nil), t.HumanReviews...)
+	out.SpecificationReviews = append([]SpecificationReview(nil), t.SpecificationReviews...)
 	if t.Git.Commit != nil {
 		out.Git.Commit = new(*t.Git.Commit)
 	}

@@ -6,3 +6,7 @@ Draft a specification and acceptance criteria (`done_when`) for this task.
 ## References
 {{ range .References }}- {{ . }}
 {{ end }}
+
+{{ if .Feedback }}## Previous review feedback
+{{ .Feedback }}
+{{ end }}

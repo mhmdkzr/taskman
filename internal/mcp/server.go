@@ -21,6 +21,8 @@ import (
 	"github.com/mhmdkzr/taskman/internal/commands/review/record"
 	"github.com/mhmdkzr/taskman/internal/commands/review/reject"
 	"github.com/mhmdkzr/taskman/internal/commands/specify"
+	specificationapprove "github.com/mhmdkzr/taskman/internal/commands/specify/approve"
+	specificationreject "github.com/mhmdkzr/taskman/internal/commands/specify/reject"
 	"github.com/mhmdkzr/taskman/internal/commands/update"
 	"github.com/mhmdkzr/taskman/internal/commands/verify"
 	"github.com/mhmdkzr/taskman/internal/git"
@@ -41,6 +43,8 @@ func NewServer(tasksDir, worktreesDir string, gitClient *git.Client) *mcp.Server
 	create.RegisterMCP(server, tasksDir, worktreesDir, gitClient)
 	update.RegisterMCP(server, tasksDir)
 	specify.RegisterMCP(server, tasksDir)
+	specificationapprove.RegisterMCP(server, tasksDir)
+	specificationreject.RegisterMCP(server, tasksDir)
 	implement.RegisterMCP(server, tasksDir)
 	verify.RegisterMCP(server, tasksDir)
 	record.RegisterMCP(server, tasksDir)

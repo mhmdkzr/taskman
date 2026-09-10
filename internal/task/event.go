@@ -7,6 +7,8 @@ type EventKind string
 
 const (
 	EventSpecificationSubmitted  EventKind = "specification_submitted"
+	EventSpecificationApproved   EventKind = "specification_approved"
+	EventSpecificationRejected   EventKind = "specification_rejected"
 	EventImplementationCompleted EventKind = "implementation_completed"
 	EventVerificationReported    EventKind = "verification_reported"
 	EventAutomatedReviewRecorded EventKind = "automated_review_recorded"
@@ -24,6 +26,20 @@ type Event interface{ eventKind() EventKind }
 type SpecificationSubmitted struct{ Specification, DoneWhen string }
 
 func (SpecificationSubmitted) eventKind() EventKind { return EventSpecificationSubmitted }
+
+type SpecificationApproved struct {
+	Comment string
+	At      time.Time
+}
+
+func (SpecificationApproved) eventKind() EventKind { return EventSpecificationApproved }
+
+type SpecificationRejected struct {
+	Reason string
+	At     time.Time
+}
+
+func (SpecificationRejected) eventKind() EventKind { return EventSpecificationRejected }
 
 type ImplementationCompleted struct{}
 

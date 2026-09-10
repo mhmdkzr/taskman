@@ -44,8 +44,8 @@ func TestSpecify(t *testing.T) {
 	if got.DoneWhen != req.DoneWhen {
 		t.Fatalf("done_when = %q, want %q", got.DoneWhen, req.DoneWhen)
 	}
-	if got.State != task.StateImplement {
-		t.Fatalf("state = %v, want implement", got.State)
+	if got.State != task.StateSpecificationReview {
+		t.Fatalf("state = %v, want specification_review", got.State)
 	}
 }
 

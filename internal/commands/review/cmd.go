@@ -1,5 +1,5 @@
-// Package review wires up `taskman review <command>` - the review stage's
-// automated (recorded) and human (approved/rejected) commands.
+// Package review wires up the human review gate and the automated `reviewed`
+// reporting command.
 package review
 
 import (
@@ -14,11 +14,14 @@ import (
 func Command() *cli.Command {
 	return &cli.Command{
 		Name:  "review",
-		Usage: "the review stage: automated (recorded) and human (approved/rejected)",
+		Usage: "the human review gate",
 		Commands: []*cli.Command{
-			record.Command(),
 			approve.Command(),
 			reject.Command(),
 		},
 	}
 }
+
+// ReviewedCommand returns the "reviewed" command that records an automated
+// review round's verdict.
+func ReviewedCommand() *cli.Command { return record.Command() }

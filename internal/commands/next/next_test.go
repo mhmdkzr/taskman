@@ -35,6 +35,7 @@ func TestNextRendersWorkflowInstructions(t *testing.T) {
 		contains   string
 	}{
 		{"specify", nextTask(task.StateSpecify), ActionDispatch, "specified abc", "definition"},
+		{"specification review", nextTask(task.StateSpecificationReview), ActionWait, "", "awaiting human approval"},
 		{"implement", nextTask(task.StateImplement), ActionDispatch, "implemented abc", "specification"},
 		{"verify", nextTask(task.StateVerify), ActionRun, "verified abc", "Run the build checks"},
 		{"fix failed verification", func() task.Task {
@@ -55,7 +56,7 @@ func TestNextRendersWorkflowInstructions(t *testing.T) {
 			"automated review",
 			nextTask(task.StateAutomatedReview),
 			ActionDispatch,
-			"review recorded abc",
+			"reviewed abc",
 			"Review the diff",
 		},
 		{"commit", nextTask(task.StateCommit), ActionDispatch, "committed abc", "Draft a commit message"},
@@ -108,5 +109,19 @@ func TestNextRendersWorkflowInstructions(t *testing.T) {
 func TestNextMissingTask(t *testing.T) {
 	if _, err := Next(t.TempDir(), Request{ID: "missing"}); err == nil {
 		t.Fatal("missing task: want error")
+	}
+}
+
+func TestNextSpecificationPromptIncludesRejectionFeedback(t *testing.T) {
+	value := nextTask(task.StateSpecify)
+	value.SpecificationReviews = []task.SpecificationReview{{Approved: false, Comment: "Define the failure behavior"}}
+	dir := writeNextTask(t, value)
+
+	got, err := Next(dir, Request{ID: value.ID})
+	if err != nil {
+		t.Fatalf("Next: %v", err)
+	}
+	if !strings.Contains(got.Message, "Define the failure behavior") {
+		t.Fatalf("message does not include rejection feedback:\n%s", got.Message)
 	}
 }

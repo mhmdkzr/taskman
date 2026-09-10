@@ -13,6 +13,7 @@ type InstructionKind string
 
 const (
 	InstructionSpecify                    InstructionKind = "specify"
+	InstructionSpecificationReview        InstructionKind = "specification_review"
 	InstructionImplement                  InstructionKind = "implement"
 	InstructionVerify                     InstructionKind = "verify"
 	InstructionFixVerificationFailure     InstructionKind = "fix_verification_failure"

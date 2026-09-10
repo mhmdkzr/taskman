@@ -37,7 +37,7 @@ func TestWriteReadAndUpdate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Update: %v", err)
 	}
-	if updated.State != task.StateImplement {
+	if updated.State != task.StateSpecificationReview {
 		t.Fatalf("state = %q", updated.State)
 	}
 }

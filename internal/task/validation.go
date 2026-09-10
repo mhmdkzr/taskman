@@ -14,7 +14,8 @@ func validateDefinition(candidate definition) error {
 		return fmt.Errorf("workflow initial state %q is not defined", candidate.initial)
 	}
 	for stateName, state := range candidate.states {
-		if !validInstructionKind(state.instruction.Kind) || !validInstructionAction(state.instruction.Action) {
+		if !validInstructionKind(state.instruction.Kind) ||
+			!validInstructionAction(state.instruction.Action) {
 			return fmt.Errorf("workflow state %q has an invalid instruction", stateName)
 		}
 		if state.terminal && len(state.on) != 0 {
@@ -36,11 +37,20 @@ func validateDefinition(candidate definition) error {
 
 func validInstructionKind(kind InstructionKind) bool {
 	switch kind {
-	case InstructionSpecify, InstructionImplement, InstructionVerify, InstructionFixVerificationFailure,
+	case InstructionSpecify,
+		InstructionSpecificationReview,
+		InstructionImplement,
+		InstructionVerify,
+		InstructionFixVerificationFailure,
 		InstructionFixAutomatedReviewFindings,
-		InstructionAutomatedReview, InstructionCommit, InstructionHumanReview,
-		InstructionFixHumanReviewFindings, InstructionMerge, InstructionBlocked,
-		InstructionCompleted, InstructionAbandoned:
+		InstructionAutomatedReview,
+		InstructionCommit,
+		InstructionHumanReview,
+		InstructionFixHumanReviewFindings,
+		InstructionMerge,
+		InstructionBlocked,
+		InstructionCompleted,
+		InstructionAbandoned:
 		return true
 	default:
 		return false
@@ -56,7 +66,12 @@ func validInstructionAction(action InstructionAction) bool {
 	}
 }
 
-func validateTransition(candidate definition, from State, event EventKind, transition transition) error {
+func validateTransition(
+	candidate definition,
+	from State,
+	event EventKind,
+	transition transition,
+) error {
 	if transition.to != "" && len(transition.routes) != 0 {
 		return fmt.Errorf("workflow transition %s/%s has both to and routes", from, event)
 	}
@@ -65,16 +80,30 @@ func validateTransition(candidate definition, from State, event EventKind, trans
 	}
 	if transition.to != "" {
 		if _, ok := candidate.states[transition.to]; !ok {
-			return fmt.Errorf("workflow transition %s/%s has unknown destination %q", from, event, transition.to)
+			return fmt.Errorf(
+				"workflow transition %s/%s has unknown destination %q",
+				from,
+				event,
+				transition.to,
+			)
 		}
 		return nil
 	}
 	for i, route := range transition.routes {
 		if _, ok := candidate.states[route.to]; !ok {
-			return fmt.Errorf("workflow transition %s/%s has unknown route destination %q", from, event, route.to)
+			return fmt.Errorf(
+				"workflow transition %s/%s has unknown route destination %q",
+				from,
+				event,
+				route.to,
+			)
 		}
 		if route.when == nil && i != len(transition.routes)-1 {
-			return fmt.Errorf("workflow transition %s/%s has a non-final default route", from, event)
+			return fmt.Errorf(
+				"workflow transition %s/%s has a non-final default route",
+				from,
+				event,
+			)
 		}
 	}
 	if transition.routes[len(transition.routes)-1].when != nil {

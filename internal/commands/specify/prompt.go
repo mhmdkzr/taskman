@@ -16,6 +16,7 @@ var promptTmpl = template.Must(template.New("prompt.md").ParseFS(promptFile, "pr
 type Prompt struct {
 	Definition string
 	References []string
+	Feedback   string
 }
 
 // Render renders the prompt template with p's fields.

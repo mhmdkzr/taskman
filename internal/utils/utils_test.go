@@ -46,6 +46,7 @@ func TestCurrentStage(t *testing.T) {
 		want  string
 	}{
 		{"specify", task.StateSpecify, "awaiting specification"},
+		{"specification review", task.StateSpecificationReview, "awaiting specification approval"},
 		{"implement", task.StateImplement, "awaiting implementation"},
 		{"verify", task.StateVerify, "awaiting verification"},
 		{"commit", task.StateCommit, "awaiting commit"},

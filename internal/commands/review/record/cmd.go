@@ -9,10 +9,10 @@ import (
 	"github.com/mhmdkzr/taskman/internal/utils"
 )
 
-// Command returns the "recorded" command.
+// Command returns the "reviewed" command.
 func Command() *cli.Command {
 	return &cli.Command{
-		Name:      "recorded",
+		Name:      "reviewed",
 		Usage:     "report the automated review round's verdict",
 		ArgsUsage: "<id>",
 		Flags: []cli.Flag{

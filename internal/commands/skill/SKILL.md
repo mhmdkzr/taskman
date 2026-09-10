@@ -61,7 +61,7 @@ command, but never choose that decision yourself.
 
 The workflow is:
 
-`specify -> implement -> verify -> automated review -> commit -> human review -> merge`
+`specify -> specification review -> implement -> verify -> automated review -> commit -> human review -> merge`
 
 Taskman may insert a fix state after failed verification or rejected review.
 
@@ -73,7 +73,10 @@ Taskman may insert a fix state after failed verification or rejected review.
   with `committed`. On human rejection, fix and verify again, create another new commit, and report it;
   do not amend. Human-rejection recovery does not repeat automated review.
 - Human review is a hard gate unless the task has `auto_approve`. Invoke `review approved` or
-  `review rejected` only after a human explicitly supplies that decision.
+	`review rejected` only after a human explicitly supplies that decision.
+- Specification review is a hard gate for an agent-drafted specification. Invoke
+	`specification approved` or `specification rejected` only after a human explicitly supplies that
+	decision. A task created with both specification fields has already passed this gate.
 - A trunk task completes when review completes because it needs no merge. A non-trunk task proceeds
   to merge after review.
 - `escalated` blocks a non-blocked task and records where and why work stopped. It is for a
@@ -105,9 +108,11 @@ returned `report_with` may require.
 | Command | Meaning |
 |---|---|
 | `specified <id> --result <text> --done-when <text>` | Record the drafted specification and acceptance criteria. |
+| `specification approved <id> [--comment <text>]` | Record human approval of a drafted specification. |
+| `specification rejected <id> --reason <text>` | Record human rejection of a drafted specification for revision. |
 | `implemented <id>` | Record that an implementation attempt is ready for verification. |
 | `verified <id> --check <name>=<ok\|error> ... [--output <text>]` | Record one verification attempt. Include every check actually run; all must be `ok` to pass. |
-| `review recorded <id> --approved <bool> [--finding <file>=<detail> ...]` | Record an independent automated review. Preserve full finding details. |
+| `reviewed <id> --approved <bool> [--finding <file>=<detail> ...]` | Record an independent automated review. Preserve full finding details. |
 | `committed <id> [--commit <commit-ish>]` | Read and record a commit that already exists. |
 | `escalated <id> --stage <stage> --reason <text>` | Block the task after dispatched work gives up. Valid stages: definition, specification, implementation, verification, review, merge. |
 | `merged <id> [--commit <hash>]` | Record a merge already performed; use the override for the resulting merge hash when needed. |
@@ -120,7 +125,7 @@ test that did not run.
 
 | Command | Purpose |
 |---|---|
-| `create --definition <text> [--title <text>] [--id <id>] [--label k=v ...] [--reference <ref> ...] [--specification <text> --done-when <text>] [--trunk] [--auto-approve]` | Create a task. Specification and done-when must be supplied together and skip the specify state. |
+| `create --definition <text> [--title <text>] [--id <id>] [--label k=v ...] [--reference <ref> ...] [--specification <text> --done-when <text>] [--trunk] [--auto-approve]` | Create a task. Specification and done-when must be supplied together and skip specification drafting and review. |
 | `get <id>` | Read one task through the supported interface. |
 | `list [--state <state> ...] [--label k=v ...] [--limit <n>] [--offset <n>]` | List and filter tasks. The default limit is 50; `0` is unlimited. JSON output contains `tasks`, `total`, `limit`, and `offset`. |
 | `update <id> [--title <text>] [--label k=v ...] [--unset-label <key> ...] [--reference <ref> ...] [--clear-references] [--trunk[=false]] [--auto-approve[=false]]` | Patch metadata in any state. References replace the list. See the invariant above before changing trunk mode. |

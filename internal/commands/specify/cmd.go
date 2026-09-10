@@ -6,11 +6,26 @@ import (
 
 	"github.com/urfave/cli/v3"
 
+	"github.com/mhmdkzr/taskman/internal/commands/specify/approve"
+	"github.com/mhmdkzr/taskman/internal/commands/specify/reject"
 	"github.com/mhmdkzr/taskman/internal/utils"
 )
 
-// Command returns the "specified" command.
+// Command builds the "specification" command tree for human decisions.
 func Command() *cli.Command {
+	return &cli.Command{
+		Name:  "specification",
+		Usage: "the specification approval stage",
+		Commands: []*cli.Command{
+			specificationapprove.Command(),
+			specificationreject.Command(),
+		},
+	}
+}
+
+// SpecifiedCommand returns the "specified" command that records an agent's
+// drafted specification and acceptance criteria.
+func SpecifiedCommand() *cli.Command {
 	return &cli.Command{
 		Name:      "specified",
 		Usage:     "write a task's specification and acceptance criteria",

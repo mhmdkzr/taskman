@@ -94,6 +94,28 @@ func recordSpecification(t *Task, event Event) error {
 	return nil
 }
 
+func recordSpecificationApproval(t *Task, event Event) error {
+	reported, ok := event.(SpecificationApproved)
+	if !ok {
+		return ErrInvalidEventPayload
+	}
+	t.SpecificationReviews = append(t.SpecificationReviews, SpecificationReview{
+		Approved: true, Comment: reported.Comment, At: reported.At,
+	})
+	return nil
+}
+
+func recordSpecificationRejection(t *Task, event Event) error {
+	reported, ok := event.(SpecificationRejected)
+	if !ok || reported.Reason == "" {
+		return ErrInvalidEventPayload
+	}
+	t.SpecificationReviews = append(t.SpecificationReviews, SpecificationReview{
+		Approved: false, Comment: reported.Reason, At: reported.At,
+	})
+	return nil
+}
+
 func recordVerification(t *Task, event Event) error {
 	reported, ok := event.(VerificationReported)
 	if !ok || len(reported.Verification.Checks) == 0 {
