@@ -1,118 +1,142 @@
 ---
 name: taskman
-description: Drive taskman task lifecycles - create, next, verify, review record/approve/reject, commit, merge, escalate, .tasks/*.yaml files. Use when creating or working a taskman task, when a taskman response (dispatch/run/wait/done, report_with) tells you to report back, or when developing or debugging taskman itself.
+description: Drive and diagnose Taskman-managed task lifecycles through the taskman CLI or task_* MCP tools. Use when creating, advancing, inspecting, or reporting work on a Taskman task, especially when task_next returns dispatch, run, wait, done, or report_with guidance.
 ---
 
-# taskman
+# Taskman
 
-taskman is a file-backed, one-shot CLI task server: it holds tasks as `.tasks/*.yaml` files and
-validates and records the state transitions you report to it. It executes almost nothing itself -
-no builds, no commits, no merges. You (or a sub-agent you dispatch) do the work, then tell taskman
-what happened.
+Taskman is a one-shot workflow recorder backed by `.tasks/*.yaml`. It validates reported state
+transitions; it does not perform the implementation, verification, code commit, or branch merge.
+It does create a task's Git worktree/branch and automatically commits the task file when the task
+becomes terminal.
 
-## Invocation
+Use the `taskman` executable on `PATH`, or the equivalent `task_*` MCP tools when they are
+available. CLI global flags such as a custom `--tasks-dir` are bound into the MCP server at startup
+rather than passed to each MCP call.
 
-`taskman` should be on your PATH.
+## Use the driver loop
 
-Global flags (apply to every command): `--git-dir` (default `.`), `--tasks-dir` (default
-`.tasks`), `--worktrees-dir` (default `.worktrees`), `--json` (full JSON envelope instead of a
-human-readable summary), `--log-level`, `--log-format`.
+Start or resume every task with `taskman next <id>` (MCP: `task_next`). Follow the returned
+`action` and `message`, report the result using `report_with`, then call `next` again:
 
-## The core loop
+- `dispatch`: judgment work is required. Perform or delegate exactly the work in `message`, in the
+  named worktree and branch, then report the outcome.
+- `run`: perform the mechanical operation described in `message`, then report the outcome.
+- `wait`: stop. A human decision or intervention is required.
+- `done`: stop. The task is completed or abandoned.
 
-For any task id, `taskman next <id>` tells you what to do. Branch on its `action` field:
+`report_with` omits the executable name. At the CLI, prefix it with `taskman`; with MCP, call the
+corresponding `task_*` tool. Treat the message as current task context: it already includes the
+definition, specification, acceptance criteria, references, worktree, branch, and prior failure
+details needed for that step.
 
-- **`dispatch`** - judgment work is needed. Do the work described in `message`, working in the
-  worktree and branch the message names. When done, report back with the command given in
-  `report_with`.
-- **`run`** - a mechanical step (build checks, or the merge). Run it yourself as `message`
-  describes, then report with `report_with`.
-- **`wait`** - a human gate (review pending, or task blocked). Stop; do nothing further. Never
-  approve, reject, or merge on a human's behalf.
-- **`done`** - the task is completed or abandoned. Drop it.
+Taskman guidance says what transition is valid; it does not grant additional authority. Continue
+to honor the surrounding environment's approval rules for creating Git state, committing, merging,
+abandoning, deleting, or pruning. A human may explicitly direct you to invoke a human-decision
+command, but never choose that decision yourself.
 
-A caller that only ever calls `next`, does what `message` says, and reports with
-`report_with` is, by construction, driving the state machine correctly.
+## Preserve these invariants
 
-## Command reference
+- Never read or edit `.tasks/*.yaml` directly, even for inspection. Use `next`, `get`, `list`,
+  `update`, and the reporting commands. The persisted schema is private to Taskman.
+- Work only in the `git.worktree` on the `git.branch` reported by Taskman. Do not infer the path
+  from the task id. A normal task uses an isolated worktree; a task created with `--trunk` uses the
+  repository checkout and current branch.
+- Do not treat `update --trunk` as a checkout migration. It changes the task's workflow mode flag
+  but does not move the recorded worktree or branch. Change it only when the existing Git location
+  is already appropriate.
+- Do not create or update a task with `auto_approve` unless the human explicitly requested removal
+  of the human review gate. It is a workflow policy choice, not an agent convenience.
+- Report facts only after they are true. `implement` means an implementation attempt exists;
+  `verify` describes checks actually run; `commit` reads an existing commit; `merge` records an
+  already completed merge.
+- When Taskman dispatches automated review, use a separate reviewer—not the implementer or fix
+  agent—with clean context containing the specification, acceptance criteria, and diff or commit.
+  Do not supply the implementer's reasoning. If an independent reviewer is unavailable, stop and
+  request help rather than self-approving. Approve only when every acceptance criterion is met and
+  there are no actionable correctness, regression, test, or documentation findings. On rejection,
+  record each finding with its exact file and full detail rather than a summary.
+
+## Lifecycle details
+
+The workflow is:
+
+`specify -> implement -> verify -> automated review -> commit -> human review -> merge`
+
+Taskman may insert a fix state after failed verification or rejected review.
+
+- Verification failures have no numeric retry limit. Fix and report another real verification
+  attempt, or use `escalate` if the dispatched worker gives up.
+- Automated review allows at most two rejected rounds. A rejection routes through fix and
+  verification; the second rejection blocks the task automatically.
+- After automated approval, create a new conventional commit in the task worktree and report it
+  with `commit`. On human rejection, fix and verify again, create another new commit, and report it;
+  do not amend. Human-rejection recovery does not repeat automated review.
+- Human review is a hard gate unless the task has `auto_approve`. Invoke `review approve` or
+  `review reject` only after a human explicitly supplies that decision.
+- A trunk task completes when review completes because it needs no merge. A non-trunk task proceeds
+  to merge after review.
+- `escalate` blocks a non-blocked task and records where and why work stopped. It is for a
+  dispatched worker giving up, not for an ordinary failed check that can be retried.
+
+## Git safety
+
+Before creating a task, the repository must be clean. The `create` command creates an isolated
+worktree and branch unless `--trunk` is supplied.
+
+When Taskman asks for a code commit:
+
+1. Run `git status` in the reported worktree.
+2. Stage only files belonging to the task with explicit `git add <path> ...` arguments.
+3. Never use `git add -A` or `git commit -a`. In trunk mode, unrelated changes and the task's own
+   changing YAML may share the checkout.
+4. Create a new conventional commit, then call `taskman commit <id>`. Taskman reads its hash and
+   message from Git; `--commit` selects a commit-ish other than `HEAD`.
+
+When a task becomes terminal, Taskman creates a separate bookkeeping commit for its own task file.
+This occurs during `merge`, `abandon`, trunk `review approve`, or `commit` for a trunk task with
+auto-approval. Account for this Git side effect before invoking those commands.
+
+## Reporting commands
+
+Use `next` rather than choosing a transition from this table; the table explains the inputs that a
+returned `report_with` may require.
+
+| Command | Meaning |
+|---|---|
+| `specify <id> --result <text> --done-when <text>` | Record the drafted specification and acceptance criteria. |
+| `implement <id>` | Record that an implementation attempt is ready for verification. |
+| `verify <id> --check <name>=<ok\|error> ... [--output <text>]` | Record one verification attempt. Include every check actually run; all must be `ok` to pass. |
+| `review record <id> --approved <bool> [--finding <file>=<detail> ...]` | Record an independent automated review. Preserve full finding details. |
+| `commit <id> [--commit <commit-ish>]` | Read and record a commit that already exists. |
+| `escalate <id> --stage <stage> --reason <text>` | Block the task after dispatched work gives up. Valid stages: definition, specification, implementation, verification, review, merge. |
+| `merge <id> [--commit <hash>]` | Record a merge already performed; use the override for the resulting merge hash when needed. |
+
+`verify` requires at least one check even for documentation-only or no-op work. Name the check for
+what was actually confirmed, such as `review=ok` for a careful read-through; do not claim a build or
+test that did not run.
+
+## Management commands
 
 | Command | Purpose |
 |---|---|
-| `create --definition <text> [--title <text>] [--id <id>] [--label k=v ...] [--reference <ref> ...] [--specification <text> --done-when <text>] [--trunk] [--auto-approve]` | Create a task. Requires a **clean working tree**. Creates the worktree `.worktrees/<id>` on branch `task/<slug>` itself - the one thing taskman executes. `.worktrees/` and `.tasks/*.lock` must both be gitignored first, or a leftover worktree or lock file from a previous task fails this precondition on the next one. With `--trunk`, skips the worktree/branch and records the repo root and current branch instead - the task is worked in place. With `--specification`/`--done-when`, the specify stage is skipped. With `--auto-approve`, `commit` completes the review stage on its own - see below. |
-| `next <id>` | Ask what to do next (see core loop). |
-| `get <id>` | Read one task. Prefer relying on `next`'s own message instead - it already carries the definition, specification, done_when and references you need for the current step, so `get` is usually not necessary mid-flow. |
-| `list [--state <state> ...] [--label k=v ...] [--limit <n>] [--offset <n>]` | List/filter tasks, paginated (`--limit` defaults to 50 to avoid dumping a huge tasks-dir; `0` means unlimited). `--json` returns `{tasks, total, limit, offset}` - use `total` to know whether more pages remain, and `--offset` to page through them. Never parse the YAML by hand for decisions. |
-| `update <id> [--title ...] [--label k=v ...] [--unset-label k ...] [--reference <ref> ...] [--clear-references] [--trunk[=false]] [--auto-approve[=false]]` | Patch metadata only - safe on tasks in any state. `--trunk`/`--auto-approve` set the same flags `create` does; pass `=false` to unset either one. |
-| `specify <id> --result <text> --done-when <text>` | Record a drafted specification and acceptance criteria. |
-| `implement <id>` | Record that an implementation attempt exists (a diff in the worktree). |
-| `verify <id> --check <name>=<ok\|error> ... [--output <text>]` | Report one build-check attempt. One `--check` per check actually run (e.g. `--check vet=ok --check test=ok`); the attempt passes only if every check is `ok`. |
-| `review record <id> --approved <bool> [--finding <file>=<text> ...]` | Report the **automated** review round's verdict. Findings carry the full detail text, not summaries. |
-| `commit <id> [--commit <hash>]` | Report a commit you already made (see committing below). |
-| `escalate <id> --stage <stage> --reason <text>` | Report that the dispatched agent gave up (called its escalate tool). Blocks the task. |
-| `review approve <id> [--comment <text>]` | **Human** approval only - never call this yourself. For a task created with `--auto-approve`, `commit` already completed review; this command has nothing left to do there. |
-| `review reject <id> --reason <text>` | **Human** rejection only - never call this yourself. |
-| `merge <id> [--commit <hash>]` | Report a merge you already made. |
-| `abandon <id> --reason <text>` | Mark the task abandoned for good. Human decision. |
-| `migrate [--dry-run]` | Convert legacy task files to the current single-state schema. Run the dry run first after upgrading. |
-| `delete <id>` | Housekeeping. Never invoke as part of driving a task. |
-| `prune [--dry-run]` | Housekeeping: delete every completed task file (`--dry-run` previews). Never invoke as part of driving a task. |
+| `create --definition <text> [--title <text>] [--id <id>] [--label k=v ...] [--reference <ref> ...] [--specification <text> --done-when <text>] [--trunk] [--auto-approve]` | Create a task. Specification and done-when must be supplied together and skip the specify stage. |
+| `get <id>` | Read one task through the supported interface. |
+| `list [--state <state> ...] [--label k=v ...] [--limit <n>] [--offset <n>]` | List and filter tasks. The default limit is 50; `0` is unlimited. JSON output contains `tasks`, `total`, `limit`, and `offset`. |
+| `update <id> [--title <text>] [--label k=v ...] [--unset-label <key> ...] [--reference <ref> ...] [--clear-references] [--trunk[=false]] [--auto-approve[=false]]` | Patch metadata in any state. References replace the list. See the invariant above before changing trunk mode. |
+| `review approve <id> [--comment <text>]` | Record a human approval after the human explicitly supplies it. |
+| `review reject <id> --reason <text>` | Record a human rejection after the human explicitly supplies it. |
+| `abandon <id> --reason <text>` | Permanently abandon a task; a human-authorized decision. |
+| `migrate [--dry-run]` | Convert legacy task files; run the dry run first. |
+| `delete <id>` | Delete one task file. Human-authorized housekeeping, not part of the driver loop. |
+| `prune [--dry-run]` | Delete all completed task files. Preview first; not part of the driver loop. |
 
-## Lifecycle and rules
+Global CLI flags are `--git-dir` (default `.`), `--tasks-dir` (default `.tasks`),
+`--worktrees-dir` (default `.worktrees`), `--json`, `--log-level`, and `--log-format`.
 
-Stages run `definition → specification → implementation → verification → review → merge`.
+## Recover from errors
 
-- **Never read or edit `.tasks/*.yaml` by hand** - not with `cat`/`read`/an editor, not even to
-  "just peek". Every read goes through `get`/`list`/`next`; every write goes through a taskman
-  command. The file format is an implementation detail and can change.
-- **Work in the worktree named by the task's `git.worktree`/`git.branch` fields** (`get <id>`
-  or any command's output names them) - `.worktrees/<id>` on branch `task/<slug>` by default, created
-  by `create` and left in place for the task's whole life; the repo root on the current branch
-  if the task was created with `--trunk`. Don't assume the default path - read it from the task.
-- **Verification loop** (two automated rounds max): run build checks → `verify`. Pass →
-  dispatch an automated reviewer with the task's `specification` and `done_when` as acceptance
-  criteria → `review record`. **The reviewer must be a separate subagent, not you and not the
-  agent that implemented or fixed the code** - spawn it (e.g. via your Task/Agent tool) with a
-  clean context containing only the `specification`, `done_when`, and the diff/commit to review,
-  never the implementer's conversation history or reasoning. Reviewing your own work in the same
-  context defeats the point of the review stage. Rejected → dispatch a fix agent with the failure
-  output or findings, then `verify` again. A second automated rejection blocks the task
-  automatically; `next` will then say `wait`.
-- **Escalation**: if the dispatched agent gives up instead of iterating, report it with
-  `escalate --stage <stage> --reason <text>`. There is no numeric retry cap on the
-  build-fix loop - escalation is the only bound.
-- **Committing**: when `next` says to draft a commit (right after automated review
-  approves), write a conventional-commit-style message (`feat:`, `fix:`, ...), run `git commit`
-  **yourself** in the worktree (new commit, never an amend), then report it with
-  `commit <id>`. taskman reads the real hash and message back via `git log` - it does not
-  trust reported text. **Stage explicitly** (`git add <files you actually touched>`), never `git
-  add -A`/`git commit -a` - every taskman command rewrites the task's own YAML in place, and in
-  `--trunk` mode that file lives in the same working tree as your change (plus, in trunk mode
-  specifically, whatever else happens to be sitting uncommitted in that shared tree), so a blanket
-  add can sweep in state you didn't mean to commit.
-- **Verifying a doc-only or no-op change**: `verify` still expects at least one `--check`.
-  There's no dedicated "no build" check name - use one that reflects what you actually confirmed
-  (e.g. `--check review=ok` for a read-through, or a real command like `--check
-  grep-stale-refs=ok` for a targeted search), not a placeholder that claims a build ran when none
-  did.
-- **Human review**: after `commit`, `next` says `wait` until a human runs
-  `review approve` or `review reject`. Exception: a task created with `--auto-approve` never
-  reaches this wait at all - `commit` completes review in the same call that records the commit,
-  since the automated round already run inside verification is the only review that task gets.
-- **Review-reject recovery**: on a human rejection, fix, re-verify, make **another new commit**,
-  and `commit` again. This cycle skips the automated reviewer - the human is now the
-  reviewer. Each cycle adds one commit; never amend.
-- **Merge**: `next` says `run` - merge the task's branch into the base branch yourself, then
-  `merge <id>`. A task created with `--trunk` never reaches this step - there's nothing to merge
-  (the branch is already the target), so it completes automatically the moment review does.
-- **Final bookkeeping commit**: the task's own `.tasks/<id>.yaml` keeps changing after the code
-  commit (through review and merge), so it can never be part of that commit. taskman commits it
-  itself, the moment the task goes terminal (`merge`, `abandon`, or an auto-approve/trunk
-  completion inside `commit`/`review approve`) - there's nothing for you to do here.
-
-## Errors and exit codes
-
-Exit 1 means a failed precondition or domain error (`task not found`, an invalid transition -
-the message states which precondition failed), or a dirty working tree on `create`. Exit 2
-means malformed input (bad label, bad `--check` value, missing id). Read the message, fix what it
-names, and retry the same command; if a transition was genuinely refused, re-check with
-`next` instead of forcing it.
+Exit code 1 is a failed precondition or domain error, such as a missing task, dirty repository, or
+invalid transition. Exit code 2 is malformed input, such as a missing id or invalid check value.
+Correct the named input and retry. If a transition is refused, call `next` again; do not force the
+state or edit YAML.
