@@ -1,4 +1,4 @@
-// Package implement owns the "implement" command: its domain logic, its
+// Package implement owns the "implemented" command: its domain logic, its
 // CLI wiring, and its dispatch prompt.
 package implement
 

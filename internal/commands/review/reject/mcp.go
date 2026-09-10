@@ -14,7 +14,7 @@ func RegisterMCP(server *mcp.Server, tasksDir string) {
 
 func mcpTool() *mcp.Tool {
 	return &mcp.Tool{
-		Name:        "task_review_reject",
+		Name:        "task_review_rejected",
 		Description: "Record a human's rejection and start review-reject recovery. Never call this on a human's behalf.",
 	}
 }

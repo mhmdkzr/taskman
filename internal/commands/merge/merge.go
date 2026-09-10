@@ -1,4 +1,4 @@
-// Package merge owns the "merge" command: its domain logic and CLI wiring.
+// Package merge owns the "merged" command: its domain logic and CLI wiring.
 package merge
 
 import (

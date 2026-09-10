@@ -91,22 +91,22 @@ func Next(tasksDir string, req Request) (Guidance, error) {
 }
 
 func specifyReport(id string) (string, string) {
-	short := "specify " + id
+	short := "specified " + id
 	return short, short + " --result <text> --done-when <text>"
 }
 
 func verifyReport(id string) (string, string) {
-	short := "verify " + id
+	short := "verified " + id
 	return short, short + " --check <name>=<ok|error> ... [--output <text>]"
 }
 
 func reviewRecordReport(id string) (string, string) {
-	short := "review record " + id
+	short := "review recorded " + id
 	return short, short + " --approved <bool> [--finding <file>=<text> ...]"
 }
 
 func commitReport(id string) (string, string) {
-	short := "commit " + id
+	short := "committed " + id
 	return short, short + " [--commit <hash>]"
 }
 
@@ -123,7 +123,7 @@ func guideImplement(t task.Task) Guidance {
 		DoneWhen:      t.DoneWhen,
 		References:    t.References,
 	}.Render()
-	short := "implement " + t.ID
+	short := "implemented " + t.ID
 	return dispatch(t, body, short, short)
 }
 
@@ -172,7 +172,7 @@ func guideWaitHumanReview(t task.Task) Guidance {
 
 func guideMerge(t task.Task) Guidance {
 	message := runMerge{TaskID: t.ID, Worktree: t.Git.Worktree, Branch: t.Git.Branch, Trunk: t.Git.Trunk}.Render()
-	return Guidance{TaskID: t.ID, Action: ActionRun, Message: message, ReportWith: "merge " + t.ID}
+	return Guidance{TaskID: t.ID, Action: ActionRun, Message: message, ReportWith: "merged " + t.ID}
 }
 
 func guideBlocked(t task.Task) Guidance {

@@ -1,4 +1,4 @@
-// Package escalate owns the "escalate" command: its domain logic and CLI
+// Package escalate owns the "escalated" command: its domain logic and CLI
 // wiring.
 package escalate
 
@@ -10,7 +10,7 @@ import (
 	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
-// Request is escalate's input. Shared verbatim by the CLI (cmd.go builds it
+// Request is escalated's input. Shared verbatim by the CLI (cmd.go builds it
 // from flags) and MCP (mcp.go uses it as the tool's input type directly)
 // frontends; the json/jsonschema tags describe it to MCP clients.
 type Request struct {

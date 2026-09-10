@@ -15,7 +15,7 @@ func RegisterMCP(server *mcp.Server, tasksDir string, gitClient *git.Client) {
 
 func mcpTool() *mcp.Tool {
 	return &mcp.Tool{
-		Name:        "task_commit",
+		Name:        "task_committed",
 		Description: "Read back a commit already made in the task's worktree.",
 	}
 }

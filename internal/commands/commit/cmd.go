@@ -9,10 +9,10 @@ import (
 	"github.com/mhmdkzr/taskman/internal/utils"
 )
 
-// Command returns the "commit" command.
+// Command returns the "committed" command.
 func Command() *cli.Command {
 	return &cli.Command{
-		Name:      "commit",
+		Name:      "committed",
 		Usage:     "read back the commit you already made",
 		ArgsUsage: "<id>",
 		Flags: []cli.Flag{

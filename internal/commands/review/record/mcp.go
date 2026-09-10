@@ -14,7 +14,7 @@ func RegisterMCP(server *mcp.Server, tasksDir string) {
 
 func mcpTool() *mcp.Tool {
 	return &mcp.Tool{
-		Name:        "task_review_record",
+		Name:        "task_review_recorded",
 		Description: "Report the automated review round's verdict.",
 	}
 }

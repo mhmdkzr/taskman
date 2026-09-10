@@ -9,10 +9,10 @@ import (
 	"github.com/mhmdkzr/taskman/internal/utils"
 )
 
-// Command returns the "merge" command.
+// Command returns the "merged" command.
 func Command() *cli.Command {
 	return &cli.Command{
-		Name:      "merge",
+		Name:      "merged",
 		Usage:     "record that you already merged the task's branch",
 		ArgsUsage: "<id>",
 		Flags: []cli.Flag{

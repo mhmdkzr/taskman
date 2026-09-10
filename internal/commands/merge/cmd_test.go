@@ -35,7 +35,7 @@ func runCmd(t *testing.T, gitDir string, args ...string) (string, error) {
 		sub.Writer = &buf
 		sub.ErrWriter = &buf
 	}
-	full := append([]string{"taskman", "merge"}, args...)
+	full := append([]string{"taskman", "merged"}, args...)
 	err := root.Run(context.Background(), full)
 	return buf.String(), err
 }

@@ -9,10 +9,10 @@ import (
 	"github.com/mhmdkzr/taskman/internal/utils"
 )
 
-// Command returns the "escalate" command.
+// Command returns the "escalated" command.
 func Command() *cli.Command {
 	return &cli.Command{
-		Name:      "escalate",
+		Name:      "escalated",
 		Usage:     "block a task because a dispatched agent gave up",
 		ArgsUsage: "<id>",
 		Flags: []cli.Flag{

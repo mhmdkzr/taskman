@@ -15,7 +15,7 @@ func RegisterMCP(server *mcp.Server, tasksDir string, gitClient *git.Client) {
 
 func mcpTool() *mcp.Tool {
 	return &mcp.Tool{
-		Name:        "task_merge",
+		Name:        "task_merged",
 		Description: "Record that a task's branch was already merged.",
 	}
 }

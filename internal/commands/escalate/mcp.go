@@ -14,7 +14,7 @@ func RegisterMCP(server *mcp.Server, tasksDir string) {
 
 func mcpTool() *mcp.Tool {
 	return &mcp.Tool{
-		Name:        "task_escalate",
+		Name:        "task_escalated",
 		Description: "Block a task because a dispatched agent gave up.",
 	}
 }

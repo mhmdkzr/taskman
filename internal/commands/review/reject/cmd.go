@@ -9,10 +9,10 @@ import (
 	"github.com/mhmdkzr/taskman/internal/utils"
 )
 
-// Command returns the "reject" command.
+// Command returns the "rejected" command.
 func Command() *cli.Command {
 	return &cli.Command{
-		Name:      "reject",
+		Name:      "rejected",
 		Usage:     "record a human's rejection and start review-reject recovery",
 		ArgsUsage: "<id>",
 		Flags: []cli.Flag{

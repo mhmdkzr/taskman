@@ -9,10 +9,10 @@ import (
 	"github.com/mhmdkzr/taskman/internal/utils"
 )
 
-// Command returns the "approve" command.
+// Command returns the "approved" command.
 func Command() *cli.Command {
 	return &cli.Command{
-		Name:      "approve",
+		Name:      "approved",
 		Usage:     "record a human's approval at the review stage",
 		ArgsUsage: "<id>",
 		Flags: []cli.Flag{

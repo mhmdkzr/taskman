@@ -33,7 +33,7 @@ func runCmd(t *testing.T, tasksDir string, args ...string) (string, error) {
 		sub.Writer = &buf
 		sub.ErrWriter = &buf
 	}
-	full := append([]string{"taskman", "verify"}, args...)
+	full := append([]string{"taskman", "verified"}, args...)
 	err := root.Run(context.Background(), full)
 	return buf.String(), err
 }

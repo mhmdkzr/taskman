@@ -1,7 +1,7 @@
 # `internal/commands/review`
 
-The review stage's three commands, one vertical slice package each: `record` (the automated
-review round's verdict), `approve` and `reject` (the human gate). `cmd.go` assembles them into
+The review stage's three commands, one vertical slice package each: `recorded` (the automated
+review round's verdict), `approved` and `rejected` (the human gate). `cmd.go` assembles them into
 the `review` command tree, mounted on the root by `internal/commands`.
 
 Each slice follows the same shape as the other commands: `cmd.go` and `mcp.go` are frontends,

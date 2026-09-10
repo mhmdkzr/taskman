@@ -104,19 +104,19 @@ func TestCLIFullLifecycle(t *testing.T) {
 
 	id := onlyTaskID(t, dir)
 
-	runTaskman(t, dir, "specify", id, "--result", "Update the README", "--done-when", "README reflects reality")
-	runTaskman(t, dir, "implement", id)
-	runTaskman(t, dir, "verify", id, "--check", "vet=ok")
-	runTaskman(t, dir, "review", "record", id, "--approved=true")
+	runTaskman(t, dir, "specified", id, "--result", "Update the README", "--done-when", "README reflects reality")
+	runTaskman(t, dir, "implemented", id)
+	runTaskman(t, dir, "verified", id, "--check", "vet=ok")
+	runTaskman(t, dir, "review", "recorded", id, "--approved=true")
 
 	worktree := filepath.Join(dir, ".worktrees", id)
 	gitCommit(t, worktree, "docs: update readme")
 
-	runTaskman(t, dir, "commit", id)
-	runTaskman(t, dir, "review", "approve", id, "--comment", "LGTM")
+	runTaskman(t, dir, "committed", id)
+	runTaskman(t, dir, "review", "approved", id, "--comment", "LGTM")
 
 	mergeInto(t, dir, getTaskJSON(t, dir, id).Git.Branch)
-	runTaskman(t, dir, "merge", id)
+	runTaskman(t, dir, "merged", id)
 
 	final := getTaskJSON(t, dir, id)
 	if final.State != task.StateCompleted {
@@ -160,17 +160,17 @@ func TestCLIFullLifecycleTrunk(t *testing.T) {
 		t.Fatalf("--worktrees-dir was created despite --trunk")
 	}
 
-	runTaskman(t, dir, "specify", id, "--result", "Update the README", "--done-when", "README reflects reality")
-	runTaskman(t, dir, "implement", id)
-	runTaskman(t, dir, "verify", id, "--check", "vet=ok")
-	runTaskman(t, dir, "review", "record", id, "--approved=true")
+	runTaskman(t, dir, "specified", id, "--result", "Update the README", "--done-when", "README reflects reality")
+	runTaskman(t, dir, "implemented", id)
+	runTaskman(t, dir, "verified", id, "--check", "vet=ok")
+	runTaskman(t, dir, "review", "recorded", id, "--approved=true")
 
 	gitCommit(t, dir, "docs: update readme")
 
-	runTaskman(t, dir, "commit", id)
-	runTaskman(t, dir, "review", "approve", id, "--comment", "LGTM")
+	runTaskman(t, dir, "committed", id)
+	runTaskman(t, dir, "review", "approved", id, "--comment", "LGTM")
 
-	// A trunk task has nothing to merge, so review approve completes it
+	// A trunk task has nothing to merge, so review approved completes it
 	// directly - no separate merge call is needed or expected.
 	final := getTaskJSON(t, dir, id)
 	if final.State != task.StateCompleted {
@@ -205,7 +205,7 @@ func TestCLIInvalidTransitionExitsNonZero(t *testing.T) {
 	runTaskman(t, dir, "create", "--definition", "x")
 	id := onlyTaskID(t, dir)
 
-	_, err := runTaskmanErr(dir, "implement", id)
+	_, err := runTaskmanErr(dir, "implemented", id)
 	if err == nil {
 		t.Fatal("implement before specify: want error, got nil")
 	}

@@ -15,7 +15,7 @@ func RegisterMCP(server *mcp.Server, tasksDir string, gitClient *git.Client) {
 
 func mcpTool() *mcp.Tool {
 	return &mcp.Tool{
-		Name:        "task_review_approve",
+		Name:        "task_review_approved",
 		Description: "Record a human's approval at the review stage. Never call this yourself.",
 	}
 }

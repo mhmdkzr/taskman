@@ -1,4 +1,4 @@
-// Package specify owns the "specify" command: its domain logic, CLI
+// Package specify owns the "specified" command: its domain logic, CLI
 // wiring, and dispatch prompt.
 package specify
 

@@ -15,7 +15,7 @@ func RegisterMCP(server *mcp.Server, tasksDir string, gitClient *git.Client) {
 
 func mcpTool() *mcp.Tool {
 	return &mcp.Tool{
-		Name:        "task_abandon",
+		Name:        "task_abandoned",
 		Description: "Mark a task abandoned for good.",
 	}
 }

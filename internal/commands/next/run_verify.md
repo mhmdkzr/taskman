@@ -5,4 +5,4 @@ afterward - anything it touched outside this task's own change is not part of th
 not be committed with it.
 
 Report each result with:
-    verify {{ .TaskID }} --check <name>=<ok|error> ... [--output <text>]
+    verified {{ .TaskID }} --check <name>=<ok|error> ... [--output <text>]

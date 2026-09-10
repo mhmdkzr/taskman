@@ -14,7 +14,7 @@ func RegisterMCP(server *mcp.Server, tasksDir string) {
 
 func mcpTool() *mcp.Tool {
 	return &mcp.Tool{
-		Name:        "task_verify",
+		Name:        "task_verified",
 		Description: "Report one build-check attempt.",
 	}
 }

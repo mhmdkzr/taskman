@@ -9,10 +9,10 @@ import (
 	"github.com/mhmdkzr/taskman/internal/utils"
 )
 
-// Command returns the "verify" command.
+// Command returns the "verified" command.
 func Command() *cli.Command {
 	return &cli.Command{
-		Name:      "verify",
+		Name:      "verified",
 		Usage:     "report one build-check attempt",
 		ArgsUsage: "<id>",
 		Flags: []cli.Flag{

@@ -1,4 +1,4 @@
-// Package reject owns the "review reject" command: its domain logic and
+// Package reject owns the "review rejected" command: its domain logic and
 // CLI wiring.
 package reject
 
@@ -10,7 +10,7 @@ import (
 	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
-// Request is review reject's input. Shared verbatim by the CLI (cmd.go
+// Request is review rejected's input. Shared verbatim by the CLI (cmd.go
 // builds it from flags) and MCP (mcp.go uses it as the tool's input type
 // directly) frontends; the json/jsonschema tags describe it to MCP clients.
 type Request struct {

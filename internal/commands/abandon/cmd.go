@@ -9,10 +9,10 @@ import (
 	"github.com/mhmdkzr/taskman/internal/utils"
 )
 
-// Command returns the "abandon" command.
+// Command returns the "abandoned" command.
 func Command() *cli.Command {
 	return &cli.Command{
-		Name:      "abandon",
+		Name:      "abandoned",
 		Usage:     "mark a task abandoned for good",
 		ArgsUsage: "<id>",
 		Flags: []cli.Flag{

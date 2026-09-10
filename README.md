@@ -73,24 +73,28 @@ specify → implement → verify → automated_review → commit → human_revie
 
 Each task has one authoritative workflow state.
 
+State names describe work in progress; the commands that report a completed workflow fact use
+past tense. For example, a task in `implement` becomes `verify` only after
+`taskman implemented <id>` records that the implementation is complete.
+
 ### Specify, implement, and verify
 
 If a task has no specification, `next` asks an agent to write one. Record it with:
 
 ```bash
-taskman specify <id> --result "..." --done-when "..."
+taskman specified <id> --result "..." --done-when "..."
 ```
 
 After implementation, report that the change is ready for checks:
 
 ```bash
-taskman implement <id>
-taskman verify <id> --check test=ok --check lint=ok
+taskman implemented <id>
+taskman verified <id> --check test=ok --check lint=ok
 ```
 
 Failed checks enter `fix_verification_failure`. The failed check names and output identify
 whether the work came from tests, lint, or another verifier. The agent fixes that failure and
-reports another `verify` result. Verification failures have no fixed retry limit.
+reports another `verified` result. Verification failures have no fixed retry limit.
 
 ### Automated review: one fix round
 
@@ -113,9 +117,9 @@ automated_review again, using another sub-agent
 Report the verdict with:
 
 ```bash
-taskman review record <id> --approved true
+taskman review recorded <id> --approved true
 
-taskman review record <id> \
+taskman review recorded <id> \
   --approved false \
   --finding internal/http/limiter.go="Limiter is shared across clients"
 ```
@@ -128,7 +132,7 @@ limit: one findings-fix round is allowed, and a second rejection blocks the task
 After automated approval, the agent creates a Git commit and reports it:
 
 ```bash
-taskman commit <id>
+taskman committed <id>
 ```
 
 Taskman reads the commit directly from Git, then waits for explicit human review:
@@ -150,15 +154,15 @@ human_review again
 The human can run the review command or explicitly tell the agent to run it:
 
 ```bash
-taskman review approve <id> --comment "Looks good"
-taskman review reject <id> --reason "Rate-limit headers are missing"
+taskman review approved <id> --comment "Looks good"
+taskman review rejected <id> --reason "Rate-limit headers are missing"
 ```
 
 Human-review fixes do not return to automated review. This loop can repeat as many times as
 needed. Once approved, the caller merges and reports completion:
 
 ```bash
-taskman merge <id>
+taskman merged <id>
 ```
 
 ## Variants
@@ -169,7 +173,7 @@ taskman merge <id>
 taskman create --trunk --definition "Fix a typo"
 ```
 
-`--auto-approve` removes human review, but automated review still runs. After `commit`, an
+`--auto-approve` removes human review, but automated review still runs. After `committed`, an
 isolated task goes to `merge`; a trunk task completes immediately.
 
 ## Blocking and abandonment
@@ -177,7 +181,7 @@ isolated task goes to `merge`; a trunk task completes immediately.
 An agent that cannot continue safely can block a task:
 
 ```bash
-taskman escalate <id> \
+taskman escalated <id> \
   --stage implementation \
   --reason "Required API behavior is ambiguous"
 ```
@@ -186,7 +190,7 @@ Taskman records the suspended state. There is currently no resume command; a blo
 or can be abandoned:
 
 ```bash
-taskman abandon <id> --reason "Feature is no longer required"
+taskman abandoned <id> --reason "Feature is no longer required"
 ```
 
 `completed` and `abandoned` are terminal states.

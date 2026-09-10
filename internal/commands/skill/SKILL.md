@@ -47,8 +47,8 @@ command, but never choose that decision yourself.
   is already appropriate.
 - Do not create or update a task with `auto_approve` unless the human explicitly requested removal
   of the human review gate. It is a workflow policy choice, not an agent convenience.
-- Report facts only after they are true. `implement` means an implementation attempt exists;
-  `verify` describes checks actually run; `commit` reads an existing commit; `merge` records an
+- Report facts only after they are true. `implemented` means an implementation attempt exists;
+  `verified` describes checks actually run; `committed` reads an existing commit; `merged` records an
   already completed merge.
 - When Taskman dispatches automated review, use a separate reviewer—not the implementer or fix
   agent—with clean context containing the specification, acceptance criteria, and diff or commit.
@@ -66,17 +66,17 @@ The workflow is:
 Taskman may insert a fix state after failed verification or rejected review.
 
 - Verification failures have no numeric retry limit. Fix and report another real verification
-  attempt, or use `escalate` if the dispatched worker gives up.
+  attempt, or use `escalated` if the dispatched worker gives up.
 - Automated review allows at most two rejected rounds. A rejection routes through fix and
   verification; the second rejection blocks the task automatically.
 - After automated approval, create a new conventional commit in the task worktree and report it
-  with `commit`. On human rejection, fix and verify again, create another new commit, and report it;
+  with `committed`. On human rejection, fix and verify again, create another new commit, and report it;
   do not amend. Human-rejection recovery does not repeat automated review.
-- Human review is a hard gate unless the task has `auto_approve`. Invoke `review approve` or
-  `review reject` only after a human explicitly supplies that decision.
+- Human review is a hard gate unless the task has `auto_approve`. Invoke `review approved` or
+  `review rejected` only after a human explicitly supplies that decision.
 - A trunk task completes when review completes because it needs no merge. A non-trunk task proceeds
   to merge after review.
-- `escalate` blocks a non-blocked task and records where and why work stopped. It is for a
+- `escalated` blocks a non-blocked task and records where and why work stopped. It is for a
   dispatched worker giving up, not for an ordinary failed check that can be retried.
 
 ## Git safety
@@ -90,11 +90,11 @@ When Taskman asks for a code commit:
 2. Stage only files belonging to the task with explicit `git add <path> ...` arguments.
 3. Never use `git add -A` or `git commit -a`. In trunk mode, unrelated changes and the task's own
    changing YAML may share the checkout.
-4. Create a new conventional commit, then call `taskman commit <id>`. Taskman reads its hash and
+4. Create a new conventional commit, then call `taskman committed <id>`. Taskman reads its hash and
    message from Git; `--commit` selects a commit-ish other than `HEAD`.
 
 When a task becomes terminal, Taskman creates a separate bookkeeping commit for its own task file.
-This occurs during `merge`, `abandon`, trunk `review approve`, or `commit` for a trunk task with
+This occurs during `merged`, `abandoned`, trunk `review approved`, or `committed` for a trunk task with
 auto-approval. Account for this Git side effect before invoking those commands.
 
 ## Reporting commands
@@ -104,15 +104,15 @@ returned `report_with` may require.
 
 | Command | Meaning |
 |---|---|
-| `specify <id> --result <text> --done-when <text>` | Record the drafted specification and acceptance criteria. |
-| `implement <id>` | Record that an implementation attempt is ready for verification. |
-| `verify <id> --check <name>=<ok\|error> ... [--output <text>]` | Record one verification attempt. Include every check actually run; all must be `ok` to pass. |
-| `review record <id> --approved <bool> [--finding <file>=<detail> ...]` | Record an independent automated review. Preserve full finding details. |
-| `commit <id> [--commit <commit-ish>]` | Read and record a commit that already exists. |
-| `escalate <id> --stage <stage> --reason <text>` | Block the task after dispatched work gives up. Valid stages: definition, specification, implementation, verification, review, merge. |
-| `merge <id> [--commit <hash>]` | Record a merge already performed; use the override for the resulting merge hash when needed. |
+| `specified <id> --result <text> --done-when <text>` | Record the drafted specification and acceptance criteria. |
+| `implemented <id>` | Record that an implementation attempt is ready for verification. |
+| `verified <id> --check <name>=<ok\|error> ... [--output <text>]` | Record one verification attempt. Include every check actually run; all must be `ok` to pass. |
+| `review recorded <id> --approved <bool> [--finding <file>=<detail> ...]` | Record an independent automated review. Preserve full finding details. |
+| `committed <id> [--commit <commit-ish>]` | Read and record a commit that already exists. |
+| `escalated <id> --stage <stage> --reason <text>` | Block the task after dispatched work gives up. Valid stages: definition, specification, implementation, verification, review, merge. |
+| `merged <id> [--commit <hash>]` | Record a merge already performed; use the override for the resulting merge hash when needed. |
 
-`verify` requires at least one check even for documentation-only or no-op work. Name the check for
+`verified` requires at least one check even for documentation-only or no-op work. Name the check for
 what was actually confirmed, such as `review=ok` for a careful read-through; do not claim a build or
 test that did not run.
 
@@ -120,13 +120,13 @@ test that did not run.
 
 | Command | Purpose |
 |---|---|
-| `create --definition <text> [--title <text>] [--id <id>] [--label k=v ...] [--reference <ref> ...] [--specification <text> --done-when <text>] [--trunk] [--auto-approve]` | Create a task. Specification and done-when must be supplied together and skip the specify stage. |
+| `create --definition <text> [--title <text>] [--id <id>] [--label k=v ...] [--reference <ref> ...] [--specification <text> --done-when <text>] [--trunk] [--auto-approve]` | Create a task. Specification and done-when must be supplied together and skip the specify state. |
 | `get <id>` | Read one task through the supported interface. |
 | `list [--state <state> ...] [--label k=v ...] [--limit <n>] [--offset <n>]` | List and filter tasks. The default limit is 50; `0` is unlimited. JSON output contains `tasks`, `total`, `limit`, and `offset`. |
 | `update <id> [--title <text>] [--label k=v ...] [--unset-label <key> ...] [--reference <ref> ...] [--clear-references] [--trunk[=false]] [--auto-approve[=false]]` | Patch metadata in any state. References replace the list. See the invariant above before changing trunk mode. |
-| `review approve <id> [--comment <text>]` | Record a human approval after the human explicitly supplies it. |
-| `review reject <id> --reason <text>` | Record a human rejection after the human explicitly supplies it. |
-| `abandon <id> --reason <text>` | Permanently abandon a task; a human-authorized decision. |
+| `review approved <id> [--comment <text>]` | Record a human approval after the human explicitly supplies it. |
+| `review rejected <id> --reason <text>` | Record a human rejection after the human explicitly supplies it. |
+| `abandoned <id> --reason <text>` | Permanently abandon a task; a human-authorized decision. |
 | `migrate [--dry-run]` | Convert legacy task files; run the dry run first. |
 | `delete <id>` | Delete one task file. Human-authorized housekeeping, not part of the driver loop. |
 | `prune [--dry-run]` | Delete all completed task files. Preview first; not part of the driver loop. |

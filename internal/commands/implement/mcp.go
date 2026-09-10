@@ -14,7 +14,7 @@ func RegisterMCP(server *mcp.Server, tasksDir string) {
 
 func mcpTool() *mcp.Tool {
 	return &mcp.Tool{
-		Name:        "task_implement",
+		Name:        "task_implemented",
 		Description: "Mark a task's implementation attempt as done.",
 	}
 }

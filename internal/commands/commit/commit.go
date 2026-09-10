@@ -1,4 +1,4 @@
-// Package commit owns the "commit" command: its domain logic and CLI wiring.
+// Package commit owns the "committed" command: its domain logic and CLI wiring.
 package commit
 
 import (

@@ -1,4 +1,4 @@
-// Package verify owns the "verify" command: its domain logic and CLI wiring.
+// Package verify owns the "verified" command: its domain logic and CLI wiring.
 package verify
 
 import (

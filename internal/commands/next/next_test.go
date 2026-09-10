@@ -34,37 +34,37 @@ func TestNextRendersWorkflowInstructions(t *testing.T) {
 		reportWith string
 		contains   string
 	}{
-		{"specify", nextTask(task.StateSpecify), ActionDispatch, "specify abc", "definition"},
-		{"implement", nextTask(task.StateImplement), ActionDispatch, "implement abc", "specification"},
-		{"verify", nextTask(task.StateVerify), ActionRun, "verify abc", "Run the build checks"},
+		{"specify", nextTask(task.StateSpecify), ActionDispatch, "specified abc", "definition"},
+		{"implement", nextTask(task.StateImplement), ActionDispatch, "implemented abc", "specification"},
+		{"verify", nextTask(task.StateVerify), ActionRun, "verified abc", "Run the build checks"},
 		{"fix failed verification", func() task.Task {
 			v := nextTask(task.StateFixVerificationFailure)
 			v.Verifications = []task.Verification{
 				{Checks: map[string]task.CheckResult{"tests": task.CheckError}, Output: "failed", CreatedAt: now},
 			}
 			return v
-		}(), ActionDispatch, "verify abc", "Verification failed (tests)"},
+		}(), ActionDispatch, "verified abc", "Verification failed (tests)"},
 		{"fix automated review findings", func() task.Task {
 			v := nextTask(task.StateFixAutomatedReviewFindings)
 			v.Reviews = []task.Review{
 				{Attempt: 1, Findings: []task.Finding{{File: "limiter.go", Detail: "shared state"}}, CreatedAt: now},
 			}
 			return v
-		}(), ActionDispatch, "verify abc", "limiter.go: shared state"},
+		}(), ActionDispatch, "verified abc", "limiter.go: shared state"},
 		{
 			"automated review",
 			nextTask(task.StateAutomatedReview),
 			ActionDispatch,
-			"review record abc",
+			"review recorded abc",
 			"Review the diff",
 		},
-		{"commit", nextTask(task.StateCommit), ActionDispatch, "commit abc", "Draft a commit message"},
+		{"commit", nextTask(task.StateCommit), ActionDispatch, "committed abc", "Draft a commit message"},
 		{"human review", func() task.Task {
 			v := nextTask(task.StateHumanReview)
 			v.Git.Commit = &task.GitCommit{Hash: "abc123", At: now}
 			return v
 		}(), ActionWait, "", "abc123"},
-		{"merge", nextTask(task.StateMerge), ActionRun, "merge abc", "Merge"},
+		{"merge", nextTask(task.StateMerge), ActionRun, "merged abc", "Merge"},
 		{"blocked", func() task.Task {
 			v := nextTask(task.StateBlocked)
 			v.Blocked = &task.Blocked{

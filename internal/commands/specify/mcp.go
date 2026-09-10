@@ -14,7 +14,7 @@ func RegisterMCP(server *mcp.Server, tasksDir string) {
 
 func mcpTool() *mcp.Tool {
 	return &mcp.Tool{
-		Name:        "task_specify",
+		Name:        "task_specified",
 		Description: "Record a task's drafted specification and acceptance criteria.",
 	}
 }

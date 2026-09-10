@@ -9,10 +9,10 @@ import (
 	"github.com/mhmdkzr/taskman/internal/utils"
 )
 
-// Command returns the "implement" command.
+// Command returns the "implemented" command.
 func Command() *cli.Command {
 	return &cli.Command{
-		Name:      "implement",
+		Name:      "implemented",
 		Usage:     "mark a task's implementation attempt as done",
 		ArgsUsage: "<id>",
 		Action: func(ctx context.Context, cmd *cli.Command) error {

@@ -9,10 +9,10 @@ import (
 	"github.com/mhmdkzr/taskman/internal/utils"
 )
 
-// Command returns the "specify" command.
+// Command returns the "specified" command.
 func Command() *cli.Command {
 	return &cli.Command{
-		Name:      "specify",
+		Name:      "specified",
 		Usage:     "write a task's specification and acceptance criteria",
 		ArgsUsage: "<id>",
 		Flags: []cli.Flag{
