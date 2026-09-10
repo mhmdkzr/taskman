@@ -1,21 +1,18 @@
-// Package next owns the "next" command: it inspects a task's current state
-// and tells the caller what to do about it.
-// It is the one command that legitimately depends on every other stage,
-// since guiding a task means knowing what every stage's own commands would
-// accept next.
+// Package next renders the pure workflow's current instruction for CLI and MCP callers.
 package next
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/mhmdkzr/taskman/internal/commands/implement"
 	"github.com/mhmdkzr/taskman/internal/commands/specify"
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
-// Action is Next's coarse signal for a caller with no way to read prose -
-// specifically loop, which has no LLM.
 type Action string
 
 const (
@@ -25,7 +22,6 @@ const (
 	ActionDone     Action = "done"
 )
 
-// Guidance is next's response.
 type Guidance struct {
 	TaskID     string `json:"task_id"`
 	Action     Action `json:"action"`
@@ -35,10 +31,6 @@ type Guidance struct {
 
 const timeLayout = "2006-01-02 15:04 MST"
 
-// Request is next's input. Shared verbatim by the CLI (cmd.go builds it
-// from the positional id argument) and MCP (mcp.go uses it as the tool's
-// input type directly) frontends; the jsonschema tag describes it to MCP
-// clients.
 type Request struct {
 	ID string `json:"id" jsonschema:"the task id to inspect"`
 }
@@ -50,60 +42,54 @@ func (r Request) validate() error {
 	return nil
 }
 
-// Next inspects req.ID's current state and returns what the caller should
-// do about it.
 func Next(tasksDir string, req Request) (Guidance, error) {
 	if err := req.validate(); err != nil {
 		return Guidance{}, fmt.Errorf("next: %w", err)
 	}
-	t, err := task.ReadTask(tasksDir, req.ID)
+	t, err := store.Read(tasksDir, req.ID)
 	if err != nil {
 		return Guidance{}, fmt.Errorf("read task: %w", err)
 	}
-
-	switch t.State { //nolint:exhaustive // created/started fall through to the per-stage switch below
-	case task.StateCompleted:
-		hash := ""
-		if t.Git.Commit != nil {
-			hash = t.Git.Commit.Hash
-		}
-		message := doneMerged{
-			TaskID: t.ID, Title: t.Title, Branch: t.Git.Branch, CommitHash: hash, Trunk: t.Git.Trunk,
-		}.Render()
-		return Guidance{TaskID: t.ID, Action: ActionDone, Message: message}, nil
-	case task.StateFailed:
-		message := doneAbandoned{TaskID: t.ID, Title: t.Title, Reason: t.FailureReason}.Render()
-		return Guidance{TaskID: t.ID, Action: ActionDone, Message: message}, nil
-	case task.StateBlocked:
-		return guideBlocked(t), nil
+	instruction, err := task.Next(t)
+	if err != nil {
+		return Guidance{}, fmt.Errorf("next: %w", err)
 	}
 
-	switch {
-	case t.Status.Specification.State != task.StageDone:
-		return guideSpecify(t), nil
-	case t.Status.Implementation.State != task.StageDone:
-		return guideImplement(t), nil
-	case t.Status.Verification.State != task.StageDone:
-		return guideVerification(t), nil
-	case t.Status.Review.State == task.StagePending:
-		if !task.HasCommitSince(t, t.Status.Verification.CompletedAt) {
-			return guideDraftCommit(t), nil
-		}
-		return guideWaitHumanReview(t), nil
-	case t.Status.Review.State == task.StageInProgress:
-		return guideReviewRejectRecovery(t)
-	case t.Status.Merge.State != task.StageDone:
-		return guideMerge(t), nil
+	var guidance Guidance
+	switch instruction.Kind {
+	case task.InstructionSpecify:
+		guidance = guideSpecify(t)
+	case task.InstructionImplement:
+		guidance = guideImplement(t)
+	case task.InstructionVerify:
+		guidance = guideRunVerify(t)
+	case task.InstructionFixVerificationFailure:
+		guidance = guideFix(t, verificationFailureReason(t))
+	case task.InstructionFixAutomatedReviewFindings:
+		guidance = guideFix(t, automatedReviewFindingsReason(t))
+	case task.InstructionAutomatedReview:
+		guidance = guideAutomatedReview(t)
+	case task.InstructionCommit:
+		guidance = guideDraftCommit(t)
+	case task.InstructionHumanReview:
+		guidance = guideWaitHumanReview(t)
+	case task.InstructionFixHumanReviewFindings:
+		guidance = guideFix(t, humanReviewFindingsReason(t))
+	case task.InstructionMerge:
+		guidance = guideMerge(t)
+	case task.InstructionBlocked:
+		guidance = guideBlocked(t)
+	case task.InstructionCompleted:
+		guidance = guideCompleted(t)
+	case task.InstructionAbandoned:
+		guidance = guideAbandoned(t)
+	default:
+		return Guidance{}, fmt.Errorf("task %s: unsupported instruction %q", t.ID, instruction.Kind)
 	}
-	// review.state == done, merge.state == done, but task.State never
-	// reached completed - shouldn't happen via the command layer, but fail
-	// safe rather than pretend there's nothing to do.
-	return Guidance{}, fmt.Errorf("task %s: no guidance for its current state", req.ID)
+	guidance.Action = Action(instruction.Action)
+	return guidance, nil
 }
 
-// Each of these pairs a short command (for Guidance.ReportWith, and for
-// loop, which can't read the fuller instructional form out of prose) with
-// the fuller form shown inside the dispatched message itself.
 func specifyReport(id string) (string, string) {
 	short := "specify " + id
 	return short, short + " --result <text> --done-when <text>"
@@ -141,102 +127,22 @@ func guideImplement(t task.Task) Guidance {
 	return dispatch(t, body, short, short)
 }
 
-// guideVerification handles every step of the build-check-fix-review loop
-// inside the verification stage. It's only ever called while
-// verification.state != done, so it never itself dispatches the commit -
-// that's the outer switch's job, the moment verification.state (and,
-// simultaneously, review.state: pending) first appear.
-func guideVerification(t task.Task) Guidance {
-	lastVerify := lastVerification(t)
-	lastReview := lastReview(t)
-	verifyShort, verifyFull := verifyReport(t.ID)
-
-	switch {
-	case lastVerify == nil:
-		// Implementation just finished; nothing has failed yet, so the
-		// first build check is mechanical, not a judgment call.
-		return guideRunVerify(t)
-	case !lastVerify.Passed():
-		body := fixPrompt{
-			Specification: t.Specification,
-			DoneWhen:      t.DoneWhen,
-			Reason:        "Build check failed:\n" + lastVerify.Output,
-		}.Render()
-		return dispatch(t, body, verifyShort, verifyFull)
-	case lastReview == nil || lastReview.CreatedAt.Before(lastVerify.CreatedAt):
-		// This verify pass hasn't been reviewed yet.
-		body := reviewPrompt{Specification: t.Specification, DoneWhen: t.DoneWhen}.Render()
-		short, full := reviewRecordReport(t.ID)
-		return dispatch(t, body, short, full)
-	default:
-		// lastReview happened after lastVerify and rejected it (if it had
-		// approved, verification.state would already be done and this
-		// function wouldn't have been called) - fix and re-check.
-		body := fixPrompt{
-			Specification: t.Specification,
-			DoneWhen:      t.DoneWhen,
-			Reason:        "Automated review rejected this attempt:\n" + task.SummarizeFindings(lastReview.Findings),
-		}.Render()
-		return dispatch(t, body, verifyShort, verifyFull)
-	}
-}
-
-// guideReviewRejectRecovery handles the human-rejection recovery cycle. It
-// never re-dispatches an automated review; the human is the reviewer for
-// the rest of this cycle.
-func guideReviewRejectRecovery(t task.Task) (Guidance, error) {
-	if len(t.HumanReviews) == 0 {
-		return Guidance{}, fmt.Errorf("task %s: review in_progress with no recorded rejection", t.ID)
-	}
-	lastHuman := t.HumanReviews[len(t.HumanReviews)-1]
-	lastVerify := lastVerification(t)
-	verifyShort, verifyFull := verifyReport(t.ID)
-
-	switch {
-	case lastVerify == nil || !lastVerify.CreatedAt.After(lastHuman.At):
-		body := fixPrompt{
-			Specification: t.Specification,
-			DoneWhen:      t.DoneWhen,
-			Reason:        "A human rejected this task's review: " + lastHuman.Comment,
-		}.Render()
-		return dispatch(t, body, verifyShort, verifyFull), nil
-	case !lastVerify.Passed():
-		body := fixPrompt{
-			Specification: t.Specification,
-			DoneWhen:      t.DoneWhen,
-			Reason:        "Build check failed:\n" + lastVerify.Output,
-		}.Render()
-		return dispatch(t, body, verifyShort, verifyFull), nil
-	case !task.HasCommitSince(t, &lastHuman.At):
-		return guideDraftCommit(t), nil
-	default:
-		// A fresh commit already exists since the rejection - task commit
-		// would have flipped review.state back to pending, so this branch
-		// shouldn't be reachable through the command layer.
-		return Guidance{}, fmt.Errorf(
-			"task %s: review-reject recovery already cleared but review.state is still in_progress",
-			t.ID,
-		)
-	}
-}
-
 func guideRunVerify(t task.Task) Guidance {
 	message := runVerify{TaskID: t.ID, Worktree: t.Git.Worktree, Branch: t.Git.Branch}.Render()
 	short, _ := verifyReport(t.ID)
 	return Guidance{TaskID: t.ID, Action: ActionRun, Message: message, ReportWith: short}
 }
 
-// guideMerge is reached only for a non-trunk task: a trunk task's merge
-// stage completes automatically the moment review does (task.CompleteTrunkMerge,
-// called from commit's auto-approve path and from review approve), so it
-// never sits at merge.state != done waiting for this. The Trunk-conditional
-// message in run_merge.md is a defensive fallback for a task file written
-// by an older taskman that didn't complete trunk merges this way.
-func guideMerge(t task.Task) Guidance {
-	message := runMerge{
-		TaskID: t.ID, Worktree: t.Git.Worktree, Branch: t.Git.Branch, Trunk: t.Git.Trunk,
-	}.Render()
-	return Guidance{TaskID: t.ID, Action: ActionRun, Message: message, ReportWith: "merge " + t.ID}
+func guideFix(t task.Task, reason string) Guidance {
+	body := fixPrompt{Specification: t.Specification, DoneWhen: t.DoneWhen, Reason: reason}.Render()
+	short, full := verifyReport(t.ID)
+	return dispatch(t, body, short, full)
+}
+
+func guideAutomatedReview(t task.Task) Guidance {
+	body := reviewPrompt{Specification: t.Specification, DoneWhen: t.DoneWhen}.Render()
+	short, full := reviewRecordReport(t.ID)
+	return dispatch(t, body, short, full)
 }
 
 func guideDraftCommit(t task.Task) Guidance {
@@ -250,23 +156,29 @@ func guideWaitHumanReview(t task.Task) Guidance {
 	if t.Git.Commit != nil {
 		hash = t.Git.Commit.Hash
 	}
+	waitingSince := time.Time{}
+	if len(t.Reviews) > 0 {
+		waitingSince = t.Reviews[len(t.Reviews)-1].CreatedAt
+	}
+	if waitingSince.IsZero() && t.Git.Commit != nil {
+		waitingSince = t.Git.Commit.At
+	}
 	message := waitHumanReview{
-		TaskID:       t.ID,
-		Title:        t.Title,
-		Attempt:      t.Status.Verification.Attempts,
-		CommitHash:   hash,
-		Branch:       t.Git.Branch,
-		Worktree:     t.Git.Worktree,
-		WaitingSince: formatTime(t.Status.Review.CompletedAt, t.Status.Verification.CompletedAt),
+		TaskID: t.ID, Title: t.Title, Attempt: max(len(t.Reviews), 1), CommitHash: hash,
+		Branch: t.Git.Branch, Worktree: t.Git.Worktree, WaitingSince: formatTime(waitingSince),
 	}.Render()
 	return Guidance{TaskID: t.ID, Action: ActionWait, Message: message}
+}
+
+func guideMerge(t task.Task) Guidance {
+	message := runMerge{TaskID: t.ID, Worktree: t.Git.Worktree, Branch: t.Git.Branch, Trunk: t.Git.Trunk}.Render()
+	return Guidance{TaskID: t.ID, Action: ActionRun, Message: message, ReportWith: "merge " + t.ID}
 }
 
 func guideBlocked(t task.Task) Guidance {
 	stage, reason, at := "", "", ""
 	if t.Blocked != nil {
-		stage, reason = t.Blocked.Stage, t.Blocked.Reason
-		at = t.Blocked.At.Format(timeLayout)
+		stage, reason, at = t.Blocked.Stage, t.Blocked.Reason, formatTime(t.Blocked.At)
 	}
 	message := waitBlocked{
 		TaskID:       t.ID,
@@ -280,9 +192,70 @@ func guideBlocked(t task.Task) Guidance {
 	return Guidance{TaskID: t.ID, Action: ActionWait, Message: message}
 }
 
-// dispatch wraps body with the worktree/branch/report-back context common
-// to every dispatch. reportFull (the fuller, flag-annotated form) goes into
-// the message text; reportShort goes into Guidance.ReportWith, for loop.
+func guideCompleted(t task.Task) Guidance {
+	hash := ""
+	if t.Git.Commit != nil {
+		hash = t.Git.Commit.Hash
+	}
+	message := doneMerged{
+		TaskID:     t.ID,
+		Title:      t.Title,
+		Branch:     t.Git.Branch,
+		CommitHash: hash,
+		Trunk:      t.Git.Trunk,
+	}.Render()
+	return Guidance{TaskID: t.ID, Action: ActionDone, Message: message}
+}
+
+func guideAbandoned(t task.Task) Guidance {
+	message := doneAbandoned{TaskID: t.ID, Title: t.Title, Reason: t.FailureReason}.Render()
+	return Guidance{TaskID: t.ID, Action: ActionDone, Message: message}
+}
+
+func automatedReviewFindingsReason(t task.Task) string {
+	lastReview := lastReview(t)
+	if lastReview != nil {
+		return "Automated review rejected this attempt:\n" + task.SummarizeFindings(lastReview.Findings)
+	}
+	return "The automated reviewer reported findings that need to be fixed."
+}
+
+func humanReviewFindingsReason(t task.Task) string {
+	lastVerification := lastVerification(t)
+	lastHuman := lastHumanReview(t)
+	if lastVerification != nil && !lastVerification.Passed() &&
+		(lastHuman == nil || lastVerification.CreatedAt.After(lastHuman.At)) {
+		return verificationFailureReason(t)
+	}
+	if lastHuman != nil {
+		return "A human rejected this task's review: " + lastHuman.Comment
+	}
+	return "The human-review changes need another verification pass."
+}
+
+func verificationFailureReason(t task.Task) string {
+	verification := lastVerification(t)
+	if verification == nil {
+		return "Verification failed."
+	}
+	failed := make([]string, 0, len(verification.Checks))
+	for name, result := range verification.Checks {
+		if result != task.CheckOK {
+			failed = append(failed, name)
+		}
+	}
+	sort.Strings(failed)
+	reason := "Verification failed"
+	if len(failed) > 0 {
+		reason += " (" + strings.Join(failed, ", ") + ")"
+	}
+	if verification.Output != "" {
+		reason += ":\n" + verification.Output
+		return reason
+	}
+	return reason + "."
+}
+
 func dispatch(t task.Task, body, reportShort, reportFull string) Guidance {
 	message := dispatchWrapper{
 		Body:       body,
@@ -307,11 +280,16 @@ func lastReview(t task.Task) *task.Review {
 	return &t.Reviews[len(t.Reviews)-1]
 }
 
-func formatTime(candidates ...*time.Time) string {
-	for _, c := range candidates {
-		if c != nil {
-			return c.Format(timeLayout)
-		}
+func lastHumanReview(t task.Task) *task.HumanReview {
+	if len(t.HumanReviews) == 0 {
+		return nil
 	}
-	return ""
+	return &t.HumanReviews[len(t.HumanReviews)-1]
+}
+
+func formatTime(value time.Time) string {
+	if value.IsZero() {
+		return ""
+	}
+	return value.Format(timeLayout)
 }

@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 func TestListEmpty(t *testing.T) {
@@ -22,31 +23,28 @@ func TestListMultipleSorted(t *testing.T) {
 	tasks := []task.Task{
 		{
 			ID:         "zebra",
-			State:      task.StateCreated,
+			State:      task.StateSpecify,
 			Title:      "task z",
 			Definition: "do z",
-			Status:     task.Status{},
 			Labels:     map[string]string{},
 		},
 		{
 			ID:         "apple",
-			State:      task.StateCreated,
+			State:      task.StateSpecify,
 			Title:      "task a",
 			Definition: "do a",
-			Status:     task.Status{},
 			Labels:     map[string]string{},
 		},
 		{
 			ID:         "middle",
-			State:      task.StateCreated,
+			State:      task.StateSpecify,
 			Title:      "task m",
 			Definition: "do m",
-			Status:     task.Status{},
 			Labels:     map[string]string{},
 		},
 	}
 	for _, tk := range tasks {
-		if err := task.WriteTaskFile(dir, tk); err != nil {
+		if err := store.Write(dir, tk); err != nil {
 			t.Fatalf("write task file: %v", err)
 		}
 	}
@@ -69,18 +67,16 @@ func TestListFilterByState(t *testing.T) {
 	tasks := []task.Task{
 		{
 			ID:         "created_task",
-			State:      task.StateCreated,
+			State:      task.StateSpecify,
 			Title:      "t1",
 			Definition: "def",
-			Status:     task.Status{},
 			Labels:     map[string]string{},
 		},
 		{
 			ID:         "started_task",
-			State:      task.StateStarted,
+			State:      task.StateImplement,
 			Title:      "t2",
 			Definition: "def",
-			Status:     task.Status{},
 			Labels:     map[string]string{},
 		},
 		{
@@ -88,17 +84,16 @@ func TestListFilterByState(t *testing.T) {
 			State:      task.StateCompleted,
 			Title:      "t3",
 			Definition: "def",
-			Status:     task.Status{},
 			Labels:     map[string]string{},
 		},
 	}
 	for _, tk := range tasks {
-		if err := task.WriteTaskFile(dir, tk); err != nil {
+		if err := store.Write(dir, tk); err != nil {
 			t.Fatalf("write task file: %v", err)
 		}
 	}
 
-	req := Request{State: []task.State{task.StateStarted, task.StateCompleted}}
+	req := Request{State: []task.State{task.StateImplement, task.StateCompleted}}
 	result, err := List(dir, req)
 	if err != nil {
 		t.Fatalf("List: %v", err)
@@ -117,31 +112,28 @@ func TestListFilterByLabels(t *testing.T) {
 	tasks := []task.Task{
 		{
 			ID:         "with_label",
-			State:      task.StateCreated,
+			State:      task.StateSpecify,
 			Title:      "t1",
 			Definition: "def",
-			Status:     task.Status{},
 			Labels:     map[string]string{"priority": "high"},
 		},
 		{
 			ID:         "without_label",
-			State:      task.StateCreated,
+			State:      task.StateSpecify,
 			Title:      "t2",
 			Definition: "def",
-			Status:     task.Status{},
 			Labels:     map[string]string{},
 		},
 		{
 			ID:         "different_label",
-			State:      task.StateCreated,
+			State:      task.StateSpecify,
 			Title:      "t3",
 			Definition: "def",
-			Status:     task.Status{},
 			Labels:     map[string]string{"priority": "low"},
 		},
 	}
 	for _, tk := range tasks {
-		if err := task.WriteTaskFile(dir, tk); err != nil {
+		if err := store.Write(dir, tk); err != nil {
 			t.Fatalf("write task file: %v", err)
 		}
 	}
@@ -164,13 +156,12 @@ func TestListFilterByLabelsMissing(t *testing.T) {
 	dir := t.TempDir()
 	task1 := task.Task{
 		ID:         "task1",
-		State:      task.StateCreated,
+		State:      task.StateSpecify,
 		Title:      "t1",
 		Definition: "def",
-		Status:     task.Status{},
 		Labels:     map[string]string{"priority": "high", "team": "backend"},
 	}
-	if err := task.WriteTaskFile(dir, task1); err != nil {
+	if err := store.Write(dir, task1); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
 
@@ -188,13 +179,12 @@ func TestListFilterByLabelsMissingKey(t *testing.T) {
 	dir := t.TempDir()
 	task1 := task.Task{
 		ID:         "task1",
-		State:      task.StateCreated,
+		State:      task.StateSpecify,
 		Title:      "t1",
 		Definition: "def",
-		Status:     task.Status{},
 		Labels:     map[string]string{"priority": "high"},
 	}
-	if err := task.WriteTaskFile(dir, task1); err != nil {
+	if err := store.Write(dir, task1); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
 
@@ -214,12 +204,11 @@ func writeFiveTasks(t *testing.T, dir string) {
 	for i := range ids {
 		tk := task.Task{
 			ID:         ids[i],
-			State:      task.StateCreated,
+			State:      task.StateSpecify,
 			Title:      "t",
 			Definition: "def",
-			Status:     task.Status{},
 		}
-		if err := task.WriteTaskFile(dir, tk); err != nil {
+		if err := store.Write(dir, tk); err != nil {
 			t.Fatalf("write task file: %v", err)
 		}
 	}

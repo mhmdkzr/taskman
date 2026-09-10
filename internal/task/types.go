@@ -1,90 +1,58 @@
-// Package task owns the Task domain type and its file-backed persistence.
-// See README.md for the full design.
+// Package task owns taskman's pure task model and compiled workflow.
 package task
 
 import "time"
 
-// State is the coarse, top-level lifecycle of a task.
+// State is the task's single authoritative position in the workflow.
 type State string
 
 const (
-	StateCreated   State = "created"
-	StateStarted   State = "started"
-	StateBlocked   State = "blocked"
-	StateCompleted State = "completed"
-	StateFailed    State = "failed"
+	StateSpecify                    State = "specify"
+	StateImplement                  State = "implement"
+	StateVerify                     State = "verify"
+	StateFixVerificationFailure     State = "fix_verification_failure"
+	StateFixAutomatedReviewFindings State = "fix_automated_review_findings"
+	StateAutomatedReview            State = "automated_review"
+	StateCommit                     State = "commit"
+	StateHumanReview                State = "human_review"
+	StateFixHumanReviewFindings     State = "fix_human_review_findings"
+	StateMerge                      State = "merge"
+	StateBlocked                    State = "blocked"
+	StateCompleted                  State = "completed"
+	StateAbandoned                  State = "abandoned"
 )
 
-// StageState is the value of a single stage's status.state field. Not every
-// stage reaches every value.
-type StageState string
-
-const (
-	StagePending    StageState = "pending"
-	StageInProgress StageState = "in_progress"
-	StageDone       StageState = "done"
-)
+// Terminal reports whether no further workflow event can advance s.
+func (s State) Terminal() bool { return s == StateCompleted || s == StateAbandoned }
 
 // Task is one unit of work, serialized as .tasks/<id>.yaml.
 type Task struct {
-	ID            string            `json:"id"                      yaml:"id"`
-	State         State             `json:"state"                   yaml:"state"`
-	Title         string            `json:"title"                   yaml:"title"`
-	Labels        map[string]string `json:"labels,omitempty"        yaml:"labels,omitempty"`
-	Definition    string            `json:"definition"              yaml:"definition"`
-	Specification string            `json:"specification,omitempty" yaml:"specification,omitempty"`
-	DoneWhen      string            `json:"done_when,omitempty"     yaml:"done_when,omitempty"`
-	References    []string          `json:"references,omitempty"    yaml:"references,omitempty"`
-	Status        Status            `json:"status"                  yaml:"status"`
-	Git           Git               `json:"git"                     yaml:"git"`
-	Verifications []Verification    `json:"verifications,omitempty" yaml:"verifications,omitempty"`
-	Reviews       []Review          `json:"reviews,omitempty"       yaml:"reviews,omitempty"`
-	HumanReviews  []HumanReview     `json:"human_reviews,omitempty" yaml:"human_reviews,omitempty"`
-	Blocked       *Blocked          `json:"blocked,omitempty"       yaml:"blocked,omitempty"`
-	// FailureReason is set by task abandon - the only place a task ever
-	// records why it stopped for good.
-	FailureReason string `json:"failure_reason,omitempty" yaml:"failure_reason,omitempty"`
-	// AutoApprove, set at create time, tells task next's review-stage
-	// guidance that no human gate is needed: the caller may run task review
-	// approve itself once the commit exists, rather than waiting.
-	AutoApprove bool `json:"auto_approve,omitempty" yaml:"auto_approve,omitempty"`
-}
-
-// Status holds the per-stage progress, one field per stage.
-type Status struct {
-	Definition     StageStatus `json:"definition"     yaml:"definition"`
-	Specification  StageStatus `json:"specification"  yaml:"specification"`
-	Implementation StageStatus `json:"implementation" yaml:"implementation"`
-	Verification   StageStatus `json:"verification"   yaml:"verification"`
-	Review         StageStatus `json:"review"         yaml:"review"`
-	Merge          StageStatus `json:"merge"          yaml:"merge"`
-}
-
-// StageStatus is one stage's own state, when it completed (if it has), and
-// - verification only - how many attempts it took.
-type StageStatus struct {
-	State       StageState `json:"state"                  yaml:"state"`
-	CompletedAt *time.Time `json:"completed_at,omitempty" yaml:"completed_at,omitempty"`
-	Attempts    int        `json:"attempts,omitempty"     yaml:"attempts,omitempty"`
+	ID            string            `json:"id"                       yaml:"id"`
+	State         State             `json:"state"                    yaml:"state"`
+	Title         string            `json:"title"                    yaml:"title"`
+	Labels        map[string]string `json:"labels,omitempty"         yaml:"labels,omitempty"`
+	Definition    string            `json:"definition"               yaml:"definition"`
+	Specification string            `json:"specification,omitempty"  yaml:"specification,omitempty"`
+	DoneWhen      string            `json:"done_when,omitempty"      yaml:"done_when,omitempty"`
+	References    []string          `json:"references,omitempty"     yaml:"references,omitempty"`
+	Git           Git               `json:"git"                      yaml:"git"`
+	Verifications []Verification    `json:"verifications,omitempty"  yaml:"verifications,omitempty"`
+	Reviews       []Review          `json:"reviews,omitempty"        yaml:"reviews,omitempty"`
+	HumanReviews  []HumanReview     `json:"human_reviews,omitempty"  yaml:"human_reviews,omitempty"`
+	Blocked       *Blocked          `json:"blocked,omitempty"        yaml:"blocked,omitempty"`
+	FailureReason string            `json:"failure_reason,omitempty" yaml:"failure_reason,omitempty"`
+	AutoApprove   bool              `json:"auto_approve,omitempty"   yaml:"auto_approve,omitempty"`
 }
 
 // Git holds the task's worktree/branch and its recorded commit, if any.
 type Git struct {
-	Worktree string `json:"worktree,omitempty" yaml:"worktree,omitempty"`
-	Branch   string `json:"branch,omitempty"   yaml:"branch,omitempty"`
-	// Trunk records whether this task was created with --trunk: Worktree is
-	// the repo root and Branch is whatever was checked out at create time,
-	// rather than an isolated worktree/branch pair. task next's merge-stage
-	// guidance reads this to know there's nothing to actually merge.
-	Trunk  bool       `json:"trunk,omitempty"  yaml:"trunk,omitempty"`
-	Commit *GitCommit `json:"commit,omitempty" yaml:"commit,omitempty"`
+	Worktree string     `json:"worktree,omitempty" yaml:"worktree,omitempty"`
+	Branch   string     `json:"branch,omitempty"   yaml:"branch,omitempty"`
+	Trunk    bool       `json:"trunk,omitempty"    yaml:"trunk,omitempty"`
+	Commit   *GitCommit `json:"commit,omitempty"   yaml:"commit,omitempty"`
 }
 
-// GitCommit is what task commit reads back from the worktree via git log. At
-// is when taskman recorded it
-// (not the commit's own author/commit date) - it's what Next uses to tell
-// "a fresh commit was already made for the current pass" apart from "the
-// commit on file is stale, dispatch drafting a new one".
+// GitCommit is a commit observed by taskman through Git.
 type GitCommit struct {
 	Type    string    `json:"type,omitempty" yaml:"type,omitempty"`
 	Message string    `json:"message"        yaml:"message"`
@@ -92,9 +60,7 @@ type GitCommit struct {
 	At      time.Time `json:"at"             yaml:"at"`
 }
 
-// Verification is one task verify call's reported outcome, appended to
-// Task.Verifications - never overwritten, so a blocked task's history shows
-// exactly which check failed and when.
+// Verification is one reported build-check attempt.
 type Verification struct {
 	Checks    map[string]CheckResult `json:"checks"           yaml:"checks"`
 	Output    string                 `json:"output,omitempty" yaml:"output,omitempty"`
@@ -109,7 +75,7 @@ const (
 	CheckError CheckResult = "error"
 )
 
-// Passed reports whether every check in the verification succeeded.
+// Passed reports whether every reported check succeeded.
 func (v Verification) Passed() bool {
 	for _, result := range v.Checks {
 		if result != CheckOK {
@@ -119,7 +85,7 @@ func (v Verification) Passed() bool {
 	return len(v.Checks) > 0
 }
 
-// Review is one automated review round's verdict, appended to Task.Reviews.
+// Review is one automated review round's verdict.
 type Review struct {
 	Attempt   int       `json:"attempt"            yaml:"attempt"`
 	Approved  bool      `json:"approved"           yaml:"approved"`
@@ -127,30 +93,28 @@ type Review struct {
 	CreatedAt time.Time `json:"created_at"         yaml:"created_at"`
 }
 
-// Finding is one automated reviewer's note against a file. Detail is the
-// full text of what was found, not a compressed summary.
+// Finding is one automated reviewer's note against a file.
 type Finding struct {
 	File   string `json:"file"   yaml:"file"`
 	Detail string `json:"detail" yaml:"detail"`
 }
 
-// HumanReview is one human decision at the review stage, appended to
-// Task.HumanReviews. Deliberately flat - a single text block, not automated
-// review's structured per-file findings.
+// HumanReview is one human decision at the human-review state.
 type HumanReview struct {
 	Approved bool      `json:"approved"          yaml:"approved"`
 	Comment  string    `json:"comment,omitempty" yaml:"comment,omitempty"`
 	At       time.Time `json:"at"                yaml:"at"`
 }
 
-// Blocked is present only while Task.State is StateBlocked.
+// Blocked describes a suspended task and the state to resume at.
 type Blocked struct {
-	Stage  string    `json:"stage"  yaml:"stage"`
-	Reason string    `json:"reason" yaml:"reason"`
-	At     time.Time `json:"at"     yaml:"at"`
+	ResumeState State     `json:"resume_state" yaml:"resume_state"`
+	Stage       string    `json:"stage"        yaml:"stage"`
+	Reason      string    `json:"reason"       yaml:"reason"`
+	At          time.Time `json:"at"           yaml:"at"`
 }
 
-// Stage names, used in Blocked.Stage and task escalate's --stage flag.
+// Stage names remain part of the escalate command's caller-facing vocabulary.
 const (
 	StageDefinition     = "definition"
 	StageSpecification  = "specification"
@@ -160,8 +124,6 @@ const (
 	StageMerge          = "merge"
 )
 
-// well-known label keys, validated against a fixed low/medium/high enum
-// when present. Every other label key is an unchecked plain user tag.
 const (
 	LabelPriority   = "priority"
 	LabelComplexity = "complexity"

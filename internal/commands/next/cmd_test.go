@@ -8,6 +8,9 @@ import (
 	"testing"
 
 	"github.com/urfave/cli/v3"
+
+	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 func TestMain(m *testing.M) {
@@ -39,7 +42,12 @@ func runCmd(t *testing.T, tasksDir string, args ...string) (string, error) {
 
 func TestCommand(t *testing.T) {
 	dir := t.TempDir()
-	newTestTask(t, dir, "abc")
+	if err := store.Write(
+		dir,
+		task.Task{ID: "abc", State: task.StateSpecify, Definition: "definition"},
+	); err != nil {
+		t.Fatalf("write task: %v", err)
+	}
 
 	out, err := runCmd(t, dir, "abc")
 	if err != nil {

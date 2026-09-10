@@ -122,8 +122,8 @@ func TestCLIFullLifecycle(t *testing.T) {
 	if final.State != task.StateCompleted {
 		t.Fatalf("final state = %v, want completed", final.State)
 	}
-	if final.Status.Merge.State != task.StageDone {
-		t.Fatalf("merge status = %+v, want done", final.Status.Merge)
+	if final.State != task.StateCompleted {
+		t.Fatalf("state = %s, want completed", final.State)
 	}
 
 	next := runTaskman(t, dir, "next", id)
@@ -176,8 +176,8 @@ func TestCLIFullLifecycleTrunk(t *testing.T) {
 	if final.State != task.StateCompleted {
 		t.Fatalf("final state = %v, want completed", final.State)
 	}
-	if final.Status.Merge.State != task.StageDone {
-		t.Fatalf("merge status = %+v, want done", final.Status.Merge)
+	if final.State != task.StateCompleted {
+		t.Fatalf("state = %s, want completed", final.State)
 	}
 
 	done := runTaskman(t, dir, "next", id)

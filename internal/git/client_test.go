@@ -1,4 +1,4 @@
-package task
+package git
 
 import (
 	"context"
@@ -34,7 +34,7 @@ func newTestRepo(t *testing.T) string {
 
 func TestGitClientIsClean(t *testing.T) {
 	dir := newTestRepo(t)
-	git := NewGit(dir)
+	git := NewClient(dir)
 	ctx := context.Background()
 
 	clean, err := git.IsClean(ctx)
@@ -59,7 +59,7 @@ func TestGitClientIsClean(t *testing.T) {
 
 func TestGitClientCreateWorktreeAndReadCommit(t *testing.T) {
 	dir := newTestRepo(t)
-	git := NewGit(dir)
+	git := NewClient(dir)
 	ctx := context.Background()
 
 	worktreesDir := filepath.Join(t.TempDir(), "worktrees")
@@ -105,7 +105,7 @@ func TestGitClientCreateWorktreeAndReadCommit(t *testing.T) {
 
 func TestGitClientUseTrunk(t *testing.T) {
 	dir := newTestRepo(t)
-	git := NewGit(dir)
+	git := NewClient(dir)
 	ctx := context.Background()
 
 	worktree, branch, err := git.UseTrunk(ctx)
@@ -122,7 +122,7 @@ func TestGitClientUseTrunk(t *testing.T) {
 
 func TestGitClientUseTrunkDetachedHEAD(t *testing.T) {
 	dir := newTestRepo(t)
-	git := NewGit(dir)
+	git := NewClient(dir)
 	ctx := context.Background()
 	run := func(args ...string) {
 		t.Helper()
@@ -141,7 +141,7 @@ func TestGitClientUseTrunkDetachedHEAD(t *testing.T) {
 
 func TestGitClientReadCommitNoConventionalPrefix(t *testing.T) {
 	dir := newTestRepo(t)
-	git := NewGit(dir)
+	git := NewClient(dir)
 	ctx := context.Background()
 	run := func(args ...string) {
 		t.Helper()

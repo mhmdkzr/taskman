@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/mhmdkzr/taskman/internal/git"
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 //nolint:unparam // id is always "abc" in this file, but keeping it explicit reads better than a magic string inside the helper
@@ -15,17 +17,10 @@ func newTestTaskDir(t *testing.T, id string) string {
 	dir := t.TempDir()
 	tk := task.Task{
 		ID:         id,
-		State:      task.StateStarted,
+		State:      task.StateHumanReview,
 		Definition: "def",
-		Status: task.Status{
-			Definition:     task.StageStatus{State: task.StageDone},
-			Specification:  task.StageStatus{State: task.StageDone},
-			Implementation: task.StageStatus{State: task.StageDone},
-			Verification:   task.StageStatus{State: task.StageDone},
-			Review:         task.StageStatus{State: task.StagePending},
-		},
 	}
-	if err := task.WriteTaskFile(dir, tk); err != nil {
+	if err := store.Write(dir, tk); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
 	return dir
@@ -34,15 +29,12 @@ func newTestTaskDir(t *testing.T, id string) string {
 func TestApproveReview(t *testing.T) {
 	dir := newTestTaskDir(t, "abc")
 	comment := "LGTM"
-	got, err := ApproveReview(t.Context(), dir, task.NewGit(dir), Request{ID: "abc", Comment: comment})
+	got, err := ApproveReview(t.Context(), dir, git.NewClient(dir), Request{ID: "abc", Comment: comment})
 	if err != nil {
 		t.Fatalf("ApproveReview: %v", err)
 	}
-	if got.Status.Review.State != task.StageDone {
-		t.Fatalf("review.state = %v, want done", got.Status.Review.State)
-	}
-	if got.Status.Review.CompletedAt == nil {
-		t.Fatal("review.completed_at is nil, want set")
+	if got.State != task.StateMerge {
+		t.Fatalf("state = %v, want merge", got.State)
 	}
 	if len(got.HumanReviews) != 1 {
 		t.Fatalf("human_reviews length = %d, want 1", len(got.HumanReviews))
@@ -77,7 +69,7 @@ func newTestGitTaskDir(t *testing.T, tk task.Task) string {
 	}
 	git("add", ".gitignore")
 	git("commit", "-q", "-m", "chore: init")
-	if err := task.WriteTaskFile(dir, tk); err != nil {
+	if err := store.Write(dir, tk); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
 	git("add", tk.ID+".yaml")
@@ -88,26 +80,16 @@ func newTestGitTaskDir(t *testing.T, tk task.Task) string {
 func TestApproveReviewTrunkCompletesTask(t *testing.T) {
 	tk := task.Task{
 		ID:         "abc",
-		State:      task.StateStarted,
+		State:      task.StateHumanReview,
 		Definition: "def",
-		Status: task.Status{
-			Definition:     task.StageStatus{State: task.StageDone},
-			Specification:  task.StageStatus{State: task.StageDone},
-			Implementation: task.StageStatus{State: task.StageDone},
-			Verification:   task.StageStatus{State: task.StageDone},
-			Review:         task.StageStatus{State: task.StagePending},
-		},
-		Git: task.Git{Branch: "main", Trunk: true},
+		Git:        task.Git{Branch: "main", Trunk: true},
 	}
 	dir := newTestGitTaskDir(t, tk)
-	git := task.NewGit(dir)
+	git := git.NewClient(dir)
 
 	got, err := ApproveReview(t.Context(), dir, git, Request{ID: "abc"})
 	if err != nil {
 		t.Fatalf("ApproveReview: %v", err)
-	}
-	if got.Status.Merge.State != task.StageDone {
-		t.Errorf("merge.state = %v, want done - a trunk task has nothing left to merge", got.Status.Merge.State)
 	}
 	if got.State != task.StateCompleted {
 		t.Errorf("state = %v, want completed", got.State)
@@ -123,7 +105,7 @@ func TestApproveReviewTrunkCompletesTask(t *testing.T) {
 
 func TestApproveReviewTwice(t *testing.T) {
 	dir := newTestTaskDir(t, "abc")
-	git := task.NewGit(dir)
+	git := git.NewClient(dir)
 	if _, err := ApproveReview(t.Context(), dir, git, Request{ID: "abc", Comment: "LGTM"}); err != nil {
 		t.Fatalf("first ApproveReview: %v", err)
 	}

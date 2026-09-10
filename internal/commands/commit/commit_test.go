@@ -7,11 +7,13 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/mhmdkzr/taskman/internal/git"
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 // newTestRepo creates a fresh git repository with one commit and a
-// .gitignore excluding .worktrees/ and MutateTask's *.lock files, and
+// .gitignore excluding .worktrees/ and taskstore's *.lock files, and
 // returns its path.
 func newTestRepo(t *testing.T) string {
 	t.Helper()
@@ -42,25 +44,21 @@ func newTestTaskDir(t *testing.T, tasksDir, worktree, branch string) {
 	t.Helper()
 	tk := task.Task{
 		ID:         "abc",
-		State:      task.StateStarted,
+		State:      task.StateCommit,
 		Definition: "def",
-		Status: task.Status{
-			Definition:   task.StageStatus{State: task.StageDone},
-			Verification: task.StageStatus{State: task.StageDone},
-		},
 		Git: task.Git{
 			Worktree: worktree,
 			Branch:   branch,
 		},
 	}
-	if err := task.WriteTaskFile(tasksDir, tk); err != nil {
+	if err := store.Write(tasksDir, tk); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
 }
 
 func TestCommit(t *testing.T) {
 	gitDir := newTestRepo(t)
-	gitClient := task.NewGit(gitDir)
+	gitClient := git.NewClient(gitDir)
 	ctx := context.Background()
 
 	worktreesDir := filepath.Join(t.TempDir(), "worktrees")
@@ -100,14 +98,14 @@ func TestCommit(t *testing.T) {
 	if got.Git.Commit.Hash == "" {
 		t.Error("commit.hash is empty")
 	}
-	if got.Status.Review.State != task.StagePending {
-		t.Errorf("review.state = %v, want pending", got.Status.Review.State)
+	if got.State != task.StateHumanReview {
+		t.Errorf("state = %v, want human_review", got.State)
 	}
 }
 
 func TestCommitAutoApproveSkipsHumanReview(t *testing.T) {
 	gitDir := newTestRepo(t)
-	gitClient := task.NewGit(gitDir)
+	gitClient := git.NewClient(gitDir)
 	ctx := context.Background()
 
 	worktreesDir := filepath.Join(t.TempDir(), "worktrees")
@@ -119,16 +117,12 @@ func TestCommitAutoApproveSkipsHumanReview(t *testing.T) {
 	tasksDir := t.TempDir()
 	tk := task.Task{
 		ID:          "abc",
-		State:       task.StateStarted,
+		State:       task.StateCommit,
 		Definition:  "def",
 		AutoApprove: true,
-		Status: task.Status{
-			Definition:   task.StageStatus{State: task.StageDone},
-			Verification: task.StageStatus{State: task.StageDone},
-		},
-		Git: task.Git{Worktree: worktree, Branch: branch},
+		Git:         task.Git{Worktree: worktree, Branch: branch},
 	}
-	if err := task.WriteTaskFile(tasksDir, tk); err != nil {
+	if err := store.Write(tasksDir, tk); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
 
@@ -150,11 +144,8 @@ func TestCommitAutoApproveSkipsHumanReview(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Commit: %v", err)
 	}
-	if got.Status.Review.State != task.StageDone {
-		t.Errorf(
-			"review.state = %v, want done (auto-approve skips the pending human-review wait)",
-			got.Status.Review.State,
-		)
+	if got.State != task.StateMerge {
+		t.Errorf("state = %v, want merge", got.State)
 	}
 	if len(got.HumanReviews) != 0 {
 		t.Errorf("human_reviews = %+v, want empty - no human reviewed this", got.HumanReviews)
@@ -163,22 +154,18 @@ func TestCommitAutoApproveSkipsHumanReview(t *testing.T) {
 
 func TestCommitAutoApproveTrunkCompletesTask(t *testing.T) {
 	gitDir := newTestRepo(t)
-	gitClient := task.NewGit(gitDir)
+	gitClient := git.NewClient(gitDir)
 	ctx := context.Background()
 
 	tasksDir := gitDir
 	tk := task.Task{
 		ID:          "abc",
-		State:       task.StateStarted,
+		State:       task.StateCommit,
 		Definition:  "def",
 		AutoApprove: true,
-		Status: task.Status{
-			Definition:   task.StageStatus{State: task.StageDone},
-			Verification: task.StageStatus{State: task.StageDone},
-		},
-		Git: task.Git{Worktree: gitDir, Branch: "main", Trunk: true},
+		Git:         task.Git{Worktree: gitDir, Branch: "main", Trunk: true},
 	}
-	if err := task.WriteTaskFile(tasksDir, tk); err != nil {
+	if err := store.Write(tasksDir, tk); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
 
@@ -200,12 +187,6 @@ func TestCommitAutoApproveTrunkCompletesTask(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Commit: %v", err)
 	}
-	if got.Status.Review.State != task.StageDone {
-		t.Errorf("review.state = %v, want done", got.Status.Review.State)
-	}
-	if got.Status.Merge.State != task.StageDone {
-		t.Errorf("merge.state = %v, want done - a trunk task has nothing left to merge", got.Status.Merge.State)
-	}
 	if got.State != task.StateCompleted {
 		t.Errorf("state = %v, want completed", got.State)
 	}
@@ -220,7 +201,7 @@ func TestCommitAutoApproveTrunkCompletesTask(t *testing.T) {
 
 func TestCommitRequiresVerificationDone(t *testing.T) {
 	gitDir := newTestRepo(t)
-	gitClient := task.NewGit(gitDir)
+	gitClient := git.NewClient(gitDir)
 	ctx := context.Background()
 
 	worktreesDir := filepath.Join(t.TempDir(), "worktrees")
@@ -232,18 +213,14 @@ func TestCommitRequiresVerificationDone(t *testing.T) {
 	tasksDir := t.TempDir()
 	tk := task.Task{
 		ID:         "abc",
-		State:      task.StateStarted,
+		State:      task.StateVerify,
 		Definition: "def",
-		Status: task.Status{
-			Definition:   task.StageStatus{State: task.StageDone},
-			Verification: task.StageStatus{State: task.StagePending},
-		},
 		Git: task.Git{
 			Worktree: worktree,
 			Branch:   branch,
 		},
 	}
-	if err := task.WriteTaskFile(tasksDir, tk); err != nil {
+	if err := store.Write(tasksDir, tk); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
 

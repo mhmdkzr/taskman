@@ -6,7 +6,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/mhmdkzr/taskman/internal/git"
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 // Request is abandon's input. Shared verbatim by the CLI (cmd.go builds it
@@ -27,24 +29,19 @@ func (r Request) validate() error {
 	return nil
 }
 
-// Abandon marks a task failed for good, then commits the task's own now-
-// terminal file itself - see task.RecordBookkeeping.
-func Abandon(ctx context.Context, tasksDir string, git *task.GitClient, req Request) (task.Task, error) {
+// Abandon marks a task abandoned for good, then commits the task's own now-
+// terminal file itself through the Git shell.
+func Abandon(ctx context.Context, tasksDir string, gitClient *git.Client, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("abandon task: %w", err)
 	}
-	t, err := task.MutateTask(tasksDir, req.ID, func(t *task.Task) error {
-		if t.State == task.StateCompleted {
-			return task.NotInState("task", string(t.State), "not already completed")
-		}
-		t.State = task.StateFailed
-		t.FailureReason = req.Reason
-		return nil
+	t, err := store.Update(tasksDir, req.ID, func(current task.Task) (task.Task, error) {
+		return task.Apply(current, task.Abandoned{Reason: req.Reason})
 	})
 	if err != nil {
 		return task.Task{}, fmt.Errorf("abandon task: %w", err)
 	}
-	if err := task.RecordBookkeeping(ctx, git, tasksDir, t, "abandonment"); err != nil {
+	if err := git.RecordBookkeeping(ctx, gitClient, tasksDir, t, "abandonment"); err != nil {
 		return task.Task{}, fmt.Errorf("abandon task: %w", err)
 	}
 	return t, nil

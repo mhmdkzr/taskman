@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/mhmdkzr/taskman/internal/git"
 	"github.com/mhmdkzr/taskman/internal/task"
 )
 
@@ -45,7 +46,7 @@ func TestCreateSuccessful(t *testing.T) {
 		context.Background(),
 		tasksDir,
 		worktreesDir,
-		task.NewGit(gitDir),
+		git.NewClient(gitDir),
 		Request{
 			Definition: "test task",
 			Title:      "Test Task",
@@ -89,7 +90,7 @@ func TestCreateTrunk(t *testing.T) {
 		context.Background(),
 		tasksDir,
 		worktreesDir,
-		task.NewGit(gitDir),
+		git.NewClient(gitDir),
 		Request{
 			Definition: "test task",
 			Title:      "Test Task",
@@ -122,7 +123,7 @@ func TestCreateAutoApprove(t *testing.T) {
 		context.Background(),
 		tasksDir,
 		worktreesDir,
-		task.NewGit(gitDir),
+		git.NewClient(gitDir),
 		Request{
 			Definition:  "test task",
 			Title:       "Test Task",
@@ -151,7 +152,7 @@ func TestCreateDirtyWorkingTree(t *testing.T) {
 		context.Background(),
 		tasksDir,
 		worktreesDir,
-		task.NewGit(gitDir),
+		git.NewClient(gitDir),
 		Request{
 			Definition: "test task",
 			Title:      "Test Task",
@@ -171,7 +172,7 @@ func TestCreateEmptyDefinition(t *testing.T) {
 		context.Background(),
 		tasksDir,
 		worktreesDir,
-		task.NewGit(gitDir),
+		git.NewClient(gitDir),
 		Request{
 			Definition: "",
 			Title:      "Test Task",
@@ -179,5 +180,13 @@ func TestCreateEmptyDefinition(t *testing.T) {
 	)
 	if err == nil {
 		t.Fatal("Create with empty definition: want error, got nil")
+	}
+}
+
+func TestRequestRejectsPartialSpecification(t *testing.T) {
+	t.Parallel()
+	err := (Request{Definition: "definition", Specification: "specification"}).validate()
+	if err == nil {
+		t.Fatal("validate: want paired specification/done_when error, got nil")
 	}
 }

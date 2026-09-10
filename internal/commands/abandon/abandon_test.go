@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/mhmdkzr/taskman/internal/git"
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 //nolint:unparam // id is always "abc" in this file, but keeping it explicit reads better than a magic string inside the helper
@@ -34,13 +36,8 @@ func newTestTaskDir(t *testing.T, id string, state task.State) string {
 		ID:         id,
 		State:      state,
 		Definition: "def",
-		Status: task.Status{
-			Definition:     task.StageStatus{State: task.StageDone},
-			Specification:  task.StageStatus{State: task.StageDone},
-			Implementation: task.StageStatus{State: task.StageDone},
-		},
 	}
-	if err := task.WriteTaskFile(dir, tk); err != nil {
+	if err := store.Write(dir, tk); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
 	git("add", id+".yaml")
@@ -49,14 +46,14 @@ func newTestTaskDir(t *testing.T, id string, state task.State) string {
 }
 
 func TestAbandon(t *testing.T) {
-	dir := newTestTaskDir(t, "abc", task.StateStarted)
-	git := task.NewGit(dir)
+	dir := newTestTaskDir(t, "abc", task.StateImplement)
+	git := git.NewClient(dir)
 	got, err := Abandon(t.Context(), dir, git, Request{ID: "abc", Reason: "no longer needed"})
 	if err != nil {
 		t.Fatalf("Abandon: %v", err)
 	}
-	if got.State != task.StateFailed {
-		t.Fatalf("state = %v, want %v", got.State, task.StateFailed)
+	if got.State != task.StateAbandoned {
+		t.Fatalf("state = %v, want %v", got.State, task.StateAbandoned)
 	}
 	if got.FailureReason != "no longer needed" {
 		t.Fatalf("failure_reason = %q, want %q", got.FailureReason, "no longer needed")
@@ -64,8 +61,8 @@ func TestAbandon(t *testing.T) {
 }
 
 func TestAbandonRecordsBookkeepingCommit(t *testing.T) {
-	dir := newTestTaskDir(t, "abc", task.StateStarted)
-	git := task.NewGit(dir)
+	dir := newTestTaskDir(t, "abc", task.StateImplement)
+	git := git.NewClient(dir)
 	if _, err := Abandon(t.Context(), dir, git, Request{ID: "abc", Reason: "no longer needed"}); err != nil {
 		t.Fatalf("Abandon: %v", err)
 	}
@@ -80,23 +77,16 @@ func TestAbandonRecordsBookkeepingCommit(t *testing.T) {
 
 func TestAbandonPreventCompleted(t *testing.T) {
 	dir := newTestTaskDir(t, "abc", task.StateCompleted)
-	git := task.NewGit(dir)
+	git := git.NewClient(dir)
 	if _, err := Abandon(t.Context(), dir, git, Request{ID: "abc", Reason: "test reason"}); err == nil {
 		t.Fatal("abandon completed task: want error, got nil")
 	}
 }
 
-func TestAbandonFailedIdempotent(t *testing.T) {
-	dir := newTestTaskDir(t, "abc", task.StateFailed)
-	git := task.NewGit(dir)
-	got, err := Abandon(t.Context(), dir, git, Request{ID: "abc", Reason: "updated reason"})
-	if err != nil {
-		t.Fatalf("abandon failed task again: %v", err)
-	}
-	if got.State != task.StateFailed {
-		t.Fatalf("state = %v, want %v", got.State, task.StateFailed)
-	}
-	if got.FailureReason != "updated reason" {
-		t.Fatalf("failure_reason = %q, want %q", got.FailureReason, "updated reason")
+func TestAbandonAlreadyAbandoned(t *testing.T) {
+	dir := newTestTaskDir(t, "abc", task.StateAbandoned)
+	git := git.NewClient(dir)
+	if _, err := Abandon(t.Context(), dir, git, Request{ID: "abc", Reason: "updated reason"}); err == nil {
+		t.Fatal("abandon already-abandoned task: want error, got nil")
 	}
 }

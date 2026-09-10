@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/mhmdkzr/taskman/internal/git"
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 // Request is merge's input. Shared verbatim by the CLI (cmd.go builds it
@@ -25,27 +27,19 @@ func (r Request) validate() error {
 
 // Merge records that the caller already merged the task's branch, then
 // commits the task's own now-terminal file itself - see
-// task.RecordBookkeeping. Never reached for a trunk task; its merge stage
-// completes automatically once review does (task.CompleteTrunkMerge).
-func Merge(ctx context.Context, tasksDir string, git *task.GitClient, req Request) (task.Task, error) {
+// gitclient.RecordBookkeeping. Never reached for a trunk task, which reaches
+// completed directly when its review is approved.
+func Merge(ctx context.Context, tasksDir string, gitClient *git.Client, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("merge task: %w", err)
 	}
-	t, err := task.MutateTask(tasksDir, req.ID, func(t *task.Task) error {
-		if t.Status.Review.State != task.StageDone {
-			return task.NotInState("review", string(t.Status.Review.State), "done")
-		}
-		t.Status.Merge = task.StageStatus{State: task.StageDone, CompletedAt: new(task.Now())}
-		t.State = task.StateCompleted
-		if req.Commit != "" && t.Git.Commit != nil {
-			t.Git.Commit.Hash = req.Commit
-		}
-		return nil
+	t, err := store.Update(tasksDir, req.ID, func(current task.Task) (task.Task, error) {
+		return task.Apply(current, task.MergeCompleted{CommitOverride: req.Commit})
 	})
 	if err != nil {
 		return task.Task{}, fmt.Errorf("merge task: %w", err)
 	}
-	if err := task.RecordBookkeeping(ctx, git, tasksDir, t, "completion"); err != nil {
+	if err := git.RecordBookkeeping(ctx, gitClient, tasksDir, t, "completion"); err != nil {
 		return task.Task{}, fmt.Errorf("merge task: %w", err)
 	}
 	return t, nil

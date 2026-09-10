@@ -10,7 +10,9 @@ import (
 
 	"github.com/urfave/cli/v3"
 
+	"github.com/mhmdkzr/taskman/internal/git"
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 func TestMain(m *testing.M) {
@@ -43,7 +45,7 @@ func runCmd(t *testing.T, gitDir, tasksDir string, args ...string) (string, erro
 
 func TestCommand(t *testing.T) {
 	gitDir := newTestRepo(t)
-	gitClient := task.NewGit(gitDir)
+	gitClient := git.NewClient(gitDir)
 	ctx := context.Background()
 
 	worktreesDir := filepath.Join(t.TempDir(), "worktrees")
@@ -74,7 +76,7 @@ func TestCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("commit: %v\noutput:\n%s", err, out)
 	}
-	got, err := task.ReadTask(tasksDir, "abc")
+	got, err := store.Read(tasksDir, "abc")
 	if err != nil {
 		t.Fatalf("read task: %v", err)
 	}
@@ -84,8 +86,8 @@ func TestCommand(t *testing.T) {
 	if got.Git.Commit.Type != "fix" {
 		t.Errorf("commit.type = %q, want fix", got.Git.Commit.Type)
 	}
-	if got.Status.Review.State != task.StagePending {
-		t.Errorf("review.state = %v, want pending", got.Status.Review.State)
+	if got.State != task.StateHumanReview {
+		t.Errorf("state = %v, want human_review", got.State)
 	}
 }
 
@@ -99,7 +101,7 @@ func TestCommandMissingID(t *testing.T) {
 
 func TestCommandRequiresVerificationDone(t *testing.T) {
 	gitDir := newTestRepo(t)
-	gitClient := task.NewGit(gitDir)
+	gitClient := git.NewClient(gitDir)
 	ctx := context.Background()
 
 	worktreesDir := filepath.Join(t.TempDir(), "worktrees")
@@ -111,18 +113,14 @@ func TestCommandRequiresVerificationDone(t *testing.T) {
 	tasksDir := t.TempDir()
 	tk := task.Task{
 		ID:         "abc",
-		State:      task.StateStarted,
+		State:      task.StateVerify,
 		Definition: "def",
-		Status: task.Status{
-			Definition:   task.StageStatus{State: task.StageDone},
-			Verification: task.StageStatus{State: task.StagePending},
-		},
 		Git: task.Git{
 			Worktree: worktree,
 			Branch:   branch,
 		},
 	}
-	if err := task.WriteTaskFile(tasksDir, tk); err != nil {
+	if err := store.Write(tasksDir, tk); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
 

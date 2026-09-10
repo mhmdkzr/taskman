@@ -4,8 +4,10 @@ package reject
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 // Request is review reject's input. Shared verbatim by the CLI (cmd.go
@@ -32,15 +34,9 @@ func RejectReview(tasksDir string, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("reject review: %w", err)
 	}
-	t, err := task.MutateTask(tasksDir, req.ID, func(t *task.Task) error {
-		if t.Status.Review.State != task.StagePending {
-			return task.NotInState("review", string(t.Status.Review.State), "pending")
-		}
-		t.HumanReviews = append(
-			t.HumanReviews, task.HumanReview{Approved: false, Comment: req.Reason, At: task.Now()},
-		)
-		t.Status.Review.State = task.StageInProgress
-		return nil
+	event := task.HumanReviewRejected{Reason: req.Reason, At: time.Now().UTC()}
+	t, err := store.Update(tasksDir, req.ID, func(current task.Task) (task.Task, error) {
+		return task.Apply(current, event)
 	})
 	if err != nil {
 		return task.Task{}, fmt.Errorf("reject review: %w", err)

@@ -1,4 +1,5 @@
-package task
+// Package taskid generates stable task identifiers and human-readable slugs.
+package id
 
 import (
 	"strings"

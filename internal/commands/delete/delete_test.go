@@ -5,24 +5,22 @@ import (
 	"testing"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 func TestDeleteExistingTask(t *testing.T) {
 	dir := t.TempDir()
 	tk := task.Task{
 		ID:         "abc",
-		State:      task.StateStarted,
+		State:      task.StateImplement,
 		Definition: "test task",
-		Status: task.Status{
-			Definition: task.StageStatus{State: task.StageDone},
-		},
 	}
-	if err := task.WriteTaskFile(dir, tk); err != nil {
+	if err := store.Write(dir, tk); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
 
 	// Verify the task exists before deletion
-	if _, err := task.ReadTask(dir, "abc"); err != nil {
+	if _, err := store.Read(dir, "abc"); err != nil {
 		t.Fatalf("read task before delete: %v", err)
 	}
 
@@ -32,7 +30,7 @@ func TestDeleteExistingTask(t *testing.T) {
 	}
 
 	// Verify the task is gone
-	_, err := task.ReadTask(dir, "abc")
+	_, err := store.Read(dir, "abc")
 	if !errors.Is(err, task.ErrTaskNotFound) {
 		t.Fatalf("read task after delete: want ErrTaskNotFound, got %v", err)
 	}

@@ -9,6 +9,7 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 func TestMain(m *testing.M) {
@@ -39,12 +40,12 @@ func runCmd(t *testing.T, tasksDir string, args ...string) (string, error) {
 }
 
 func TestCommand(t *testing.T) {
-	dir := newTestTaskDir(t, "abc", task.StateStarted)
+	dir := newTestTaskDir(t, "abc", task.StateImplement)
 	out, err := runCmd(t, dir, "abc", "--stage", "implementation", "--reason", "agent gave up")
 	if err != nil {
 		t.Fatalf("escalate: %v\noutput:\n%s", err, out)
 	}
-	got, err := task.ReadTask(dir, "abc")
+	got, err := store.Read(dir, "abc")
 	if err != nil {
 		t.Fatalf("read task: %v", err)
 	}
@@ -70,14 +71,14 @@ func TestCommandMissingID(t *testing.T) {
 }
 
 func TestCommandMissingReason(t *testing.T) {
-	dir := newTestTaskDir(t, "abc", task.StateStarted)
+	dir := newTestTaskDir(t, "abc", task.StateImplement)
 	if _, err := runCmd(t, dir, "abc", "--stage", "implementation"); err == nil {
 		t.Fatal("escalate without --reason: want error, got nil")
 	}
 }
 
 func TestCommandAlreadyTerminal(t *testing.T) {
-	dir := newTestTaskDir(t, "abc", task.StateFailed)
+	dir := newTestTaskDir(t, "abc", task.StateAbandoned)
 	if _, err := runCmd(t, dir, "abc", "--stage", "implementation", "--reason", "agent gave up"); err == nil {
 		t.Fatal("escalate failed task: want error, got nil")
 	}

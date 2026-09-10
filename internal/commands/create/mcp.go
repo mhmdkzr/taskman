@@ -5,11 +5,12 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/mhmdkzr/taskman/internal/git"
 	"github.com/mhmdkzr/taskman/internal/task"
 )
 
-func RegisterMCP(server *mcp.Server, tasksDir, worktreesDir string, git *task.GitClient) {
-	mcp.AddTool(server, mcpTool(), mcpHandler(tasksDir, worktreesDir, git))
+func RegisterMCP(server *mcp.Server, tasksDir, worktreesDir string, gitClient *git.Client) {
+	mcp.AddTool(server, mcpTool(), mcpHandler(tasksDir, worktreesDir, gitClient))
 }
 
 func mcpTool() *mcp.Tool {
@@ -19,9 +20,9 @@ func mcpTool() *mcp.Tool {
 	}
 }
 
-func mcpHandler(tasksDir, worktreesDir string, git *task.GitClient) mcp.ToolHandlerFor[Request, task.Task] {
+func mcpHandler(tasksDir, worktreesDir string, gitClient *git.Client) mcp.ToolHandlerFor[Request, task.Task] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, req Request) (*mcp.CallToolResult, task.Task, error) {
-		t, err := Create(ctx, tasksDir, worktreesDir, git, req)
+		t, err := Create(ctx, tasksDir, worktreesDir, gitClient, req)
 		if err != nil {
 			return nil, task.Task{}, err
 		}

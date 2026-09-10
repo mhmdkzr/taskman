@@ -15,6 +15,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
+	"github.com/mhmdkzr/taskman/internal/git"
 	"github.com/mhmdkzr/taskman/internal/task"
 )
 
@@ -43,9 +44,9 @@ func (p taskSummary) render() string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-// GitFrom builds a task.GitClient rooted at the --git-dir root flag.
-func GitFrom(cmd *cli.Command) *task.GitClient {
-	return task.NewGit(cmd.String("git-dir"))
+// GitFrom builds a Git client rooted at the --git-dir root flag.
+func GitFrom(cmd *cli.Command) *git.Client {
+	return git.NewClient(cmd.String("git-dir"))
 }
 
 // WorktreesDirFrom reads the --worktrees-dir root flag.
@@ -139,34 +140,38 @@ func PrintJSON(cmd *cli.Command, v any) error {
 // CurrentStage describes, in one short phrase, which stage a task is
 // waiting on - task_summary.md's Stage param.
 func CurrentStage(t task.Task) string {
-	switch t.State { //nolint:exhaustive // created/started fall through to the per-stage switch below
+	switch t.State {
+	case task.StateSpecify:
+		return "awaiting specification"
+	case task.StateImplement:
+		return "awaiting implementation"
+	case task.StateVerify:
+		return "awaiting verification"
+	case task.StateFixVerificationFailure:
+		return "fixing verification failure"
+	case task.StateFixAutomatedReviewFindings:
+		return "fixing automated review findings"
+	case task.StateAutomatedReview:
+		return fmt.Sprintf("awaiting automated review (attempt %d)", len(t.Reviews)+1)
+	case task.StateCommit:
+		return "awaiting commit"
+	case task.StateHumanReview:
+		return "awaiting human review"
+	case task.StateFixHumanReviewFindings:
+		return "fixing human review findings"
+	case task.StateMerge:
+		return "awaiting merge"
 	case task.StateCompleted:
-		return "merged"
-	case task.StateFailed:
+		return "completed"
+	case task.StateAbandoned:
 		return "abandoned"
 	case task.StateBlocked:
 		if t.Blocked != nil {
 			return "blocked in " + t.Blocked.Stage
 		}
 		return "blocked"
-	}
-	switch {
-	case t.Status.Specification.State != task.StageDone:
-		return "awaiting specification"
-	case t.Status.Implementation.State != task.StageDone:
-		return "awaiting implementation"
-	case t.Status.Verification.State != task.StageDone:
-		return fmt.Sprintf("in verification (attempt %d)", max(t.Status.Verification.Attempts, 1))
-	case task.NeedsFreshCommit(t):
-		return "awaiting commit"
-	case t.Status.Review.State == task.StageInProgress:
-		return "in review-reject recovery"
-	case t.Status.Review.State != task.StageDone:
-		return "awaiting human review"
-	case t.Status.Merge.State != task.StageDone:
-		return "awaiting merge"
 	default:
-		return "awaiting completion"
+		return "unknown"
 	}
 }
 

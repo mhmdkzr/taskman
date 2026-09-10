@@ -2,8 +2,8 @@
 
 - Go 1.27+
 - File-backed YAML task store (`.tasks/*.yaml`) with per-task file locking
-- `git` on `PATH` (taskman shells out to it for worktrees, reading commits, and committing a
-  terminal task's own file - `task.RecordBookkeeping`)
+- `git` on `PATH` (taskman shells out through `internal/gitclient` for worktrees, reading
+  commits, and committing a terminal task's own file)
 - `urfave/cli` v3 for the CLI frontend, `modelcontextprotocol/go-sdk` for the MCP frontend
 
 Taskman is a one-shot process that validates and records the state transitions reported to it, either as a CLI command or (via `taskman mcp`) as an MCP/stdio tool call.
@@ -19,9 +19,11 @@ intermediate grouping command - every slice's `Command()` mounts directly on the
 `review`. A slice keeps its domain logic (`<name>.go`), its frontends - `cmd.go` (CLI,
 exports `Command()`) and, where wired up, `mcp.go` (MCP, exports `RegisterMCP()`) - prompt
 templates (`prompt.go`/`prompt.md` where the command dispatches an agent), and documentation
-(`README.md`) close together. A slice's domain function never imports either frontend package;
+(`README.md`) close together. A slice's application function never imports either frontend package;
 `cmd.go` and `mcp.go` both call straight into it, so the two frontends stay two thin, independent
-callers of the same logic rather than one wrapping the other. A domain function's entire
+callers of the same logic rather than one wrapping the other. Workflow commands are imperative
+shells: they validate input, obtain external facts, construct a typed `task.Event`, and apply it
+through the pure `task.Apply` function inside `store.Update`. An application function's entire
 caller-supplied input - including the task id itself, since MCP has no positional-argument
 concept the way a CLI does - is one `Request` struct defined in `<name>.go` (not duplicated per
 frontend): `json`/`jsonschema` struct tags make it usable as-is for both `cmd.go` (built
@@ -29,17 +31,22 @@ field-by-field from flags/args) and `mcp.go` (passed directly as the tool's type
 `Request` has anything worth checking (a required field, a non-empty id), it gets a
 `func (r Request) validate() error` method, called once at the top of the domain function -
 shared automatically by both frontends rather than checked twice or only in one. Runtime deps a
-frontend doesn't get from the caller (`tasksDir`, `worktreesDir`, `*task.GitClient`) stay separate
+frontend doesn't get from the caller (`tasksDir`, `worktreesDir`, `*gitclient.Client`) stay separate
 function parameters, not `Request` fields, since MCP binds them once at server startup rather than
 per call.
 
 ## Shared Packages
 
-- `internal/task` - the `Task` domain type and the file-backed persistence primitives every slice
-  builds on: `ReadTask`, `WriteTaskFile`, and `MutateTask` (lock → read → validate/mutate →
-  write), plus shared helpers (`errors.go`, `labels.go`, `id.go`, `commit_timing.go`) and
-  `GitClient` (`git.go`). These files carry no frontend dependency (`urfave/cli` or the MCP SDK),
-  since every slice and both frontends import this package.
+- `internal/task` - the pure functional core: the `Task` aggregate, its single authoritative
+  workflow `State`, typed events, declarative compiled workflow, `Apply`, and `Next`. It performs
+  no filesystem, Git, clock, logging, CLI, or MCP operations. `Apply` clones its input before
+  reducing an event, so callers never observe partial mutation.
+- `internal/taskstore` - YAML persistence: `Read`, `Write`, and `Update`
+  (lock → read → call a value-returning update → validate → atomic write).
+- `internal/gitclient` - the imperative Git adapter used by command shells.
+- `internal/taskid` - task ID generation and slugging.
+- `internal/migration/taskv1` - the isolated legacy schema reader used only by `taskman migrate`;
+  normal runtime code understands the current schema only.
 - `internal/utils` - CLI-only plumbing shared by every slice's `cmd.go`: building a
   `GitClient`/worktrees dir from root flags, parsing repeated `key=value` flags, rendering output
   (`--json` envelope or human-readable summary), and mapping errors to exit codes.
@@ -63,8 +70,8 @@ There is no `pkg/`; everything shared lives under `internal/`.
 ## CLI Conventions
 
 - A slice's `cmd.go` `Action` parses flags/args into the request its domain function expects,
-  calls the domain logic (a plain function taking `tasksDir` and other runtime deps directly,
-  built on `internal/task`'s shared primitives), renders success via `internal/utils`
+  calls the application function (a plain function taking `tasksDir` and other runtime deps
+  directly), renders success via `internal/utils`
   (`utils.PrintTask`/`utils.PrintJSON`), and returns errors through `utils.Fail`.
 - Every flag has a `Usage` string written for someone who only has the compiled binary - no
   references to files or paths in this repo.
@@ -89,8 +96,8 @@ New slices must include a `README.md` file which explains what the slice is, wha
 - Use `errors.Is()` and `errors.AsType[T]()` for error checking and unwrapping.
 - Wrap errors with context using `fmt.Errorf("context: %w", err)` to provide error chains when useful.
 - We almost always should return errors, but if an error is not being explicitly returned, intentionally, the reason should always be explained via a comment and the error **must be logged with `Error` level**. There must be **no silent errors**.
-- CLI slices return errors; the command's `Action` hands them to `support.Fail`, which maps
-  domain errors to exit codes (see `support.ExitCode`).
+- CLI slices return errors; the command's `Action` hands them to `utils.Fail`, which maps
+  domain errors to exit codes (see `utils.ExitCode`).
 
 ---
 

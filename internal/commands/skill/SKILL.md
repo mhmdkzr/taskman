@@ -29,7 +29,7 @@ For any task id, `taskman next <id>` tells you what to do. Branch on its `action
   describes, then report with `report_with`.
 - **`wait`** - a human gate (review pending, or task blocked). Stop; do nothing further. Never
   approve, reject, or merge on a human's behalf.
-- **`done`** - the task is completed or failed. Drop it.
+- **`done`** - the task is completed or abandoned. Drop it.
 
 A caller that only ever calls `next`, does what `message` says, and reports with
 `report_with` is, by construction, driving the state machine correctly.
@@ -52,7 +52,8 @@ A caller that only ever calls `next`, does what `message` says, and reports with
 | `review approve <id> [--comment <text>]` | **Human** approval only - never call this yourself. For a task created with `--auto-approve`, `commit` already completed review; this command has nothing left to do there. |
 | `review reject <id> --reason <text>` | **Human** rejection only - never call this yourself. |
 | `merge <id> [--commit <hash>]` | Report a merge you already made. |
-| `abandon <id> --reason <text>` | Mark the task failed for good. Human decision. |
+| `abandon <id> --reason <text>` | Mark the task abandoned for good. Human decision. |
+| `migrate [--dry-run]` | Convert legacy task files to the current single-state schema. Run the dry run first after upgrading. |
 | `delete <id>` | Housekeeping. Never invoke as part of driving a task. |
 | `prune [--dry-run]` | Housekeeping: delete every completed task file (`--dry-run` previews). Never invoke as part of driving a task. |
 

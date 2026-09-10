@@ -8,7 +8,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 func TestMain(m *testing.M) {
@@ -44,7 +44,7 @@ func TestCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("verify: %v\noutput:\n%s", err, out)
 	}
-	got, err := task.ReadTask(dir, "abc")
+	got, err := store.Read(dir, "abc")
 	if err != nil {
 		t.Fatalf("read task: %v", err)
 	}

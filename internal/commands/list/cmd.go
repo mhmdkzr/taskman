@@ -18,7 +18,7 @@ func Command() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringSliceFlag{
 				Name:  "state",
-				Usage: "filter by task state (created, started, blocked, completed, failed) - repeatable",
+				Usage: "filter by workflow state (for example specify, verify, blocked, or completed) - repeatable",
 			},
 			&cli.StringSliceFlag{Name: "label", Usage: "filter by label as key=value - repeatable"},
 			&cli.IntFlag{

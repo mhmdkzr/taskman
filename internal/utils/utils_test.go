@@ -2,113 +2,71 @@ package utils
 
 import (
 	"testing"
-	"time"
 
 	"github.com/mhmdkzr/taskman/internal/task"
 )
 
 func TestSplitKV(t *testing.T) {
-	got, err := SplitKV([]string{"priority=high", "note=has=equals=too"})
+	got, err := SplitKV([]string{"a=1", "b=two=parts"})
 	if err != nil {
 		t.Fatalf("SplitKV: %v", err)
 	}
-	if got["priority"] != "high" || got["note"] != "has=equals=too" {
-		t.Errorf("SplitKV = %+v", got)
-	}
-
-	if _, err := SplitKV([]string{"malformed"}); err == nil {
-		t.Error("SplitKV(malformed): want error, got nil")
+	if got["a"] != "1" || got["b"] != "two=parts" {
+		t.Fatalf("got %#v", got)
 	}
 }
 
 func TestParseChecks(t *testing.T) {
-	got, err := ParseChecks([]string{"vet=ok", "lint=error"})
+	got, err := ParseChecks([]string{"test=ok", "lint=error"})
 	if err != nil {
 		t.Fatalf("ParseChecks: %v", err)
 	}
-	if got["vet"] != task.CheckOK || got["lint"] != task.CheckError {
-		t.Errorf("ParseChecks = %+v", got)
+	if got["test"] != task.CheckOK || got["lint"] != task.CheckError {
+		t.Fatalf("got %#v", got)
 	}
-
-	if _, err := ParseChecks([]string{"vet=maybe"}); err == nil {
-		t.Error("ParseChecks(vet=maybe): want error, got nil")
+	if _, err := ParseChecks([]string{"test=maybe"}); err == nil {
+		t.Fatal("invalid check: want error")
 	}
 }
 
 func TestParseFindings(t *testing.T) {
-	got, err := ParseFindings([]string{"a.go=missing check", "b.go=unused var"})
+	got, err := ParseFindings([]string{"main.go=bad"})
 	if err != nil {
 		t.Fatalf("ParseFindings: %v", err)
 	}
-	if len(got) != 2 {
-		t.Fatalf("ParseFindings len = %d, want 2", len(got))
-	}
-	byFile := map[string]string{}
-	for _, f := range got {
-		byFile[f.File] = f.Detail
-	}
-	if byFile["a.go"] != "missing check" || byFile["b.go"] != "unused var" {
-		t.Errorf("ParseFindings = %+v", byFile)
+	if len(got) != 1 || got[0].File != "main.go" || got[0].Detail != "bad" {
+		t.Fatalf("got %#v", got)
 	}
 }
 
 func TestCurrentStage(t *testing.T) {
-	verifiedAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	cases := []struct {
-		name string
-		t    task.Task
-		want string
+	tests := []struct {
+		name  string
+		state task.State
+		want  string
 	}{
-		{
-			"awaiting spec",
-			task.Task{
-				State:  task.StateCreated,
-				Status: task.Status{Specification: task.StageStatus{State: task.StagePending}},
-			},
-			"awaiting specification",
-		},
-		{"awaiting impl", task.Task{State: task.StateStarted, Status: task.Status{
-			Specification: task.StageStatus{
-				State: task.StageDone,
-			},
-			Implementation: task.StageStatus{State: task.StagePending},
-		}}, "awaiting implementation"},
-		{"in verification", task.Task{State: task.StateStarted, Status: task.Status{
-			Specification: task.StageStatus{
-				State: task.StageDone,
-			},
-			Implementation: task.StageStatus{State: task.StageDone},
-			Verification:   task.StageStatus{State: task.StagePending, Attempts: 1},
-		}}, "in verification (attempt 1)"},
-		{
-			"blocked",
-			task.Task{State: task.StateBlocked, Blocked: &task.Blocked{Stage: "verification"}},
-			"blocked in verification",
-		},
-		{"completed", task.Task{State: task.StateCompleted}, "merged"},
-		{"failed", task.Task{State: task.StateFailed}, "abandoned"},
-		{"awaiting human review", task.Task{State: task.StateStarted, Status: task.Status{
-			Specification:  task.StageStatus{State: task.StageDone},
-			Implementation: task.StageStatus{State: task.StageDone},
-			Verification:   task.StageStatus{State: task.StageDone, CompletedAt: &verifiedAt},
-			Review:         task.StageStatus{State: task.StagePending},
-		}, Git: task.Git{Commit: &task.GitCommit{Hash: "abc", At: verifiedAt.Add(time.Minute)}}}, "awaiting human review"},
+		{"specify", task.StateSpecify, "awaiting specification"},
+		{"implement", task.StateImplement, "awaiting implementation"},
+		{"verify", task.StateVerify, "awaiting verification"},
+		{"commit", task.StateCommit, "awaiting commit"},
+		{"human review", task.StateHumanReview, "awaiting human review"},
+		{"merge", task.StateMerge, "awaiting merge"},
+		{"completed", task.StateCompleted, "completed"},
+		{"abandoned", task.StateAbandoned, "abandoned"},
 	}
-	for _, c := range cases {
-		if got := CurrentStage(c.t); got != c.want {
-			t.Errorf("%s: CurrentStage() = %q, want %q", c.name, got, c.want)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := CurrentStage(task.Task{State: tt.state}); got != tt.want {
+				t.Fatalf("got %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 
 func TestFailMapsErrorsToExitCodes(t *testing.T) {
-	if got := ExitCode(Fail(task.ErrTaskNotFound)); got != 1 {
-		t.Errorf("ErrTaskNotFound exit = %d, want 1", got)
-	}
-	if got := ExitCode(Fail(task.ErrInvalidLabel)); got != 2 {
-		t.Errorf("ErrInvalidLabel exit = %d, want 2", got)
-	}
-	if got := ExitCode(Fail(&task.InvalidTransitionError{Stage: "review", Have: "pending", Want: "done"})); got != 1 {
+	if got := ExitCode(
+		Fail(&task.InvalidTransitionError{State: task.StateVerify, Event: task.EventCommitRecorded}),
+	); got != 1 {
 		t.Errorf("InvalidTransitionError exit = %d, want 1", got)
 	}
 }

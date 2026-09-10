@@ -4,8 +4,10 @@ package record
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 // Request is review record's input - one automated review round's verdict.
@@ -33,39 +35,11 @@ func RecordReview(tasksDir string, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("record review: %w", err)
 	}
-	t, err := task.MutateTask(tasksDir, req.ID, func(t *task.Task) error {
-		if t.Status.Implementation.State != task.StageDone {
-			return task.NotInState("implementation", string(t.Status.Implementation.State), "done")
-		}
-		if err := task.NotBlockedOrFailed(t); err != nil {
-			return fmt.Errorf("blocked/failed precondition: %w", err)
-		}
-
-		attempt := len(t.Reviews) + 1
-		t.Reviews = append(t.Reviews, task.Review{
-			Attempt:   attempt,
-			Approved:  req.Approved,
-			Findings:  req.Findings,
-			CreatedAt: task.Now(),
-		})
-		t.Status.Verification.Attempts = attempt
-
-		if req.Approved {
-			t.Status.Verification.State = task.StageDone
-			t.Status.Verification.CompletedAt = new(task.Now())
-			t.Status.Review.State = task.StagePending
-			return nil
-		}
-
-		if attempt >= 2 {
-			t.State = task.StateBlocked
-			t.Blocked = &task.Blocked{
-				Stage:  task.StageVerification,
-				Reason: fmt.Sprintf("Second review rejected: %s", task.SummarizeFindings(req.Findings)),
-				At:     task.Now(),
-			}
-		}
-		return nil
+	event := task.AutomatedReviewRecorded{
+		Approved: req.Approved, Findings: req.Findings, At: time.Now().UTC(),
+	}
+	t, err := store.Update(tasksDir, req.ID, func(current task.Task) (task.Task, error) {
+		return task.Apply(current, event)
 	})
 	if err != nil {
 		return task.Task{}, fmt.Errorf("record review: %w", err)

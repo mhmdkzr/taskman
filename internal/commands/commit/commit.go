@@ -4,8 +4,11 @@ package commit
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/mhmdkzr/taskman/internal/git"
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 // Request is commit's input - which task to record a commit for, and which
@@ -29,49 +32,31 @@ func (r Request) validate() error {
 // right after verification first passes, and again each time a
 // review-reject-recovery cycle clears. For an auto-approve trunk task, this
 // call completes the task outright, so it's also where its own now-terminal
-// file gets committed (task.RecordBookkeeping).
-func Commit(ctx context.Context, tasksDir string, git *task.GitClient, req Request) (task.Task, error) {
+// file gets committed by the Git shell.
+func Commit(ctx context.Context, tasksDir string, gitClient *git.Client, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("commit task: %w", err)
 	}
-	t, err := task.ReadTask(tasksDir, req.ID)
+	t, err := store.Read(tasksDir, req.ID)
 	if err != nil {
 		return task.Task{}, fmt.Errorf("read task: %w", err)
 	}
-	if t.Status.Verification.State != task.StageDone {
-		return task.Task{}, fmt.Errorf(
-			"verification precondition: %w",
-			task.NotInState("verification", string(t.Status.Verification.State), "done"),
-		)
+	if err := task.Accepts(t, task.EventCommitRecorded); err != nil {
+		return task.Task{}, fmt.Errorf("commit precondition: %w", err)
 	}
-	commit, err := git.ReadCommit(ctx, t.Git.Worktree, req.Commit)
+	commit, err := gitClient.ReadCommit(ctx, t.Git.Worktree, req.Commit)
 	if err != nil {
 		return task.Task{}, fmt.Errorf("read commit: %w", err)
 	}
-	commit.At = task.Now()
-	updated, err := task.MutateTask(tasksDir, req.ID, func(t *task.Task) error {
-		if t.Status.Verification.State != task.StageDone {
-			return task.NotInState("verification", string(t.Status.Verification.State), "done")
-		}
-		t.Git.Commit = &commit
-		if t.AutoApprove {
-			// A task created with --auto-approve has no human review gate -
-			// the automated review the caller already ran inside
-			// verification is the only review this task gets. Recording a
-			// HumanReviews entry here would misrepresent that as a human
-			// decision, so review simply completes without one.
-			t.Status.Review = task.StageStatus{State: task.StageDone, CompletedAt: new(task.Now())}
-			task.CompleteTrunkMerge(t)
-		} else {
-			t.Status.Review.State = task.StagePending
-		}
-		return nil
+	commit.At = time.Now().UTC()
+	updated, err := store.Update(tasksDir, req.ID, func(current task.Task) (task.Task, error) {
+		return task.Apply(current, task.CommitRecorded{Commit: commit})
 	})
 	if err != nil {
 		return task.Task{}, fmt.Errorf("commit task: %w", err)
 	}
 	if updated.State == task.StateCompleted {
-		if err := task.RecordBookkeeping(ctx, git, tasksDir, updated, "completion"); err != nil {
+		if err := git.RecordBookkeeping(ctx, gitClient, tasksDir, updated, "completion"); err != nil {
 			return task.Task{}, fmt.Errorf("commit task: %w", err)
 		}
 	}

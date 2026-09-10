@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 //nolint:unparam // id is always "abc" in this file, but keeping it explicit reads better than a magic string inside the helper
@@ -14,18 +15,15 @@ func newTestTaskDir(t *testing.T, id string, state task.State) string {
 		ID:         id,
 		State:      state,
 		Definition: "def",
-		Status: task.Status{
-			Definition: task.StageStatus{State: task.StageDone},
-		},
 	}
-	if err := task.WriteTaskFile(dir, tk); err != nil {
+	if err := store.Write(dir, tk); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
 	return dir
 }
 
 func TestEscalate(t *testing.T) {
-	dir := newTestTaskDir(t, "abc", task.StateStarted)
+	dir := newTestTaskDir(t, "abc", task.StateImplement)
 	got, err := Escalate(dir, Request{
 		ID:     "abc",
 		Stage:  "implementation",
@@ -60,7 +58,7 @@ func TestEscalateAlreadyCompleted(t *testing.T) {
 }
 
 func TestEscalateAlreadyFailed(t *testing.T) {
-	dir := newTestTaskDir(t, "abc", task.StateFailed)
+	dir := newTestTaskDir(t, "abc", task.StateAbandoned)
 	if _, err := Escalate(dir, Request{
 		ID:     "abc",
 		Stage:  "implementation",

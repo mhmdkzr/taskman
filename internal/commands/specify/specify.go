@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 // Request is specify's input. Shared verbatim by the CLI (cmd.go builds it
@@ -36,15 +37,9 @@ func Specify(tasksDir string, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("specify task: %w", err)
 	}
-	t, err := task.MutateTask(tasksDir, req.ID, func(t *task.Task) error {
-		if t.Status.Specification.State == task.StageDone {
-			return task.NotInState("specification", string(t.Status.Specification.State), "!= done")
-		}
-		t.Specification = req.Result
-		t.DoneWhen = req.DoneWhen
-		t.Status.Specification = task.StageStatus{State: task.StageDone, CompletedAt: new(task.Now())}
-		t.State = task.StateStarted
-		return nil
+	event := task.SpecificationSubmitted{Specification: req.Result, DoneWhen: req.DoneWhen}
+	t, err := store.Update(tasksDir, req.ID, func(current task.Task) (task.Task, error) {
+		return task.Apply(current, event)
 	})
 	if err != nil {
 		return task.Task{}, fmt.Errorf("specify task: %w", err)

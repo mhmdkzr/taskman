@@ -6,6 +6,7 @@ import (
 	"maps"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 // Request is update's input - patch semantics, only non-nil/given fields
@@ -32,14 +33,15 @@ func (r Request) validate() error {
 
 // Update patches a task's metadata (title, labels, references, trunk,
 // auto-approve). It never touches specification/done_when (own command:
-// specify) or the rest of git/status (taskman-managed). No precondition on
-// State/Status - metadata isn't workflow state.
+// specify) or the rest of Git/workflow state (taskman-managed). Metadata
+// has no workflow-state precondition.
 func Update(tasksDir string, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("update task: %w", err)
 	}
 	merged := make(map[string]string)
-	t, err := task.MutateTask(tasksDir, req.ID, func(t *task.Task) error {
+	t, err := store.Update(tasksDir, req.ID, func(current task.Task) (task.Task, error) {
+		t := current.Clone()
 		if req.Title != nil {
 			t.Title = *req.Title
 		}
@@ -50,7 +52,7 @@ func Update(tasksDir string, req Request) (task.Task, error) {
 				delete(merged, k)
 			}
 			if err := task.ValidateLabels(merged); err != nil {
-				return fmt.Errorf("validate labels: %w", err)
+				return task.Task{}, fmt.Errorf("validate labels: %w", err)
 			}
 			t.Labels = merged
 		}
@@ -65,7 +67,7 @@ func Update(tasksDir string, req Request) (task.Task, error) {
 		if req.AutoApprove != nil {
 			t.AutoApprove = *req.AutoApprove
 		}
-		return nil
+		return t, nil
 	})
 	if err != nil {
 		return task.Task{}, fmt.Errorf("update task: %w", err)

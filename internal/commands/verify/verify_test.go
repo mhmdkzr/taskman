@@ -2,8 +2,10 @@ package verify
 
 import (
 	"testing"
+	"time"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 //nolint:unparam // id is always "abc" in this file, but keeping it explicit reads better than a magic string inside the helper
@@ -11,27 +13,25 @@ func newTestTaskDir(t *testing.T, id string, implDone bool, blocked bool) string
 	t.Helper()
 	dir := t.TempDir()
 	tk := task.Task{
-		ID:         id,
-		State:      task.StateStarted,
-		Definition: "def",
-		Status: task.Status{
-			Definition:     task.StageStatus{State: task.StageDone},
-			Specification:  task.StageStatus{State: task.StageDone},
-			Implementation: task.StageStatus{State: task.StagePending},
-		},
+		ID:            id,
+		State:         task.StateImplement,
+		Definition:    "def",
+		Specification: "spec",
+		DoneWhen:      "done",
 	}
 	if implDone {
-		tk.Status.Implementation = task.StageStatus{State: task.StageDone}
+		tk.State = task.StateVerify
 	}
 	if blocked {
 		tk.State = task.StateBlocked
 		tk.Blocked = &task.Blocked{
-			Stage:  task.StageVerification,
-			Reason: "test block",
-			At:     task.Now(),
+			ResumeState: task.StateVerify,
+			Stage:       task.StageVerification,
+			Reason:      "test block",
+			At:          time.Now().UTC(),
 		}
 	}
-	if err := task.WriteTaskFile(dir, tk); err != nil {
+	if err := store.Write(dir, tk); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
 	return dir

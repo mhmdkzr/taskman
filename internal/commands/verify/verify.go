@@ -3,8 +3,10 @@ package verify
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 // Request is verify's input - one reported build-check attempt. Shared
@@ -34,19 +36,13 @@ func Verify(tasksDir string, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("verify task: %w", err)
 	}
-	t, err := task.MutateTask(tasksDir, req.ID, func(t *task.Task) error {
-		if t.Status.Implementation.State != task.StageDone {
-			return task.NotInState("implementation", string(t.Status.Implementation.State), "done")
-		}
-		if err := task.NotBlockedOrFailed(t); err != nil {
-			return fmt.Errorf("blocked/failed precondition: %w", err)
-		}
-		t.Verifications = append(t.Verifications, task.Verification{
-			Checks:    req.Checks,
-			Output:    req.Output,
-			CreatedAt: task.Now(),
-		})
-		return nil
+	event := task.VerificationReported{Verification: task.Verification{
+		Checks:    req.Checks,
+		Output:    req.Output,
+		CreatedAt: time.Now().UTC(),
+	}}
+	t, err := store.Update(tasksDir, req.ID, func(current task.Task) (task.Task, error) {
+		return task.Apply(current, event)
 	})
 	if err != nil {
 		return task.Task{}, fmt.Errorf("verify task: %w", err)

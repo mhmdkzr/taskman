@@ -9,6 +9,7 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 func TestMain(m *testing.M) {
@@ -40,17 +41,17 @@ func runCmd(t *testing.T, gitDir string, args ...string) (string, error) {
 }
 
 func TestCommand(t *testing.T) {
-	dir := newTestTaskDir(t, "abc", task.StateStarted)
+	dir := newTestTaskDir(t, "abc", task.StateImplement)
 	out, err := runCmd(t, dir, "abc", "--reason", "test abandon")
 	if err != nil {
 		t.Fatalf("abandon: %v\noutput:\n%s", err, out)
 	}
-	got, err := task.ReadTask(dir, "abc")
+	got, err := store.Read(dir, "abc")
 	if err != nil {
 		t.Fatalf("read task: %v", err)
 	}
-	if got.State != task.StateFailed {
-		t.Fatalf("state = %v, want %v", got.State, task.StateFailed)
+	if got.State != task.StateAbandoned {
+		t.Fatalf("state = %v, want %v", got.State, task.StateAbandoned)
 	}
 	if got.FailureReason != "test abandon" {
 		t.Fatalf("failure_reason = %q, want %q", got.FailureReason, "test abandon")
@@ -58,7 +59,7 @@ func TestCommand(t *testing.T) {
 }
 
 func TestCommandMissingReason(t *testing.T) {
-	dir := newTestTaskDir(t, "abc", task.StateStarted)
+	dir := newTestTaskDir(t, "abc", task.StateImplement)
 	if _, err := runCmd(t, dir, "abc"); err == nil {
 		t.Fatal("abandon without --reason: want error, got nil")
 	}

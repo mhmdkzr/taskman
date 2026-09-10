@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 func newTestTaskDir(t *testing.T, id string) string {
@@ -12,15 +13,10 @@ func newTestTaskDir(t *testing.T, id string) string {
 	dir := t.TempDir()
 	tk := task.Task{
 		ID:         id,
-		State:      task.StateStarted,
+		State:      task.StateImplement,
 		Definition: "test definition",
-		Status: task.Status{
-			Definition:     task.StageStatus{State: task.StageDone},
-			Specification:  task.StageStatus{State: task.StageDone},
-			Implementation: task.StageStatus{State: task.StagePending},
-		},
 	}
-	if err := task.WriteTaskFile(dir, tk); err != nil {
+	if err := store.Write(dir, tk); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
 	return dir
@@ -38,8 +34,8 @@ func TestGet(t *testing.T) {
 	if got.Definition != "test definition" {
 		t.Fatalf("Definition = %s, want test definition", got.Definition)
 	}
-	if got.State != task.StateStarted {
-		t.Fatalf("State = %v, want started", got.State)
+	if got.State != task.StateImplement {
+		t.Fatalf("State = %v, want implement", got.State)
 	}
 }
 

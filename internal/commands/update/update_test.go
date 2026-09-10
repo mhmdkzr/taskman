@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 //nolint:unparam // id is always "abc" in this file, but keeping it explicit reads better than a magic string inside the helper
@@ -12,18 +13,15 @@ func newTestTaskDir(t *testing.T, id string) string {
 	dir := t.TempDir()
 	tk := task.Task{
 		ID:         id,
-		State:      task.StateStarted,
+		State:      task.StateImplement,
 		Title:      "original title",
 		Definition: "def",
 		Labels: map[string]string{
 			"team": "backend",
 		},
 		References: []string{"ref1", "ref2"},
-		Status: task.Status{
-			Definition: task.StageStatus{State: task.StageDone},
-		},
 	}
-	if err := task.WriteTaskFile(dir, tk); err != nil {
+	if err := store.Write(dir, tk); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
 	return dir
@@ -44,7 +42,7 @@ func TestUpdateTitle(t *testing.T) {
 		t.Fatalf("title = %q, want %q", got.Title, "updated title")
 	}
 	// Verify persisted
-	read, err := task.ReadTask(dir, "abc")
+	read, err := store.Read(dir, "abc")
 	if err != nil {
 		t.Fatalf("read task: %v", err)
 	}
@@ -225,12 +223,12 @@ func TestUpdateUnsetTrunk(t *testing.T) {
 	dir := t.TempDir()
 	tk := task.Task{
 		ID:         "abc",
-		State:      task.StateStarted,
+		State:      task.StateImplement,
 		Title:      "original title",
 		Definition: "def",
 		Git:        task.Git{Trunk: true},
 	}
-	if err := task.WriteTaskFile(dir, tk); err != nil {
+	if err := store.Write(dir, tk); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
 	trunk := false
@@ -259,12 +257,12 @@ func TestUpdateUnsetAutoApprove(t *testing.T) {
 	dir := t.TempDir()
 	tk := task.Task{
 		ID:          "abc",
-		State:       task.StateStarted,
+		State:       task.StateImplement,
 		Title:       "original title",
 		Definition:  "def",
 		AutoApprove: true,
 	}
-	if err := task.WriteTaskFile(dir, tk); err != nil {
+	if err := store.Write(dir, tk); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
 	autoApprove := false

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 // defaultLimit is the page size a frontend applies when the caller doesn't
@@ -21,7 +22,7 @@ const defaultLimit = 50
 // type directly) frontends; the jsonschema tags describe it to MCP clients.
 // A zero Request matches every task (Limit <= 0 means unlimited).
 type Request struct {
-	State  []task.State      `json:"state,omitempty"  jsonschema:"filter by task state (created, started, blocked, completed, failed)"`
+	State  []task.State      `json:"state,omitempty"  jsonschema:"filter by workflow state"`
 	Labels map[string]string `json:"labels,omitempty" jsonschema:"filter by label key/value pairs"`
 	Limit  int               `json:"limit,omitempty"  jsonschema:"max tasks to return; 0 or negative means unlimited"`
 	Offset int               `json:"offset,omitempty" jsonschema:"skip this many matching tasks before the page starts"`
@@ -75,7 +76,7 @@ func List(tasksDir string, req Request) (Result, error) {
 
 	tasks := make([]task.Task, 0, len(ids))
 	for _, id := range ids {
-		t, err := task.ReadTask(tasksDir, id)
+		t, err := store.Read(tasksDir, id)
 		if err != nil {
 			return Result{}, fmt.Errorf("read task: %w", err)
 		}

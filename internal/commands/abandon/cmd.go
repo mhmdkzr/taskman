@@ -13,7 +13,7 @@ import (
 func Command() *cli.Command {
 	return &cli.Command{
 		Name:      "abandon",
-		Usage:     "mark a task failed for good",
+		Usage:     "mark a task abandoned for good",
 		ArgsUsage: "<id>",
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "reason", Required: true, Usage: "why the task is being abandoned"},

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 // Request is implement's input. Shared verbatim by the CLI (cmd.go builds
@@ -29,16 +30,9 @@ func Implement(tasksDir string, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("implement task: %w", err)
 	}
-	t, err := task.MutateTask(tasksDir, req.ID, func(t *task.Task) error {
-		if t.Status.Specification.State != task.StageDone {
-			return task.NotInState("specification", string(t.Status.Specification.State), "done")
-		}
-		if t.Status.Implementation.State == task.StageDone {
-			return task.NotInState("implementation", string(t.Status.Implementation.State), "!= done")
-		}
-		now := task.Now()
-		t.Status.Implementation = task.StageStatus{State: task.StageDone, CompletedAt: &now}
-		return nil
+	event := task.ImplementationCompleted{}
+	t, err := store.Update(tasksDir, req.ID, func(current task.Task) (task.Task, error) {
+		return task.Apply(current, event)
 	})
 	if err != nil {
 		return task.Task{}, fmt.Errorf("implement task: %w", err)

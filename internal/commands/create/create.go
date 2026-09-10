@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/mhmdkzr/taskman/internal/git"
 	"github.com/mhmdkzr/taskman/internal/task"
+	taskid "github.com/mhmdkzr/taskman/internal/task/id"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 // Request is create's input. Shared verbatim by the CLI
@@ -29,6 +32,9 @@ func (r Request) validate() error {
 	if r.Definition == "" {
 		return fmt.Errorf("definition is required")
 	}
+	if (r.Specification == "") != (r.DoneWhen == "") {
+		return fmt.Errorf("specification and done_when must be provided together")
+	}
 	if err := task.ValidateLabels(r.Labels); err != nil {
 		return fmt.Errorf("validate labels: %w", err)
 	}
@@ -40,12 +46,12 @@ func (r Request) validate() error {
 // clean-working-tree precondition. With req.Trunk, it skips worktree/branch
 // creation and records the repo root and current branch instead, so the
 // task is worked in place.
-func Create(ctx context.Context, tasksDir, worktreesDir string, git *task.GitClient, req Request) (task.Task, error) {
+func Create(ctx context.Context, tasksDir, worktreesDir string, gitClient *git.Client, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("create task: %w", err)
 	}
 
-	clean, err := git.IsClean(ctx)
+	clean, err := gitClient.IsClean(ctx)
 	if err != nil {
 		return task.Task{}, fmt.Errorf("check working tree: %w", err)
 	}
@@ -55,17 +61,17 @@ func Create(ctx context.Context, tasksDir, worktreesDir string, git *task.GitCli
 
 	id := req.ID
 	if id == "" {
-		id = task.GenerateID(req.Title)
+		id = taskid.GenerateID(req.Title)
 	}
 
 	var worktree, branch string
 	if req.Trunk {
-		worktree, branch, err = git.UseTrunk(ctx)
+		worktree, branch, err = gitClient.UseTrunk(ctx)
 		if err != nil {
 			return task.Task{}, fmt.Errorf("use trunk: %w", err)
 		}
 	} else {
-		worktree, branch, err = git.CreateWorktree(ctx, worktreesDir, id, task.Slugify(req.Title))
+		worktree, branch, err = gitClient.CreateWorktree(ctx, worktreesDir, id, taskid.Slugify(req.Title))
 		if err != nil {
 			return task.Task{}, fmt.Errorf("create worktree: %w", err)
 		}
@@ -73,28 +79,19 @@ func Create(ctx context.Context, tasksDir, worktreesDir string, git *task.GitCli
 
 	t := task.Task{
 		ID:          id,
-		State:       task.StateCreated,
+		State:       task.InitialState(),
 		Title:       req.Title,
 		Labels:      req.Labels,
 		Definition:  req.Definition,
 		References:  req.References,
 		AutoApprove: req.AutoApprove,
 		Git:         task.Git{Worktree: worktree, Branch: branch, Trunk: req.Trunk},
-		Status: task.Status{
-			Definition:     task.StageStatus{State: task.StageDone, CompletedAt: new(task.Now())},
-			Specification:  task.StageStatus{State: task.StagePending},
-			Implementation: task.StageStatus{State: task.StagePending},
-			Verification:   task.StageStatus{State: task.StagePending},
-			Review:         task.StageStatus{State: task.StagePending},
-			Merge:          task.StageStatus{State: task.StagePending},
-		},
 	}
 
 	if req.Specification != "" && req.DoneWhen != "" {
 		t.Specification = req.Specification
 		t.DoneWhen = req.DoneWhen
-		t.Status.Specification = task.StageStatus{State: task.StageDone, CompletedAt: new(task.Now())}
-		t.State = task.StateStarted
+		t.State = task.StateImplement
 	}
 
 	if t.ID == "" {
@@ -103,7 +100,7 @@ func Create(ctx context.Context, tasksDir, worktreesDir string, git *task.GitCli
 	if err := os.MkdirAll(tasksDir, 0o700); err != nil {
 		return task.Task{}, fmt.Errorf("create tasks dir: %w", err)
 	}
-	if err := task.WriteTaskFile(tasksDir, t); err != nil {
+	if err := store.Write(tasksDir, t); err != nil {
 		return task.Task{}, fmt.Errorf("write task file: %w", err)
 	}
 	return t, nil

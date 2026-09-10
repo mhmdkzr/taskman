@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 //nolint:unparam // id is always "abc" in this file, but keeping it explicit reads better than a magic string inside the helper
@@ -12,21 +13,13 @@ func newTestTaskDir(t *testing.T, id string, reviewPending bool) string {
 	dir := t.TempDir()
 	tk := task.Task{
 		ID:         id,
-		State:      task.StateStarted,
+		State:      task.StateHumanReview,
 		Definition: "def",
-		Status: task.Status{
-			Definition:     task.StageStatus{State: task.StageDone},
-			Specification:  task.StageStatus{State: task.StageDone},
-			Implementation: task.StageStatus{State: task.StageDone},
-			Verification:   task.StageStatus{State: task.StageDone},
-		},
 	}
-	if reviewPending {
-		tk.Status.Review = task.StageStatus{State: task.StagePending}
-	} else {
-		tk.Status.Review = task.StageStatus{State: task.StageInProgress}
+	if !reviewPending {
+		tk.State = task.StateFixHumanReviewFindings
 	}
-	if err := task.WriteTaskFile(dir, tk); err != nil {
+	if err := store.Write(dir, tk); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
 	return dir
@@ -39,8 +32,8 @@ func TestRejectReview(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RejectReview: %v", err)
 	}
-	if got.Status.Review.State != task.StageInProgress {
-		t.Fatalf("review.state = %v, want in_progress", got.Status.Review.State)
+	if got.State != task.StateFixHumanReviewFindings {
+		t.Fatalf("state = %v, want fix_human_review_findings", got.State)
 	}
 	if len(got.HumanReviews) != 1 {
 		t.Fatalf("human_reviews length = %d, want 1", len(got.HumanReviews))

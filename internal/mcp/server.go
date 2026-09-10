@@ -15,6 +15,7 @@ import (
 	"github.com/mhmdkzr/taskman/internal/commands/implement"
 	"github.com/mhmdkzr/taskman/internal/commands/list"
 	"github.com/mhmdkzr/taskman/internal/commands/merge"
+	"github.com/mhmdkzr/taskman/internal/commands/migrate"
 	"github.com/mhmdkzr/taskman/internal/commands/next"
 	"github.com/mhmdkzr/taskman/internal/commands/prune"
 	"github.com/mhmdkzr/taskman/internal/commands/review/approve"
@@ -23,7 +24,7 @@ import (
 	"github.com/mhmdkzr/taskman/internal/commands/specify"
 	"github.com/mhmdkzr/taskman/internal/commands/update"
 	"github.com/mhmdkzr/taskman/internal/commands/verify"
-	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/git"
 )
 
 // serverName/serverVersion identify taskman to MCP clients.
@@ -34,24 +35,25 @@ const (
 
 // NewServer builds the MCP server with every task_* tool registered,
 // operating against tasksDir/worktreesDir via git.
-func NewServer(tasksDir, worktreesDir string, git *task.GitClient) *mcp.Server {
+func NewServer(tasksDir, worktreesDir string, gitClient *git.Client) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{Name: serverName, Version: serverVersion}, nil)
 	list.RegisterMCP(server, tasksDir)
 	get.RegisterMCP(server, tasksDir)
-	create.RegisterMCP(server, tasksDir, worktreesDir, git)
+	create.RegisterMCP(server, tasksDir, worktreesDir, gitClient)
 	update.RegisterMCP(server, tasksDir)
 	specify.RegisterMCP(server, tasksDir)
 	implement.RegisterMCP(server, tasksDir)
 	verify.RegisterMCP(server, tasksDir)
 	record.RegisterMCP(server, tasksDir)
-	commit.RegisterMCP(server, tasksDir, git)
+	commit.RegisterMCP(server, tasksDir, gitClient)
 	escalate.RegisterMCP(server, tasksDir)
-	approve.RegisterMCP(server, tasksDir, git)
+	approve.RegisterMCP(server, tasksDir, gitClient)
 	reject.RegisterMCP(server, tasksDir)
-	merge.RegisterMCP(server, tasksDir, git)
-	abandon.RegisterMCP(server, tasksDir, git)
+	merge.RegisterMCP(server, tasksDir, gitClient)
+	abandon.RegisterMCP(server, tasksDir, gitClient)
 	next.RegisterMCP(server, tasksDir)
 	delete.RegisterMCP(server, tasksDir)
 	prune.RegisterMCP(server, tasksDir)
+	migrate.RegisterMCP(server, tasksDir)
 	return server
 }

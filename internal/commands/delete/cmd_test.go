@@ -9,6 +9,7 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 func TestMain(m *testing.M) {
@@ -42,13 +43,10 @@ func TestCommandDeletesExistingTask(t *testing.T) {
 	dir := t.TempDir()
 	tk := task.Task{
 		ID:         "abc",
-		State:      task.StateStarted,
+		State:      task.StateImplement,
 		Definition: "test task",
-		Status: task.Status{
-			Definition: task.StageStatus{State: task.StageDone},
-		},
 	}
-	if err := task.WriteTaskFile(dir, tk); err != nil {
+	if err := store.Write(dir, tk); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
 
@@ -63,7 +61,7 @@ func TestCommandDeletesExistingTask(t *testing.T) {
 	}
 
 	// Verify task is gone
-	if _, err := task.ReadTask(dir, "abc"); err == nil {
+	if _, err := store.Read(dir, "abc"); err == nil {
 		t.Fatal("read task after delete: want error, got nil")
 	}
 }

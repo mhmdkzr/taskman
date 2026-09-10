@@ -9,6 +9,7 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 func TestMain(m *testing.M) {
@@ -44,15 +45,12 @@ func TestCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("record: %v\noutput:\n%s", err, out)
 	}
-	got, err := task.ReadTask(dir, "abc")
+	got, err := store.Read(dir, "abc")
 	if err != nil {
 		t.Fatalf("read task: %v", err)
 	}
-	if got.Status.Verification.State != task.StageDone {
-		t.Fatalf("verification.state = %v, want done", got.Status.Verification.State)
-	}
-	if got.Status.Review.State != task.StagePending {
-		t.Fatalf("review.state = %v, want pending", got.Status.Review.State)
+	if got.State != task.StateCommit {
+		t.Fatalf("state = %v, want commit", got.State)
 	}
 }
 
@@ -79,12 +77,16 @@ func TestCommandTwoRejectionsBlock(t *testing.T) {
 		t.Fatalf("first record: %v\noutput:\n%s", err, out1)
 	}
 
-	got1, err := task.ReadTask(dir, "abc")
+	got1, err := store.Read(dir, "abc")
 	if err != nil {
 		t.Fatalf("read task after first rejection: %v", err)
 	}
 	if got1.State == task.StateBlocked {
 		t.Fatal("first rejection should not block task")
+	}
+	got1.State = task.StateAutomatedReview
+	if err := store.Write(dir, got1); err != nil {
+		t.Fatalf("prepare second review: %v", err)
 	}
 
 	// Second rejection
@@ -93,7 +95,7 @@ func TestCommandTwoRejectionsBlock(t *testing.T) {
 		t.Fatalf("second record: %v\noutput:\n%s", err, out2)
 	}
 
-	got2, err := task.ReadTask(dir, "abc")
+	got2, err := store.Read(dir, "abc")
 	if err != nil {
 		t.Fatalf("read task after second rejection: %v", err)
 	}

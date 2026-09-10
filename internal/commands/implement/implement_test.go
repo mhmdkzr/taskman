@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 func newTestTaskDir(t *testing.T, id string, specDone bool) string {
@@ -11,19 +12,16 @@ func newTestTaskDir(t *testing.T, id string, specDone bool) string {
 	dir := t.TempDir()
 	tk := task.Task{
 		ID:         id,
-		State:      task.StateStarted,
+		State:      task.StateImplement,
 		Definition: "def",
-		Status: task.Status{
-			Definition: task.StageStatus{State: task.StageDone},
-		},
 	}
 	if specDone {
-		tk.Status.Specification = task.StageStatus{State: task.StageDone}
+		tk.Specification = "spec"
+		tk.DoneWhen = "done"
 	} else {
-		tk.Status.Specification = task.StageStatus{State: task.StagePending}
+		tk.State = task.StateSpecify
 	}
-	tk.Status.Implementation = task.StageStatus{State: task.StagePending}
-	if err := task.WriteTaskFile(dir, tk); err != nil {
+	if err := store.Write(dir, tk); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
 	return dir
@@ -35,8 +33,8 @@ func TestImplement(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Implement: %v", err)
 	}
-	if got.Status.Implementation.State != task.StageDone {
-		t.Fatalf("implementation.state = %v, want done", got.Status.Implementation.State)
+	if got.State != task.StateVerify {
+		t.Fatalf("state = %v, want verify", got.State)
 	}
 }
 

@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 // Request is delete's input. Shared verbatim by the CLI (cmd.go builds it
@@ -34,7 +34,7 @@ func Delete(tasksDir string, req Request) error {
 	if err := req.validate(); err != nil {
 		return fmt.Errorf("delete task: %w", err)
 	}
-	path := filepath.Join(tasksDir, req.ID+".yaml")
+	path := store.Path(tasksDir, req.ID)
 	if _, err := os.Stat(path); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return task.ErrTaskNotFound

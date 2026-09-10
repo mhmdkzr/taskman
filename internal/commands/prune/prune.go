@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 // Request is prune's input. Shared verbatim by the CLI (cmd.go builds it
@@ -53,7 +54,7 @@ func Prune(tasksDir string, req Request) (Result, error) {
 
 	var pruned []string
 	for _, id := range ids {
-		t, err := task.ReadTask(tasksDir, id)
+		t, err := store.Read(tasksDir, id)
 		if err != nil {
 			return Result{}, fmt.Errorf("read task: %w", err)
 		}

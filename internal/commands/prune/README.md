@@ -8,8 +8,7 @@ which removes a single task regardless of its state.
 
 - Enumerates the task files under the tasks directory.
 - Removes the file of each task whose state is `completed`.
-- Leaves every other task - `created`, `started`, `blocked`, `failed` -
-  untouched.
+- Leaves tasks in every other fine-grained workflow state untouched.
 - Touches nothing but task files: no soft-delete, no git worktree or branch
   cleanup, no commits. Git history covers "undo".
 

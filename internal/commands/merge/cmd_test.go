@@ -9,6 +9,7 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 func TestMain(m *testing.M) {
@@ -45,12 +46,9 @@ func TestCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("merge: %v\noutput:\n%s", err, out)
 	}
-	got, err := task.ReadTask(dir, "abc")
+	got, err := store.Read(dir, "abc")
 	if err != nil {
 		t.Fatalf("read task: %v", err)
-	}
-	if got.Status.Merge.State != task.StageDone {
-		t.Fatalf("merge.state = %v, want done", got.Status.Merge.State)
 	}
 	if got.State != task.StateCompleted {
 		t.Fatalf("state = %v, want completed", got.State)
@@ -64,7 +62,7 @@ func TestCommandWithCommitOverride(t *testing.T) {
 	if err != nil {
 		t.Fatalf("merge: %v\noutput:\n%s", err, out)
 	}
-	got, err := task.ReadTask(dir, "abc")
+	got, err := store.Read(dir, "abc")
 	if err != nil {
 		t.Fatalf("read task: %v", err)
 	}

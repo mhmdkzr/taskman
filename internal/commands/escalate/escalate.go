@@ -4,8 +4,10 @@ package escalate
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 // Request is escalate's input. Shared verbatim by the CLI (cmd.go builds it
@@ -36,13 +38,9 @@ func Escalate(tasksDir string, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("escalate task: %w", err)
 	}
-	t, err := task.MutateTask(tasksDir, req.ID, func(t *task.Task) error {
-		if t.State == task.StateCompleted || t.State == task.StateFailed {
-			return task.NotInState("task", string(t.State), "not already terminal")
-		}
-		t.State = task.StateBlocked
-		t.Blocked = &task.Blocked{Stage: req.Stage, Reason: req.Reason, At: task.Now()}
-		return nil
+	event := task.Escalated{Stage: req.Stage, Reason: req.Reason, At: time.Now().UTC()}
+	t, err := store.Update(tasksDir, req.ID, func(current task.Task) (task.Task, error) {
+		return task.Apply(current, event)
 	})
 	if err != nil {
 		return task.Task{}, fmt.Errorf("escalate task: %w", err)

@@ -5,8 +5,11 @@ package approve
 import (
 	"context"
 	"fmt"
+	"time"
 
+	"github.com/mhmdkzr/taskman/internal/git"
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 // Request is review approve's input. Shared verbatim by the CLI (cmd.go
@@ -24,30 +27,22 @@ func (r Request) validate() error {
 	return nil
 }
 
-// ApproveReview records a human's approval at the review stage. For a
-// trunk task, this also completes it (task.CompleteTrunkMerge) - so this is
-// where its own now-terminal file gets committed too (task.RecordBookkeeping).
-func ApproveReview(ctx context.Context, tasksDir string, git *task.GitClient, req Request) (task.Task, error) {
+// ApproveReview records a human's approval at the review stage. A trunk
+// task transitions directly to completed, so this also commits its
+// now-terminal task file through the Git shell.
+func ApproveReview(ctx context.Context, tasksDir string, gitClient *git.Client, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("approve review: %w", err)
 	}
-	t, err := task.MutateTask(tasksDir, req.ID, func(t *task.Task) error {
-		if t.Status.Review.State != task.StagePending {
-			return task.NotInState("review", string(t.Status.Review.State), "pending")
-		}
-		t.Status.Review.State = task.StageDone
-		t.Status.Review.CompletedAt = new(task.Now())
-		t.HumanReviews = append(
-			t.HumanReviews, task.HumanReview{Approved: true, Comment: req.Comment, At: task.Now()},
-		)
-		task.CompleteTrunkMerge(t)
-		return nil
+	event := task.HumanReviewApproved{Comment: req.Comment, At: time.Now().UTC()}
+	t, err := store.Update(tasksDir, req.ID, func(current task.Task) (task.Task, error) {
+		return task.Apply(current, event)
 	})
 	if err != nil {
 		return task.Task{}, fmt.Errorf("approve review: %w", err)
 	}
 	if t.State == task.StateCompleted {
-		if err := task.RecordBookkeeping(ctx, git, tasksDir, t, "completion"); err != nil {
+		if err := git.RecordBookkeeping(ctx, gitClient, tasksDir, t, "completion"); err != nil {
 			return task.Task{}, fmt.Errorf("approve review: %w", err)
 		}
 	}

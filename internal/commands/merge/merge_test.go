@@ -8,7 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mhmdkzr/taskman/internal/git"
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 //nolint:unparam // id is always "abc" in this file, but keeping it explicit reads better than a magic string inside the helper
@@ -35,26 +37,17 @@ func newTestTaskDir(t *testing.T, id string, reviewDone bool) string {
 	now := time.Now().UTC()
 	tk := task.Task{
 		ID:         id,
-		State:      task.StateStarted,
+		State:      task.StateHumanReview,
 		Title:      "Test Task",
 		Definition: "def",
-		Status: task.Status{
-			Definition:     task.StageStatus{State: task.StageDone},
-			Specification:  task.StageStatus{State: task.StageDone},
-			Implementation: task.StageStatus{State: task.StageDone},
-			Verification:   task.StageStatus{State: task.StageDone},
-		},
 		Git: task.Git{
 			Commit: &task.GitCommit{Hash: "abc123", Message: "x", Type: "feat", At: now},
 		},
 	}
 	if reviewDone {
-		tk.Status.Review = task.StageStatus{State: task.StageDone, CompletedAt: &now}
-	} else {
-		tk.Status.Review = task.StageStatus{State: task.StagePending}
+		tk.State = task.StateMerge
 	}
-	tk.Status.Merge = task.StageStatus{State: task.StagePending}
-	if err := task.WriteTaskFile(dir, tk); err != nil {
+	if err := store.Write(dir, tk); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
 	git("add", id+".yaml")
@@ -64,12 +57,9 @@ func newTestTaskDir(t *testing.T, id string, reviewDone bool) string {
 
 func TestMerge(t *testing.T) {
 	dir := newTestTaskDir(t, "abc", true)
-	got, err := Merge(t.Context(), dir, task.NewGit(dir), Request{ID: "abc"})
+	got, err := Merge(t.Context(), dir, git.NewClient(dir), Request{ID: "abc"})
 	if err != nil {
 		t.Fatalf("Merge: %v", err)
-	}
-	if got.Status.Merge.State != task.StageDone {
-		t.Fatalf("merge.state = %v, want done", got.Status.Merge.State)
 	}
 	if got.State != task.StateCompleted {
 		t.Fatalf("state = %v, want completed", got.State)
@@ -78,7 +68,7 @@ func TestMerge(t *testing.T) {
 
 func TestMergeRecordsBookkeepingCommit(t *testing.T) {
 	dir := newTestTaskDir(t, "abc", true)
-	git := task.NewGit(dir)
+	git := git.NewClient(dir)
 	if _, err := Merge(t.Context(), dir, git, Request{ID: "abc"}); err != nil {
 		t.Fatalf("Merge: %v", err)
 	}
@@ -105,7 +95,7 @@ func TestMergeRecordsBookkeepingCommit(t *testing.T) {
 func TestMergeWithCommitOverride(t *testing.T) {
 	dir := newTestTaskDir(t, "abc", true)
 	newCommit := "def456"
-	got, err := Merge(t.Context(), dir, task.NewGit(dir), Request{ID: "abc", Commit: newCommit})
+	got, err := Merge(t.Context(), dir, git.NewClient(dir), Request{ID: "abc", Commit: newCommit})
 	if err != nil {
 		t.Fatalf("Merge: %v", err)
 	}
@@ -119,7 +109,7 @@ func TestMergeWithCommitOverride(t *testing.T) {
 
 func TestMergeRequiresReview(t *testing.T) {
 	dir := newTestTaskDir(t, "abc", false)
-	if _, err := Merge(t.Context(), dir, task.NewGit(dir), Request{ID: "abc"}); err == nil {
+	if _, err := Merge(t.Context(), dir, git.NewClient(dir), Request{ID: "abc"}); err == nil {
 		t.Fatal("merge before review done: want error, got nil")
 	}
 }

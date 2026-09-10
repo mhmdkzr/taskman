@@ -9,6 +9,7 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 func TestMain(m *testing.M) {
@@ -44,12 +45,12 @@ func TestCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("implement: %v\noutput:\n%s", err, out)
 	}
-	got, err := task.ReadTask(dir, "abc")
+	got, err := store.Read(dir, "abc")
 	if err != nil {
 		t.Fatalf("read task: %v", err)
 	}
-	if got.Status.Implementation.State != task.StageDone {
-		t.Fatalf("implementation.state = %v, want done", got.Status.Implementation.State)
+	if got.State != task.StateVerify {
+		t.Fatalf("state = %v, want verify", got.State)
 	}
 }
 

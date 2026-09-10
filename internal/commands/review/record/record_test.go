@@ -2,8 +2,10 @@ package record
 
 import (
 	"testing"
+	"time"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 //nolint:unparam // id is always "abc" in this file, but keeping it explicit reads better than a magic string inside the helper
@@ -11,31 +13,27 @@ func newTestTaskDir(t *testing.T, id string, implDone bool, blocked bool) string
 	t.Helper()
 	dir := t.TempDir()
 	tk := task.Task{
-		ID:         id,
-		State:      task.StateStarted,
-		Definition: "def",
-		Status: task.Status{
-			Definition: task.StageStatus{State: task.StageDone},
-		},
+		ID:            id,
+		State:         task.StateImplement,
+		Definition:    "def",
+		Specification: "spec",
+		DoneWhen:      "done",
 	}
 	if implDone {
-		tk.Status.Implementation = task.StageStatus{State: task.StageDone}
-	} else {
-		tk.Status.Implementation = task.StageStatus{State: task.StagePending}
+		tk.State = task.StateAutomatedReview
 	}
-	tk.Status.Verification = task.StageStatus{State: task.StagePending}
-	tk.Status.Review = task.StageStatus{State: task.StagePending}
 
 	if blocked {
 		tk.State = task.StateBlocked
 		tk.Blocked = &task.Blocked{
-			Stage:  task.StageVerification,
-			Reason: "test block",
-			At:     task.Now(),
+			ResumeState: task.StateAutomatedReview,
+			Stage:       task.StageVerification,
+			Reason:      "test block",
+			At:          time.Now().UTC(),
 		}
 	}
 
-	if err := task.WriteTaskFile(dir, tk); err != nil {
+	if err := store.Write(dir, tk); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
 	return dir
@@ -51,11 +49,8 @@ func TestRecordReviewApproved(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RecordReview: %v", err)
 	}
-	if got.Status.Verification.State != task.StageDone {
-		t.Fatalf("verification.state = %v, want done", got.Status.Verification.State)
-	}
-	if got.Status.Review.State != task.StagePending {
-		t.Fatalf("review.state = %v, want pending", got.Status.Review.State)
+	if got.State != task.StateCommit {
+		t.Fatalf("state = %v, want commit", got.State)
 	}
 	if len(got.Reviews) != 1 {
 		t.Fatalf("reviews len = %d, want 1", len(got.Reviews))
@@ -106,8 +101,14 @@ func TestRecordReviewRejectedTwice(t *testing.T) {
 		t.Fatal("first rejection should not block task")
 	}
 
-	// Write the task back for the second review
-	if err := task.WriteTaskFile(dir, got1); err != nil {
+	// Simulate the fix and passing verification that lead to the second review.
+	got1, err = task.Apply(got1, task.VerificationReported{Verification: task.Verification{
+		Checks: map[string]task.CheckResult{"tests": task.CheckOK}, CreatedAt: time.Now().UTC(),
+	}})
+	if err != nil {
+		t.Fatalf("verify fix: %v", err)
+	}
+	if err := store.Write(dir, got1); err != nil {
 		t.Fatalf("write task file: %v", err)
 	}
 

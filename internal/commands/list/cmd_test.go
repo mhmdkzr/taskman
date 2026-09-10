@@ -11,6 +11,7 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 func TestMain(m *testing.M) {
@@ -55,24 +56,22 @@ func TestCommandListJSON(t *testing.T) {
 	dir := t.TempDir()
 	task1 := task.Task{
 		ID:         "abc",
-		State:      task.StateCreated,
+		State:      task.StateSpecify,
 		Title:      "task 1",
 		Definition: "def",
-		Status:     task.Status{},
 		Labels:     map[string]string{"priority": "high"},
 	}
 	task2 := task.Task{
 		ID:         "def",
-		State:      task.StateStarted,
+		State:      task.StateImplement,
 		Title:      "task 2",
 		Definition: "def2",
-		Status:     task.Status{},
 		Labels:     map[string]string{},
 	}
-	if err := task.WriteTaskFile(dir, task1); err != nil {
+	if err := store.Write(dir, task1); err != nil {
 		t.Fatalf("write task 1: %v", err)
 	}
-	if err := task.WriteTaskFile(dir, task2); err != nil {
+	if err := store.Write(dir, task2); err != nil {
 		t.Fatalf("write task 2: %v", err)
 	}
 
@@ -97,24 +96,22 @@ func TestCommandFilterByLabel(t *testing.T) {
 	dir := t.TempDir()
 	task1 := task.Task{
 		ID:         "abc",
-		State:      task.StateCreated,
+		State:      task.StateSpecify,
 		Title:      "task 1",
 		Definition: "def",
-		Status:     task.Status{},
 		Labels:     map[string]string{"priority": "high"},
 	}
 	task2 := task.Task{
 		ID:         "def",
-		State:      task.StateStarted,
+		State:      task.StateImplement,
 		Title:      "task 2",
 		Definition: "def2",
-		Status:     task.Status{},
 		Labels:     map[string]string{"priority": "low"},
 	}
-	if err := task.WriteTaskFile(dir, task1); err != nil {
+	if err := store.Write(dir, task1); err != nil {
 		t.Fatalf("write task 1: %v", err)
 	}
-	if err := task.WriteTaskFile(dir, task2); err != nil {
+	if err := store.Write(dir, task2); err != nil {
 		t.Fatalf("write task 2: %v", err)
 	}
 
@@ -138,8 +135,8 @@ func TestCommandFilterByLabel(t *testing.T) {
 func TestCommandPagination(t *testing.T) {
 	dir := t.TempDir()
 	for _, id := range []string{"a", "b", "c"} {
-		tk := task.Task{ID: id, State: task.StateCreated, Title: id, Definition: "def", Status: task.Status{}}
-		if err := task.WriteTaskFile(dir, tk); err != nil {
+		tk := task.Task{ID: id, State: task.StateSpecify, Title: id, Definition: "def"}
+		if err := store.Write(dir, tk); err != nil {
 			t.Fatalf("write task %s: %v", id, err)
 		}
 	}

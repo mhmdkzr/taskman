@@ -8,7 +8,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 func TestMain(m *testing.M) {
@@ -44,7 +44,7 @@ func TestCommandUpdateTitle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update: %v\noutput:\n%s", err, out)
 	}
-	got, err := task.ReadTask(dir, "abc")
+	got, err := store.Read(dir, "abc")
 	if err != nil {
 		t.Fatalf("read task: %v", err)
 	}
@@ -59,7 +59,7 @@ func TestCommandUpdateLabel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update: %v\noutput:\n%s", err, out)
 	}
-	got, err := task.ReadTask(dir, "abc")
+	got, err := store.Read(dir, "abc")
 	if err != nil {
 		t.Fatalf("read task: %v", err)
 	}
@@ -77,7 +77,7 @@ func TestCommandUpdateMultipleLabels(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update: %v\noutput:\n%s", err, out)
 	}
-	got, err := task.ReadTask(dir, "abc")
+	got, err := store.Read(dir, "abc")
 	if err != nil {
 		t.Fatalf("read task: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestCommandUnsetLabel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update: %v\noutput:\n%s", err, out)
 	}
-	got, err := task.ReadTask(dir, "abc")
+	got, err := store.Read(dir, "abc")
 	if err != nil {
 		t.Fatalf("read task: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestCommandSetAndUnsetLabels(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update: %v\noutput:\n%s", err, out)
 	}
-	got, err := task.ReadTask(dir, "abc")
+	got, err := store.Read(dir, "abc")
 	if err != nil {
 		t.Fatalf("read task: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestCommandSetReferences(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update: %v\noutput:\n%s", err, out)
 	}
-	got, err := task.ReadTask(dir, "abc")
+	got, err := store.Read(dir, "abc")
 	if err != nil {
 		t.Fatalf("read task: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestCommandClearReferences(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update: %v\noutput:\n%s", err, out)
 	}
-	got, err := task.ReadTask(dir, "abc")
+	got, err := store.Read(dir, "abc")
 	if err != nil {
 		t.Fatalf("read task: %v", err)
 	}
@@ -178,7 +178,7 @@ func TestCommandTitleAndLabel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update: %v\noutput:\n%s", err, out)
 	}
-	got, err := task.ReadTask(dir, "abc")
+	got, err := store.Read(dir, "abc")
 	if err != nil {
 		t.Fatalf("read task: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestCommandSetTrunk(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update: %v\noutput:\n%s", err, out)
 	}
-	got, err := task.ReadTask(dir, "abc")
+	got, err := store.Read(dir, "abc")
 	if err != nil {
 		t.Fatalf("read task: %v", err)
 	}
@@ -214,7 +214,7 @@ func TestCommandUnsetTrunk(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update: %v\noutput:\n%s", err, out)
 	}
-	got, err := task.ReadTask(dir, "abc")
+	got, err := store.Read(dir, "abc")
 	if err != nil {
 		t.Fatalf("read task: %v", err)
 	}
@@ -229,7 +229,7 @@ func TestCommandSetAutoApprove(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update: %v\noutput:\n%s", err, out)
 	}
-	got, err := task.ReadTask(dir, "abc")
+	got, err := store.Read(dir, "abc")
 	if err != nil {
 		t.Fatalf("read task: %v", err)
 	}
@@ -247,7 +247,7 @@ func TestCommandUnsetAutoApprove(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update: %v\noutput:\n%s", err, out)
 	}
-	got, err := task.ReadTask(dir, "abc")
+	got, err := store.Read(dir, "abc")
 	if err != nil {
 		t.Fatalf("read task: %v", err)
 	}

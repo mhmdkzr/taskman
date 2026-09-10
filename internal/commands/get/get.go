@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 // Request is get's input. Shared verbatim by the CLI (cmd.go builds it from
@@ -26,7 +27,7 @@ func Get(tasksDir string, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("get task: %w", err)
 	}
-	t, err := task.ReadTask(tasksDir, req.ID)
+	t, err := store.Read(tasksDir, req.ID)
 	if err != nil {
 		return task.Task{}, fmt.Errorf("read task: %w", err)
 	}

@@ -14,34 +14,28 @@ var (
 	// ErrInvalidLabel is returned when a well-known label key is set to a
 	// value outside its fixed enum.
 	ErrInvalidLabel = errors.New("invalid label value")
+	// ErrUnknownState is returned when a task or definition names a state
+	// absent from the compiled workflow.
+	ErrUnknownState = errors.New("unknown workflow state")
+	// ErrNoRoute is returned when a routed transition has no matching route.
+	ErrNoRoute = errors.New("no transition route")
+	// ErrInvalidEventPayload is returned when an event's typed data is invalid.
+	ErrInvalidEventPayload = errors.New("invalid event payload")
 )
 
 // InvalidTransitionError is returned when a command's precondition isn't
 // met.
 type InvalidTransitionError struct {
-	Stage string
-	Have  string
-	Want  string
+	State State
+	Event EventKind
 }
 
 func (e *InvalidTransitionError) Error() string {
-	return "invalid transition: " + e.Stage + " is " + e.Have + ", want " + e.Want
+	return "invalid transition: state=" + string(e.State) + " event=" + string(e.Event)
 }
 
-// NotInState builds the error every command's precondition check returns
-// when a stage isn't in the state it needs to be in for that command to
-// apply.
-func NotInState(stage, have, want string) error {
-	return &InvalidTransitionError{Stage: stage, Have: have, Want: want}
-}
-
-// NotBlockedOrFailed returns an error unless t is neither blocked nor
-// failed - the precondition task verify and task review record share.
-func NotBlockedOrFailed(t *Task) error {
-	if t.State == StateBlocked || t.State == StateFailed {
-		return &InvalidTransitionError{Stage: "task", Have: string(t.State), Want: "not blocked/failed"}
-	}
-	return nil
+func newInvalidTransition(state State, event EventKind) error {
+	return &InvalidTransitionError{State: state, Event: event}
 }
 
 // SummarizeFindings joins findings into one line, for use in a Blocked

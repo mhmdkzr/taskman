@@ -10,6 +10,7 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 func TestMain(m *testing.M) {
@@ -41,10 +42,13 @@ func runCmd(t *testing.T, tasksDir string, args ...string) (string, error) {
 
 func TestCommandPruneDeletesCompleted(t *testing.T) {
 	dir := t.TempDir()
-	if err := task.WriteTaskFile(dir, task.Task{ID: "done", State: task.StateCompleted}); err != nil {
+	if err := store.Write(dir, task.Task{ID: "done", State: task.StateCompleted, Definition: "def"}); err != nil {
 		t.Fatalf("write task: %v", err)
 	}
-	if err := task.WriteTaskFile(dir, task.Task{ID: "started", State: task.StateStarted}); err != nil {
+	if err := store.Write(
+		dir,
+		task.Task{ID: "started", State: task.StateImplement, Definition: "def"},
+	); err != nil {
 		t.Fatalf("write task: %v", err)
 	}
 
@@ -55,17 +59,17 @@ func TestCommandPruneDeletesCompleted(t *testing.T) {
 	if !strings.Contains(out, "deleted done\n") {
 		t.Fatalf("output = %q, want it to contain %q", out, "deleted done\n")
 	}
-	if _, err := task.ReadTask(dir, "done"); err == nil {
+	if _, err := store.Read(dir, "done"); err == nil {
 		t.Fatal("read done after prune: want error, got nil")
 	}
-	if _, err := task.ReadTask(dir, "started"); err != nil {
+	if _, err := store.Read(dir, "started"); err != nil {
 		t.Fatalf("read started after prune: want present, got %v", err)
 	}
 }
 
 func TestCommandPruneDryRun(t *testing.T) {
 	dir := t.TempDir()
-	if err := task.WriteTaskFile(dir, task.Task{ID: "done", State: task.StateCompleted}); err != nil {
+	if err := store.Write(dir, task.Task{ID: "done", State: task.StateCompleted, Definition: "def"}); err != nil {
 		t.Fatalf("write task: %v", err)
 	}
 
@@ -76,7 +80,7 @@ func TestCommandPruneDryRun(t *testing.T) {
 	if !strings.Contains(out, "would delete done\n") {
 		t.Fatalf("output = %q, want it to contain %q", out, "would delete done\n")
 	}
-	if _, err := task.ReadTask(dir, "done"); err != nil {
+	if _, err := store.Read(dir, "done"); err != nil {
 		t.Fatalf("read done after dry-run: want present, got %v", err)
 	}
 }
