@@ -17,8 +17,8 @@ func Command() *cli.Command {
 		Name:  "specification",
 		Usage: "the specification approval stage",
 		Commands: []*cli.Command{
-			specificationapprove.Command(),
-			specificationreject.Command(),
+			approve.Command(),
+			reject.Command(),
 		},
 	}
 }

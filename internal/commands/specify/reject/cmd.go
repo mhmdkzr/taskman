@@ -1,4 +1,4 @@
-package specificationreject
+package reject
 
 import (
 	"context"

@@ -1,5 +1,5 @@
-// Package specificationreject owns the "specification-rejected" command.
-package specificationreject
+// Package reject owns the "specification rejected" command.
+package reject
 
 import (
 	"fmt"

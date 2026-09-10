@@ -1,4 +1,4 @@
-package specificationapprove
+package approve
 
 import (
 	"context"

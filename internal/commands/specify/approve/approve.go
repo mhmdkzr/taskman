@@ -1,5 +1,5 @@
-// Package specificationapprove owns the "specification-approved" command.
-package specificationapprove
+// Package approve owns the "specification approved" command.
+package approve
 
 import (
 	"fmt"
