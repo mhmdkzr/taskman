@@ -112,7 +112,8 @@ returned `report_with` may require.
 | `specification rejected <id> --reason <text>` | Record human rejection of a drafted specification for revision. |
 | `implemented <id>` | Record that an implementation attempt is ready for verification. |
 | `verified <id> --check <name>=<ok\|error> ... [--output <text>]` | Record one verification attempt. Include every check actually run; all must be `ok` to pass. |
-| `reviewed <id> --approved <bool> [--finding <file>=<detail> ...]` | Record an independent automated review. Preserve full finding details. |
+| `automated-review approved <id>` | Record an independent automated review approval. |
+| `automated-review rejected <id> --finding <file>=<detail> ...` | Record automated-review findings. Preserve full finding details. |
 | `committed <id> [--commit <commit-ish>]` | Read and record a commit that already exists. |
 | `escalated <id> --stage <stage> --reason <text>` | Block the task after dispatched work gives up. Valid stages: definition, specification, implementation, verification, review, merge. |
 | `merged <id> [--commit <hash>]` | Record a merge already performed; use the override for the resulting merge hash when needed. |

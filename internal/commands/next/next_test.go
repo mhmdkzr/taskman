@@ -56,7 +56,7 @@ func TestNextRendersWorkflowInstructions(t *testing.T) {
 			"automated review",
 			nextTask(task.StateAutomatedReview),
 			ActionDispatch,
-			"reviewed abc",
+			"automated-review <approved|rejected> abc",
 			"Review the diff",
 		},
 		{"commit", nextTask(task.StateCommit), ActionDispatch, "committed abc", "Draft a commit message"},

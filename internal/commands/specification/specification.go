@@ -1,6 +1,6 @@
-// Package specify owns the "specified" command: its domain logic, CLI
+// Package specification owns the "specified" command: its domain logic, CLI
 // wiring, and dispatch prompt.
-package specify
+package specification
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
-// Request is specify's input. Shared verbatim by the CLI (cmd.go builds it
+// Request is specification's input. Shared verbatim by the CLI (cmd.go builds it
 // from flags) and MCP (mcp.go uses it as the tool's input type directly)
 // frontends; the json/jsonschema tags describe it to MCP clients.
 type Request struct {
@@ -35,14 +35,14 @@ func (r Request) validate() error {
 // definition.
 func Specify(tasksDir string, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
-		return task.Task{}, fmt.Errorf("specify task: %w", err)
+		return task.Task{}, fmt.Errorf("submit specification: %w", err)
 	}
 	event := task.SpecificationSubmitted{Specification: req.Result, DoneWhen: req.DoneWhen}
 	t, err := store.Update(tasksDir, req.ID, func(current task.Task) (task.Task, error) {
 		return task.Apply(current, event)
 	})
 	if err != nil {
-		return task.Task{}, fmt.Errorf("specify task: %w", err)
+		return task.Task{}, fmt.Errorf("submit specification: %w", err)
 	}
 	return t, nil
 }

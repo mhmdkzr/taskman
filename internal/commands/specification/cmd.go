@@ -1,4 +1,4 @@
-package specify
+package specification
 
 import (
 	"context"
@@ -6,8 +6,8 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/mhmdkzr/taskman/internal/commands/specify/approve"
-	"github.com/mhmdkzr/taskman/internal/commands/specify/reject"
+	"github.com/mhmdkzr/taskman/internal/commands/specification/approve"
+	"github.com/mhmdkzr/taskman/internal/commands/specification/reject"
 	"github.com/mhmdkzr/taskman/internal/utils"
 )
 

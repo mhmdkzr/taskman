@@ -127,10 +127,9 @@ automated_review again, using another sub-agent
 Report the verdict with:
 
 ```bash
-taskman reviewed <id> --approved true
+taskman automated-review approved <id>
 
-taskman reviewed <id> \
-  --approved false \
+taskman automated-review rejected <id> \
   --finding internal/http/limiter.go="Limiter is shared across clients"
 ```
 

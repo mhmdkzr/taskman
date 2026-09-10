@@ -1,4 +1,4 @@
-package specify
+package specification
 
 import (
 	"embed"
@@ -23,7 +23,7 @@ type Prompt struct {
 func (p Prompt) Render() string {
 	var b strings.Builder
 	if err := promptTmpl.Execute(&b, p); err != nil {
-		panic(fmt.Sprintf("specify: render prompt: %v", err))
+		panic(fmt.Sprintf("specification: render prompt: %v", err))
 	}
 	return strings.TrimRight(b.String(), "\n")
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/mhmdkzr/taskman/internal/commands/abandon"
+	"github.com/mhmdkzr/taskman/internal/commands/automatedreview"
 	"github.com/mhmdkzr/taskman/internal/commands/commit"
 	"github.com/mhmdkzr/taskman/internal/commands/create"
 	"github.com/mhmdkzr/taskman/internal/commands/delete"
@@ -28,7 +29,7 @@ import (
 	"github.com/mhmdkzr/taskman/internal/commands/prune"
 	"github.com/mhmdkzr/taskman/internal/commands/review"
 	"github.com/mhmdkzr/taskman/internal/commands/skill"
-	"github.com/mhmdkzr/taskman/internal/commands/specify"
+	"github.com/mhmdkzr/taskman/internal/commands/specification"
 	"github.com/mhmdkzr/taskman/internal/commands/update"
 	"github.com/mhmdkzr/taskman/internal/commands/verify"
 	"github.com/mhmdkzr/taskman/internal/utils"
@@ -74,12 +75,12 @@ func commands() []*cli.Command {
 		get.Command(),
 		create.Command(),
 		update.Command(),
-		specify.Command(),
-		specify.SpecifiedCommand(),
+		specification.Command(),
+		specification.SpecifiedCommand(),
 		implement.Command(),
 		verify.Command(),
 		review.Command(),
-		review.ReviewedCommand(),
+		automatedreview.Command(),
 		commit.Command(),
 		escalate.Command(),
 		merge.Command(),

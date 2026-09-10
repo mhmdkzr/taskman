@@ -33,7 +33,7 @@ func (r Request) validate() error {
 
 // Update patches a task's metadata (title, labels, references, trunk,
 // auto-approve). It never touches specification/done_when (own command:
-// specify) or the rest of Git/workflow state (taskman-managed). Metadata
+// specification) or the rest of Git/workflow state (taskman-managed). Metadata
 // has no workflow-state precondition.
 func Update(tasksDir string, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {

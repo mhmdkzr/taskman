@@ -1,4 +1,4 @@
-package record
+package reject
 
 import (
 	"context"
@@ -8,20 +8,18 @@ import (
 	"github.com/mhmdkzr/taskman/internal/task"
 )
 
+// RegisterMCP registers the automated-review rejection tool.
 func RegisterMCP(server *mcp.Server, tasksDir string) {
 	mcp.AddTool(server, mcpTool(), mcpHandler(tasksDir))
 }
 
 func mcpTool() *mcp.Tool {
-	return &mcp.Tool{
-		Name:        "task_review_recorded",
-		Description: "Report the automated review round's verdict.",
-	}
+	return &mcp.Tool{Name: "task_automated_review_rejected", Description: "Record automated review findings."}
 }
 
 func mcpHandler(tasksDir string) mcp.ToolHandlerFor[Request, task.Task] {
 	return func(_ context.Context, _ *mcp.CallToolRequest, req Request) (*mcp.CallToolResult, task.Task, error) {
-		t, err := RecordReview(tasksDir, req)
+		t, err := Reject(tasksDir, req)
 		if err != nil {
 			return nil, task.Task{}, err
 		}

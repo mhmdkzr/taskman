@@ -1,12 +1,10 @@
-// Package review wires up the human review gate and the automated `reviewed`
-// reporting command.
+// Package review wires up the human review gate.
 package review
 
 import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/mhmdkzr/taskman/internal/commands/review/approve"
-	"github.com/mhmdkzr/taskman/internal/commands/review/record"
 	"github.com/mhmdkzr/taskman/internal/commands/review/reject"
 )
 
@@ -21,7 +19,3 @@ func Command() *cli.Command {
 		},
 	}
 }
-
-// ReviewedCommand returns the "reviewed" command that records an automated
-// review round's verdict.
-func ReviewedCommand() *cli.Command { return record.Command() }

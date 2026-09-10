@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/mhmdkzr/taskman/internal/commands/implement"
-	"github.com/mhmdkzr/taskman/internal/commands/specify"
+	"github.com/mhmdkzr/taskman/internal/commands/specification"
 	"github.com/mhmdkzr/taskman/internal/task"
 	"github.com/mhmdkzr/taskman/internal/task/store"
 )
@@ -102,9 +102,9 @@ func verifyReport(id string) (string, string) {
 	return short, short + " --check <name>=<ok|error> ... [--output <text>]"
 }
 
-func reviewRecordReport(id string) (string, string) {
-	short := "reviewed " + id
-	return short, short + " --approved <bool> [--finding <file>=<text> ...]"
+func automatedReviewReport(id string) (string, string) {
+	short := "automated-review <approved|rejected> " + id
+	return short, short + " [--finding <file>=<text> ...]"
 }
 
 func commitReport(id string) (string, string) {
@@ -117,7 +117,7 @@ func guideSpecify(t task.Task) Guidance {
 	if review := lastSpecificationReview(t); review != nil && !review.Approved {
 		feedback = review.Comment
 	}
-	body := specify.Prompt{Definition: t.Definition, References: t.References, Feedback: feedback}.Render()
+	body := specification.Prompt{Definition: t.Definition, References: t.References, Feedback: feedback}.Render()
 	short, full := specifyReport(t.ID)
 	return dispatch(t, body, short, full)
 }
@@ -154,7 +154,7 @@ func guideFix(t task.Task, reason string) Guidance {
 
 func guideAutomatedReview(t task.Task) Guidance {
 	body := reviewPrompt{Specification: t.Specification, DoneWhen: t.DoneWhen}.Render()
-	short, full := reviewRecordReport(t.ID)
+	short, full := automatedReviewReport(t.ID)
 	return dispatch(t, body, short, full)
 }
 

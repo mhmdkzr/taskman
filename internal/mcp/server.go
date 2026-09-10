@@ -7,6 +7,8 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/mhmdkzr/taskman/internal/commands/abandon"
+	automatedreviewapprove "github.com/mhmdkzr/taskman/internal/commands/automatedreview/approve"
+	automatedreviewreject "github.com/mhmdkzr/taskman/internal/commands/automatedreview/reject"
 	"github.com/mhmdkzr/taskman/internal/commands/commit"
 	"github.com/mhmdkzr/taskman/internal/commands/create"
 	"github.com/mhmdkzr/taskman/internal/commands/delete"
@@ -18,11 +20,10 @@ import (
 	"github.com/mhmdkzr/taskman/internal/commands/next"
 	"github.com/mhmdkzr/taskman/internal/commands/prune"
 	"github.com/mhmdkzr/taskman/internal/commands/review/approve"
-	"github.com/mhmdkzr/taskman/internal/commands/review/record"
 	"github.com/mhmdkzr/taskman/internal/commands/review/reject"
-	"github.com/mhmdkzr/taskman/internal/commands/specify"
-	specificationapprove "github.com/mhmdkzr/taskman/internal/commands/specify/approve"
-	specificationreject "github.com/mhmdkzr/taskman/internal/commands/specify/reject"
+	"github.com/mhmdkzr/taskman/internal/commands/specification"
+	specificationapprove "github.com/mhmdkzr/taskman/internal/commands/specification/approve"
+	specificationreject "github.com/mhmdkzr/taskman/internal/commands/specification/reject"
 	"github.com/mhmdkzr/taskman/internal/commands/update"
 	"github.com/mhmdkzr/taskman/internal/commands/verify"
 	"github.com/mhmdkzr/taskman/internal/git"
@@ -42,12 +43,13 @@ func NewServer(tasksDir, worktreesDir string, gitClient *git.Client) *mcp.Server
 	get.RegisterMCP(server, tasksDir)
 	create.RegisterMCP(server, tasksDir, worktreesDir, gitClient)
 	update.RegisterMCP(server, tasksDir)
-	specify.RegisterMCP(server, tasksDir)
+	specification.RegisterMCP(server, tasksDir)
 	specificationapprove.RegisterMCP(server, tasksDir)
 	specificationreject.RegisterMCP(server, tasksDir)
 	implement.RegisterMCP(server, tasksDir)
 	verify.RegisterMCP(server, tasksDir)
-	record.RegisterMCP(server, tasksDir)
+	automatedreviewapprove.RegisterMCP(server, tasksDir)
+	automatedreviewreject.RegisterMCP(server, tasksDir)
 	commit.RegisterMCP(server, tasksDir, gitClient)
 	escalate.RegisterMCP(server, tasksDir)
 	approve.RegisterMCP(server, tasksDir, gitClient)
