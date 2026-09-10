@@ -1,4 +1,4 @@
-// Package taskstore persists task.Task values as YAML documents.
+// Package store persists task.Task values as YAML documents.
 package store
 
 import (

@@ -1,4 +1,4 @@
-// Package gitclient provides taskman's imperative Git adapter.
+// Package git provides taskman's imperative Git adapter.
 package git
 
 import (

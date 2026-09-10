@@ -2,6 +2,8 @@ package prune
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -29,6 +31,12 @@ func TestPruneDeletesOnlyCompleted(t *testing.T) {
 	writeTask(t, dir, completed("done1"))
 	writeTask(t, dir, completed("done2"))
 	writeTask(t, dir, active("started", task.StateImplement))
+	// done2 intentionally has no lock artifact; pruning must accept both forms.
+	for _, id := range []string{"done1", "started"} {
+		if err := os.WriteFile(filepath.Join(dir, id+".yaml.lock"), nil, 0o600); err != nil {
+			t.Fatalf("write lock file: %v", err)
+		}
+	}
 	writeTask(t, dir, active("failed", task.StateAbandoned))
 	blocked := active("blocked", task.StateBlocked)
 	blocked.Blocked = &task.Blocked{
@@ -53,11 +61,17 @@ func TestPruneDeletesOnlyCompleted(t *testing.T) {
 		if _, err := store.Read(dir, id); !errors.Is(err, task.ErrTaskNotFound) {
 			t.Fatalf("read %s after prune: want ErrTaskNotFound, got %v", id, err)
 		}
+		if _, err := os.Stat(filepath.Join(dir, id+".yaml.lock")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("stat %s lock after prune: want not found, got %v", id, err)
+		}
 	}
 	for _, id := range []string{"started", "failed", "blocked", "created"} {
 		if _, err := store.Read(dir, id); err != nil {
 			t.Fatalf("read %s after prune: want present, got %v", id, err)
 		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "started.yaml.lock")); err != nil {
+		t.Fatalf("stat active task lock after prune: want present, got %v", err)
 	}
 }
 
@@ -65,6 +79,10 @@ func TestPruneDryRunDeletesNothing(t *testing.T) {
 	dir := t.TempDir()
 	writeTask(t, dir, completed("done1"))
 	writeTask(t, dir, active("started", task.StateImplement))
+	lockPath := filepath.Join(dir, "done1.yaml.lock")
+	if err := os.WriteFile(lockPath, nil, 0o600); err != nil {
+		t.Fatalf("write lock file: %v", err)
+	}
 
 	res, err := Prune(dir, Request{DryRun: true})
 	if err != nil {
@@ -75,6 +93,9 @@ func TestPruneDryRunDeletesNothing(t *testing.T) {
 	}
 	if _, err := store.Read(dir, "done1"); err != nil {
 		t.Fatalf("read done1 after dry-run: want present, got %v", err)
+	}
+	if _, err := os.Stat(lockPath); err != nil {
+		t.Fatalf("stat done1 lock after dry-run: want present, got %v", err)
 	}
 }
 

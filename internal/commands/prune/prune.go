@@ -4,6 +4,7 @@
 package prune
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,10 +31,10 @@ type Result struct {
 	Count   int      `json:"count"`
 }
 
-// Prune removes the task files of every completed task under tasksDir. It
-// never touches anything but .tasks/*.yaml - no soft-delete and no git
-// worktree/branch cleanup; git history covers "undo", matching task delete.
-// With req.DryRun it reports the ids without removing them.
+// Prune removes the task files and lock artifacts of every completed task
+// under tasksDir. It performs no soft-delete or git worktree/branch cleanup;
+// git history covers "undo", matching task delete. With req.DryRun it reports
+// the ids without removing them.
 func Prune(tasksDir string, req Request) (Result, error) {
 	entries, err := os.ReadDir(tasksDir)
 	if err != nil {
@@ -62,8 +63,12 @@ func Prune(tasksDir string, req Request) (Result, error) {
 			continue
 		}
 		if !req.DryRun {
-			if err := os.Remove(filepath.Join(tasksDir, id+".yaml")); err != nil {
+			path := filepath.Join(tasksDir, id+".yaml")
+			if err := os.Remove(path); err != nil {
 				return Result{}, fmt.Errorf("delete task %s: %w", id, err)
+			}
+			if err := os.Remove(path + ".lock"); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return Result{}, fmt.Errorf("delete task %s lock: %w", id, err)
 			}
 		}
 		pruned = append(pruned, id)

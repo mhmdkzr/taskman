@@ -44,5 +44,8 @@ func Delete(tasksDir string, req Request) error {
 	if err := os.Remove(path); err != nil {
 		return fmt.Errorf("delete task %s: %w", req.ID, err)
 	}
+	if err := os.Remove(path + ".lock"); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("delete task %s lock: %w", req.ID, err)
+	}
 	return nil
 }

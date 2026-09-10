@@ -1,16 +1,16 @@
 # prune
 
-`taskman prune` deletes the task files (`.tasks/*.yaml`) of every task in the
-`completed` state, in one shot. It is the bulk counterpart to `delete <id>`,
-which removes a single task regardless of its state.
+`taskman prune` deletes the task files (`.tasks/*.yaml`) and lock artifacts of
+every task in the `completed` state, in one shot. It is the bulk counterpart
+to `delete <id>`, which removes a single task regardless of its state.
 
 ## What it does
 
 - Enumerates the task files under the tasks directory.
-- Removes the file of each task whose state is `completed`.
+- Removes the file and lock artifact of each task whose state is `completed`.
 - Leaves tasks in every other fine-grained workflow state untouched.
-- Touches nothing but task files: no soft-delete, no git worktree or branch
-  cleanup, no commits. Git history covers "undo".
+- Performs no soft-delete, git worktree or branch cleanup, or commits. Git
+  history covers "undo" for tracked task files.
 
 ## Invocation
 
