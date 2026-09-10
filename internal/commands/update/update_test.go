@@ -1,6 +1,7 @@
 package update
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/mhmdkzr/taskman/internal/task"
@@ -272,6 +273,42 @@ func TestUpdateUnsetAutoApprove(t *testing.T) {
 	}
 	if got.AutoApprove {
 		t.Fatal("AutoApprove = true, want false")
+	}
+}
+
+func TestUpdateAutoApproveRejectedWhenMoot(t *testing.T) {
+	for _, state := range []task.State{
+		task.StateHumanReview,
+		task.StateMerge,
+		task.StateBlocked,
+		task.StateCompleted,
+		task.StateAbandoned,
+	} {
+		dir := t.TempDir()
+		tk := task.Task{
+			ID:         "abc",
+			State:      state,
+			Title:      "original title",
+			Definition: "def",
+		}
+		if state == task.StateBlocked {
+			tk.Blocked = &task.Blocked{ResumeState: task.StateHumanReview, Stage: "review", Reason: "stuck"}
+		}
+		if err := store.Write(dir, tk); err != nil {
+			t.Fatalf("write task file: %v", err)
+		}
+		autoApprove := true
+		_, err := Update(dir, Request{ID: "abc", AutoApprove: &autoApprove})
+		if !errors.Is(err, task.ErrAutoApproveTooLate) {
+			t.Errorf("state %s: Update err = %v, want ErrAutoApproveTooLate", state, err)
+		}
+		read, readErr := store.Read(dir, "abc")
+		if readErr != nil {
+			t.Fatalf("read task: %v", readErr)
+		}
+		if read.AutoApprove {
+			t.Errorf("state %s: AutoApprove persisted as true, want unchanged (false)", state)
+		}
 	}
 }
 

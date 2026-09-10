@@ -26,6 +26,19 @@ const (
 // Terminal reports whether no further workflow event can advance s.
 func (s State) Terminal() bool { return s == StateCompleted || s == StateAbandoned }
 
+// AutoApproveMoot reports whether a task in state s has already passed the
+// point where AutoApprove is consulted (EventCommitRecorded's routing) with
+// no way back to it. Setting AutoApprove while in one of these states cannot
+// change the task's outcome.
+func (s State) AutoApproveMoot() bool {
+	switch s {
+	case StateHumanReview, StateMerge, StateBlocked, StateCompleted, StateAbandoned:
+		return true
+	default:
+		return false
+	}
+}
+
 // Task is one unit of work, serialized as .tasks/<id>.yaml.
 type Task struct {
 	ID                   string                `json:"id"                              yaml:"id"`

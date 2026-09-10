@@ -21,6 +21,10 @@ var (
 	ErrNoRoute = errors.New("no transition route")
 	// ErrInvalidEventPayload is returned when an event's typed data is invalid.
 	ErrInvalidEventPayload = errors.New("invalid event payload")
+	// ErrAutoApproveTooLate is returned when AutoApprove is changed on a task
+	// whose state is State.AutoApproveMoot: the flag can no longer affect the
+	// task's outcome.
+	ErrAutoApproveTooLate = errors.New("auto_approve no longer affects this task's outcome")
 )
 
 // InvalidTransitionError is returned when a command's precondition isn't

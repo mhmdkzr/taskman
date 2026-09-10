@@ -33,8 +33,9 @@ func (r Request) validate() error {
 
 // Update patches a task's metadata (title, labels, references, trunk,
 // auto-approve). It never touches specification/done_when (own command:
-// specification) or the rest of Git/workflow state (taskman-managed). Metadata
-// has no workflow-state precondition.
+// specification) or the rest of Git/workflow state (taskman-managed). Most
+// metadata has no workflow-state precondition; auto-approve is the exception,
+// since State.AutoApproveMoot states can no longer act on it.
 func Update(tasksDir string, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("update task: %w", err)
@@ -65,6 +66,11 @@ func Update(tasksDir string, req Request) (task.Task, error) {
 			t.Git.Trunk = *req.Trunk
 		}
 		if req.AutoApprove != nil {
+			if current.State.AutoApproveMoot() {
+				return task.Task{}, fmt.Errorf(
+					"update task: %w: state is %q", task.ErrAutoApproveTooLate, current.State,
+				)
+			}
 			t.AutoApprove = *req.AutoApprove
 		}
 		return t, nil

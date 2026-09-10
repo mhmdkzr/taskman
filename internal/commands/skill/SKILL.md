@@ -46,7 +46,12 @@ command, but never choose that decision yourself.
   but does not move the recorded worktree or branch. Change it only when the existing Git location
   is already appropriate.
 - Do not create or update a task with `auto_approve` unless the human explicitly requested removal
-  of the human review gate. It is a workflow policy choice, not an agent convenience.
+  of the human review gate. It is a workflow policy choice, not an agent convenience. `auto_approve`
+  is only evaluated once, when the commit is recorded, so it must be set before that point (at
+  `create`, or via `update` any time before `committed` is reported) to have any effect. Setting it
+  via `update` once a task has already reached human review does not retroactively bypass that
+  gate; `update` rejects the attempt with an error instead of silently patching a flag that can no
+  longer do anything.
 - Report facts only after they are true. `implemented` means an implementation attempt exists;
   `verified` describes checks actually run; `committed` reads an existing commit; `merged` records an
   already completed merge.
