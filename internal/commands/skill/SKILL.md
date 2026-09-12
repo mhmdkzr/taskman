@@ -16,10 +16,9 @@ passed to each MCP call.
 
 ## Use the driver loop
 
-There is no separate "what's next" command. Every command that reports an event - and `get` -
-returns a JSON envelope (with `--json`) or a short summary; the envelope carries the task plus its
-current `state` and derived `instruction: {state, action}`. Read `instruction.action` to know what
-to do next:
+Every command that reports an event - and `get` - returns a JSON envelope (with `--json`) or a
+short summary; the envelope carries the task plus its current `state` and derived
+`instruction: {state, action}`. Read `instruction.action` to know what to do next:
 
 - `dispatch`: judgment work is required at this state. Perform or delegate it, then report the
   outcome with the matching command below.
@@ -27,6 +26,13 @@ to do next:
   the outcome.
 - `wait`: stop. This state needs a decision or event from outside the agent's control.
 - `done`: stop. The task is completed or abandoned.
+
+`next --id <id>` renders that same instruction as guidance instead of making you re-derive it: a
+message built from the task's own data (its plan, worktree/branch, a failed check's output, a
+rejected review's findings) plus the exact command(s) that would currently report an outcome -
+every one of them, if more than one gate is pending at once (see the `specification_review`
+nuance below). It performs no transition and never decides a review's verdict or a check's result
+for you - use it to see what's expected, then act and report through the matching command.
 
 One nuance: `specification_review` is a single state that covers *both* of a specification's
 review gates (agent and human), and its instruction is always `wait`. Before assuming a human is
@@ -46,7 +52,7 @@ choose that decision yourself.
 ## Preserve these invariants
 
 - Never open or edit the SQLite database file directly, even for inspection. Use `get`, `list`,
-  and the reporting commands. The schema is private to Taskman.
+  `next`, and the reporting commands. The schema is private to Taskman.
 - Taskman does not create or manage Git worktrees or branches. Create the worktree and branch
   yourself (however your environment normally does that), do the work there, then report both
   once via `implemented --worktree <path> --branch <name>`. `committed` then reads the current
@@ -147,6 +153,7 @@ confirmed; do not claim a build or test that did not run.
 | `create --description <text> [--title <text>] [--label k=v ...]` | Create a task. Returns its generated id. |
 | `get --id <id>` | Read one task's current state and instruction. |
 | `list` | List every task. |
+| `next --id <id>` | Show guidance for what to do next, and the command(s) to report it. |
 
 Global CLI flags are `--git-dir` (default `.`), `--db` (default `./tasks.db`), `--json`,
 `--md`, `--log-level`, and `--log-format`. `--json` and `--md` are mutually exclusive: they

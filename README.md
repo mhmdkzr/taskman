@@ -1,15 +1,8 @@
 # taskman
 
-**A deterministic workflow driver for coding agents.**
+Taskman provides a deterministic workflow driver for coding agents to perform generic pre-defined programming tasks. After a task is defined, the agent can simply call `taskman next <id>` and taskman will simply tell the agent what to do next based on the current state of the task and how it is configured.
 
-Taskman stores the durable state of a coding task and tells an agent what to do next. The agent
-edits code, runs checks, reviews, commits, and merges. Taskman validates the workflow and records
-progress - it does not perform any of that work itself.
-
-The workflow is declared in Go and compiled into the binary. It is intentionally a concrete coding
-workflow, not a generic YAML workflow engine.
-
-> **Status:** alpha. Expect breaking changes and bugs.
+> **Status:** alpha. Expect breaking changes and potential bugs.
 
 ## Install
 
@@ -27,6 +20,8 @@ tasks.db
 
 ## Use
 
+Add taskman skill to your agent's skills. You can use `taskman skill` command to print it to stdout.
+
 Create a task:
 
 ```bash
@@ -38,28 +33,12 @@ taskman create \
 `create` prints the generated task id. Give that id to an agent:
 
 ```text
-Use taskman to perform task <id>. Read the instruction each command returns and follow it until
-it says to wait or the task is done.
+Use taskman to perform task <id>. Follow taskman instructions.
 ```
 
-There is no separate "what's next" command. Every command that reports an event - and `get` -
-returns the task's current state and a derived instruction:
-
-```json
-{
-  "state": "implement",
-  "instruction": { "state": "implement", "action": "dispatch" }
-}
-```
-
-`instruction.action` is one of:
-
-- `dispatch`: agent work is required (write spec, implement, fix, review);
-- `run`: perform a mechanical step such as checks or merge;
-- `wait`: a human or external change is required;
-- `done`: the task is completed or abandoned.
-
-Run `taskman skill` to print Taskman's full agent operating instructions.
+`taskman next --id <id>` renders that instruction as guidance: a message built from the task's own
+data (its plan, its worktree/branch, a failed check's output, a rejected review's findings) and
+the command(s) that would currently report an outcome. 
 
 ## Workflow
 
@@ -69,128 +48,18 @@ The main path is:
 specify → specification_review → implement → verify → automated_review → commit → human_review → merge → completed
 ```
 
-Each task has one authoritative workflow state, derived by replaying its recorded events. Every
-review gate, and the whole `verify` step, is optional per task:
-
-- Verification checks are declared at `implemented` (`--unit`, `--integration`, `--end-to-end`,
-  `--linters`). A task that declares none skips `verify`.
-- Review gates are declared with `--agent-review` / `--human-review` at `specified` (specification
-  gates) or `implemented` (implementation gates). Any task with a review gate must declare at
-  least one verification check.
-- A task always proceeds through `commit → merge` to `completed`; there is no shortcut that skips
-  merge.
-
-Failed verification or a rejected implementation review enters a fix state that loops back through
-another verification attempt. A rejected specification returns to `specify` for revision.
-
-### Specify
-
-Without a specification, the task's instruction is `dispatch` at `specify`. Record the drafted
-plan and choose its review gates:
-
-```bash
-taskman specified --id <id> --plan "..." [--agent-review] [--human-review]
-```
-
-`specification_review` is a single state covering both gates, and its instruction is always
-`wait`. If an agent review is required, dispatch an independent reviewer and report it; the task
-only truly waits on a human once any required agent gate is satisfied:
-
-```bash
-taskman specification review agent approved --id <id> [--comment "..."]
-taskman specification review agent rejected --id <id> --finding <location>=<detail> ...
-
-taskman specification review human approved --id <id> [--comment "..."]
-taskman specification review human rejected --id <id> --reason "..."
-```
-
-### Implement and verify
-
-Do the work in your own worktree and branch, then report them once:
-
-```bash
-taskman implemented --id <id> --worktree <path> --branch <name> \
-  [--unit] [--integration] [--end-to-end] [--linters]
-```
-
-If checks are required, the task moves to `verify` (`run`). Run the checks and report the
-outcome; a pass or fail is derived from whether any reported check is `error`:
-
-```bash
-taskman verified --id <id> --unit ok --linters error
-```
-
-Failed checks enter `fix_verification_failure` with no fixed retry limit.
-
-### Automated review
-
-If required, the implementation enters `automated_review` (`dispatch`). Use an independent
-reviewer with clean context, then report the verdict:
-
-```bash
-taskman implementation review agent approved --id <id> [--comment "..."]
-taskman implementation review agent rejected --id <id> --finding <location>=<detail> ...
-```
-
-A rejection loops through `fix_automated_review_findings` → verify → `automated_review` again,
-with no built-in round limit.
-
-### Commit and human review
-
-After automated review approval (or directly, when no review gate is configured), the state is
-`commit` (`dispatch`). Create a conventional commit in the task's worktree and report it; Taskman
-reads the commit from Git itself:
-
-```bash
-taskman committed --id <id>
-```
-
-If a human review is required, the task then waits in `human_review`. A human, or an agent
-explicitly directed by one, reports:
-
-```bash
-taskman implementation review human approved --id <id> [--comment "..."]
-taskman implementation review human rejected --id <id> --reason "..."
-```
-
-A rejection enters `fix_human_review_findings` → verify → new commit → `human_review` again. This
-does not repeat automated review.
-
-### Merge
-
-Perform the actual merge yourself, into a target branch in the `--git-dir` repository, then report
-it. Taskman reads the resulting commit from `--target`:
-
-```bash
-taskman merged --id <id> --target main
-```
-
-### Block and abandon
-
-A dispatched worker that gives up can block the task:
-
-```bash
-taskman escalated --id <id> --stage implementation --reason "Required API behavior is ambiguous"
-```
-
-There is no resume command; a blocked task waits or can be abandoned. `abandoned` ends a task
-unsuccessfully from any non-terminal state:
-
-```bash
-taskman abandoned --id <id> --reason "Feature is no longer required"
-```
-
-`completed` and `abandoned` are terminal.
-
-## Output
-
 Every command that returns a task can render it three ways:
 
-- default: a one-line human-readable summary;
+- default: a one-line text summary;
 - `--json`: the task plus its derived `state` and `instruction`;
 - `--md`: a full Markdown document.
 
-`--json` and `--md` are mutually exclusive. Global flags are:
+`--json` and `--md` are mutually exclusive. See [Commands](#commands) for the global flags every
+command accepts, and the full per-command flag reference.
+
+## Commands
+
+Every command accepts these global flags, in addition to any command-specific ones listed below:
 
 ```text
 --git-dir <path>    repository root taskman reads commits from (default ".")
@@ -201,18 +70,128 @@ Every command that returns a task can render it three ways:
 --log-format <fmt>  text or json (default "text")
 ```
 
+```text
+taskman create
+  --title string                     short human-readable title
+  --description string               what the task should accomplish
+  --label string [--label string]    a label as key=value - repeatable
+
+taskman specified
+  --id string                             the task whose specification was submitted
+  --plan string                           the specification's plan
+  --agent-review                          require an automated review
+  --agent-review-use-subagent              run the automated review in a subagent
+  --agent-review-auto-fix                  automatically fix automated review findings
+  --agent-review-auto-fix-max-rounds int   max automated-review auto-fix rounds (default 0)
+  --agent-review-auto-fix-use-subagent     run automated-review auto-fix in a subagent
+  --human-review                          require a human review
+  --human-review-auto-fix                  automatically fix human review findings
+  --human-review-auto-fix-max-rounds int   max human-review auto-fix rounds (default 0)
+  --human-review-auto-fix-use-subagent     run human-review auto-fix in a subagent
+
+taskman specification review agent approved
+  --id string       the task whose specification's automated review was approved
+  --comment string  an optional approval comment
+
+taskman specification review agent rejected
+  --id string                            the task whose specification's automated review was rejected
+  --finding string [--finding string]    a finding as location=detail - repeatable
+
+taskman specification review human approved
+  --id string       the task whose specification's human review was approved
+  --comment string  an optional approval comment
+
+taskman specification review human rejected
+  --id string      the task whose specification's human review was rejected
+  --reason string  why the specification's human review was rejected
+
+taskman implemented
+  --id string                             the task that was implemented
+  --worktree string                       the worktree the implementation was done in
+  --branch string                         the branch the implementation was done on
+  --unit                                  require unit tests
+  --integration                          require integration tests
+  --end-to-end                           require end-to-end tests
+  --linters                               require linters
+  --verification-auto-fix                 automatically fix verification failures
+  --verification-auto-fix-max-rounds int   max verification auto-fix rounds (default 0)
+  --verification-auto-fix-use-subagent     run verification auto-fix in a subagent
+  --agent-review                          require an automated review
+  --agent-review-use-subagent              run the automated review in a subagent
+  --agent-review-auto-fix                  automatically fix automated review findings
+  --agent-review-auto-fix-max-rounds int   max automated-review auto-fix rounds (default 0)
+  --agent-review-auto-fix-use-subagent     run automated-review auto-fix in a subagent
+  --human-review                          require a human review
+  --human-review-auto-fix                  automatically fix human review findings
+  --human-review-auto-fix-max-rounds int   max human-review auto-fix rounds (default 0)
+  --human-review-auto-fix-use-subagent     run human-review auto-fix in a subagent
+
+taskman implementation review agent approved
+  --id string       the task whose implementation's automated review was approved
+  --comment string  an optional approval comment
+
+taskman implementation review agent rejected
+  --id string                            the task whose implementation's automated review was rejected
+  --finding string [--finding string]    a finding as location=detail - repeatable
+
+taskman implementation review human approved
+  --id string       the task whose implementation's human review was approved
+  --comment string  an optional approval comment
+
+taskman implementation review human rejected
+  --id string      the task whose implementation's human review was rejected
+  --reason string  why the implementation's human review was rejected
+
+taskman verified
+  --id string           the task whose verification was reported
+  --unit string         the unit test check's result: ok or error
+  --integration string  the integration test check's result: ok or error
+  --end-to-end string   the end-to-end test check's result: ok or error
+  --linters string      the linters check's result: ok or error
+  --output string       verification output/log text
+
+taskman committed
+  --id string  the task whose commit was recorded
+
+taskman merged
+  --id string      the task that was merged
+  --target string  the branch it was merged into
+
+taskman escalated
+  --id string      the task being escalated
+  --stage string   the stage the task is stuck at
+  --reason string  why the task is stuck
+
+taskman abandoned
+  --id string      the task being abandoned
+  --reason string  why the task is being abandoned
+
+taskman get
+  --id string  the task id to read
+
+taskman list
+  (no command-specific flags)
+
+taskman next
+  --id string  the task id to inspect
+
+taskman skill
+  (no command-specific flags; prints SKILL.md to stdout)
+
+taskman mcp
+  (no command-specific flags; serves task operations over MCP/stdio)
+```
+
 ## MCP
 
-`taskman mcp` serves the same operations as MCP tools over stdio, using the root flags bound at
+`taskman mcp` serves the same CLI operations as MCP tools over stdio, using the root flags bound at
 startup. Tools are named `task_<command>` - for example `task_get`, `task_committed`,
 `task_specification_review_agent_approved` - and each returns the same JSON document as `--json`.
 
 ## Storage
 
-Tasks are stored as an append-only event log in a single SQLite file (`--db`, default
-`./tasks.db`). The current state is never stored directly; it is derived by replaying the task's
-events. Treat the schema as private: use `get`, `list`, and the reporting commands rather than
-opening the database yourself.
+Tasks are stored as an append-only event log in a single SQLite file. 
+The current state is never stored directly; it is derived by replaying the task's events. 
 
 ## Architecture
 
