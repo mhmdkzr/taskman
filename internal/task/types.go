@@ -1,9 +1,13 @@
+// Package task is taskman's pure functional core: the Task aggregate, the
+// closed set of TaskEvent types, the declarative workflow, Apply, and the
+// per-state Instruction projection. It performs no filesystem, Git, clock,
+// logging, CLI, or MCP work - every event carries its own At, supplied by
+// the caller.
 package task
 
 import (
 	"fmt"
 	"time"
-
 	"uuid"
 )
 
@@ -11,7 +15,7 @@ import (
 // facing view) - not the on-disk format, which is an event log; see
 // task/store.
 type TaskDocument struct {
-	Task Task `yaml:"task" json:"task"`
+	Task Task `json:"task" yaml:"task"`
 }
 
 func (s TaskState) MarshalText() ([]byte, error) {
@@ -35,77 +39,67 @@ func (s *TaskState) UnmarshalText(text []byte) error {
 // auto-fix runs - is represented by a leaf bool that is always present, so
 // "excluded" and "not yet decided" are never the same zero value.
 type Task struct {
-	ID             uuid.UUID       `yaml:"id"                        json:"id"`
-	Definition     TaskDefinition  `yaml:"definition"                json:"definition"`
-	StateHistory   []StateChange   `yaml:"state-history"             json:"state-history"`
-	Specification  *Specification  `yaml:"specification,omitempty"   json:"specification,omitempty"`
-	Implementation *Implementation `yaml:"implementation,omitempty"  json:"implementation,omitempty"`
-	Blocked        *Blockage       `yaml:"blocked,omitempty"         json:"blocked,omitempty"`
-	Abandoned      *Abandonment    `yaml:"abandoned,omitempty"       json:"abandoned,omitempty"`
+	ID             uuid.UUID       `json:"id"                       yaml:"id"`
+	Definition     TaskDefinition  `json:"definition"               yaml:"definition"`
+	StateHistory   []StateChange   `json:"state-history"            yaml:"state-history"`
+	Specification  *Specification  `json:"specification,omitempty"  yaml:"specification,omitempty"`
+	Implementation *Implementation `json:"implementation,omitempty" yaml:"implementation,omitempty"`
+	Blocked        *Blockage       `json:"blocked,omitempty"        yaml:"blocked,omitempty"`
+	Abandoned      *Abandonment    `json:"abandoned,omitempty"      yaml:"abandoned,omitempty"`
 }
 
 // StateChange is one entry in a task's append-only state history.
 type StateChange struct {
-	State TaskState `yaml:"state" json:"state"`
-	At    time.Time `yaml:"at"    json:"at"`
-}
-
-// State returns the task's current position in the workflow: the last entry
-// of StateHistory. It is derived, never stored independently - Apply appends
-// to StateHistory rather than assigning a separate field.
-func (t Task) State() TaskState {
-	if len(t.StateHistory) == 0 {
-		return ""
-	}
-	return t.StateHistory[len(t.StateHistory)-1].State
+	State TaskState `json:"state" yaml:"state"`
+	At    time.Time `json:"at"    yaml:"at"`
 }
 
 type TaskDefinition struct {
-	Title       string            `yaml:"title"          json:"title"`
-	Description string            `yaml:"description"    json:"description"`
-	Labels      map[string]string `yaml:"labels,omitempty" json:"labels,omitempty"`
+	Title       string            `json:"title"            yaml:"title"`
+	Description string            `json:"description"      yaml:"description"`
+	Labels      map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
 }
 
 type Specification struct {
-	Plan   string              `yaml:"plan"   json:"plan"`
-	Review ReviewConfiguration `yaml:"review" json:"review"`
+	Plan   string              `json:"plan"   yaml:"plan"`
+	Review ReviewConfiguration `json:"review" yaml:"review"`
 }
 
 type Implementation struct {
-	Git          Git                 `yaml:"git"          json:"git"`
-	Verification Verification        `yaml:"verification" json:"verification"`
-	Review       ReviewConfiguration `yaml:"review"        json:"review"`
+	Git          Git                 `json:"git"          yaml:"git"`
+	Verification Verification        `json:"verification" yaml:"verification"`
+	Review       ReviewConfiguration `json:"review"       yaml:"review"`
 }
 
 type Git struct {
-	Worktree string      `yaml:"worktree"        json:"worktree"`
-	Branch   string      `yaml:"branch"          json:"branch"`
-	Commits  []GitCommit `yaml:"commits,omitempty" json:"commits,omitempty"`
-	Merge    *GitMerge   `yaml:"merge,omitempty"   json:"merge,omitempty"`
+	Worktree string      `json:"worktree"          yaml:"worktree"`
+	Branch   string      `json:"branch"            yaml:"branch"`
+	Commits  []GitCommit `json:"commits,omitempty" yaml:"commits,omitempty"`
+	Merge    *GitMerge   `json:"merge,omitempty"   yaml:"merge,omitempty"`
 }
 
 type GitCommit struct {
-	Hash    string    `yaml:"hash"    json:"hash"`
-	Message string    `yaml:"message" json:"message"`
-	At      time.Time `yaml:"at"      json:"at"`
+	Hash    string    `json:"hash"    yaml:"hash"`
+	Message string    `json:"message" yaml:"message"`
+	At      time.Time `json:"at"      yaml:"at"`
 }
 
 // GitMerge refers to facts already owned by Git. The source is the last item
 // in Git.Commits; Commit is the resulting commit on Target.
 type GitMerge struct {
-	Target string    `yaml:"target" json:"target"`
-	Commit string    `yaml:"commit" json:"commit"`
-	At     time.Time `yaml:"at"     json:"at"`
+	Target string    `json:"target" yaml:"target"`
+	Commit string    `json:"commit" yaml:"commit"`
+	At     time.Time `json:"at"     yaml:"at"`
 }
 
 // Verification describes which build checks this task's workflow runs. A
 // check that is false in Tests/Linters never gets a corresponding entry in
 // Attempts.Checks; the bools are the sole source of truth for inclusion.
 type Verification struct {
-	Tests    TestConfiguration    `yaml:"tests"              json:"tests"`
-	Linters  bool                 `yaml:"linters,omitempty"  json:"linters,omitempty"`
-	AutoFix  AutoFix              `yaml:"auto-fix"           json:"auto-fix"`
-	Attempts []VerificationResult `yaml:"attempts,omitempty" json:"attempts,omitempty"`
+	Tests    TestConfiguration    `json:"tests"              yaml:"tests"`
+	Linters  bool                 `json:"linters,omitempty"  yaml:"linters,omitempty"`
+	AutoFix  AutoFix              `json:"auto-fix"           yaml:"auto-fix"`
+	Attempts []VerificationResult `json:"attempts,omitempty" yaml:"attempts,omitempty"`
 }
 
 // validate enforces the implementation's configuration invariants. The key
@@ -147,10 +141,10 @@ func (v Verification) validate() error {
 }
 
 type VerificationResult struct {
-	Passed bool      `yaml:"passed"           json:"passed"`
-	Checks Checks    `yaml:"checks"           json:"checks"`
-	Output string    `yaml:"output,omitempty" json:"output,omitempty"`
-	At     time.Time `yaml:"at"               json:"at"`
+	Passed bool      `json:"passed"           yaml:"passed"`
+	Checks Checks    `json:"checks"           yaml:"checks"`
+	Output string    `json:"output,omitempty" yaml:"output,omitempty"`
+	At     time.Time `json:"at"               yaml:"at"`
 }
 
 // Checks is one attempt's per-check outcomes. Its shape mirrors
@@ -160,10 +154,10 @@ type VerificationResult struct {
 // mismatch either way (reported but not required, or required but missing)
 // is rejected by validate.
 type Checks struct {
-	Unit        CheckResult `yaml:"unit,omitempty"        json:"unit,omitempty"`
-	Integration CheckResult `yaml:"integration,omitempty" json:"integration,omitempty"`
-	EndToEnd    CheckResult `yaml:"end-to-end,omitempty"  json:"end-to-end,omitempty"`
-	Linters     CheckResult `yaml:"linters,omitempty"     json:"linters,omitempty"`
+	Unit        CheckResult `json:"unit,omitempty"        yaml:"unit,omitempty"`
+	Integration CheckResult `json:"integration,omitempty" yaml:"integration,omitempty"`
+	EndToEnd    CheckResult `json:"end-to-end,omitempty"  yaml:"end-to-end,omitempty"`
+	Linters     CheckResult `json:"linters,omitempty"     yaml:"linters,omitempty"`
 }
 
 func (c Checks) validate(tests TestConfiguration, linters bool) error {
@@ -197,16 +191,16 @@ const (
 )
 
 type TestConfiguration struct {
-	Unit        bool `yaml:"unit,omitempty"        json:"unit,omitempty"`
-	Integration bool `yaml:"integration,omitempty" json:"integration,omitempty"`
-	EndToEnd    bool `yaml:"end-to-end,omitempty"  json:"end-to-end,omitempty"`
+	Unit        bool `json:"unit,omitempty"        yaml:"unit,omitempty"`
+	Integration bool `json:"integration,omitempty" yaml:"integration,omitempty"`
+	EndToEnd    bool `json:"end-to-end,omitempty"  yaml:"end-to-end,omitempty"`
 }
 
 // ReviewConfiguration is always present on Specification and Implementation;
 // each of Agent and Human decides its own inclusion via Required.
 type ReviewConfiguration struct {
-	Agent AgentReviewConfiguration `yaml:"agent-review" json:"agent-review"`
-	Human HumanReviewConfiguration `yaml:"human-review" json:"human-review"`
+	Agent AgentReviewConfiguration `json:"agent-review" yaml:"agent-review"`
+	Human HumanReviewConfiguration `json:"human-review" yaml:"human-review"`
 }
 
 func (r ReviewConfiguration) validate() error {
@@ -224,10 +218,10 @@ func (r ReviewConfiguration) validate() error {
 // when it is false, UseSubagent, AutoFix, and Results must stay zero/empty -
 // there is no separate way to say "excluded" versus "not yet configured".
 type AgentReviewConfiguration struct {
-	Required    bool                `yaml:"required"           json:"required"`
-	UseSubagent bool                `yaml:"use-subagent,omitempty" json:"use-subagent,omitempty"`
-	AutoFix     AutoFix             `yaml:"auto-fix"           json:"auto-fix"`
-	Results     []AgentReviewResult `yaml:"results,omitempty"  json:"results,omitempty"`
+	Required    bool                `json:"required"               yaml:"required"`
+	UseSubagent bool                `json:"use-subagent,omitempty" yaml:"use-subagent,omitempty"`
+	AutoFix     AutoFix             `json:"auto-fix"               yaml:"auto-fix"`
+	Results     []AgentReviewResult `json:"results,omitempty"      yaml:"results,omitempty"`
 }
 
 func (a AgentReviewConfiguration) validate() error {
@@ -243,9 +237,9 @@ func (a AgentReviewConfiguration) validate() error {
 // HumanReviewConfiguration is the gate for one human-review stage. See
 // AgentReviewConfiguration for the meaning of Required.
 type HumanReviewConfiguration struct {
-	Required bool                `yaml:"required"          json:"required"`
-	AutoFix  AutoFix             `yaml:"auto-fix"          json:"auto-fix"`
-	Results  []HumanReviewResult `yaml:"results,omitempty" json:"results,omitempty"`
+	Required bool                `json:"required"          yaml:"required"`
+	AutoFix  AutoFix             `json:"auto-fix"          yaml:"auto-fix"`
+	Results  []HumanReviewResult `json:"results,omitempty" yaml:"results,omitempty"`
 }
 
 func (h HumanReviewConfiguration) validate() error {
@@ -259,28 +253,28 @@ func (h HumanReviewConfiguration) validate() error {
 }
 
 type AgentReviewResult struct {
-	Approved bool      `yaml:"approved"           json:"approved"`
-	Comment  string    `yaml:"comment,omitempty"  json:"comment,omitempty"`
-	Findings []Finding `yaml:"findings,omitempty" json:"findings,omitempty"`
-	At       time.Time `yaml:"at"                 json:"at"`
+	Approved bool      `json:"approved"           yaml:"approved"`
+	Comment  string    `json:"comment,omitempty"  yaml:"comment,omitempty"`
+	Findings []Finding `json:"findings,omitempty" yaml:"findings,omitempty"`
+	At       time.Time `json:"at"                 yaml:"at"`
 }
 
 type HumanReviewResult struct {
-	Approved bool      `yaml:"approved"          json:"approved"`
-	Comment  string    `yaml:"comment,omitempty" json:"comment,omitempty"`
-	At       time.Time `yaml:"at"                json:"at"`
+	Approved bool      `json:"approved"          yaml:"approved"`
+	Comment  string    `json:"comment,omitempty" yaml:"comment,omitempty"`
+	At       time.Time `json:"at"                yaml:"at"`
 }
 
 type Finding struct {
-	Location string `yaml:"location" json:"location"`
-	Detail   string `yaml:"detail"   json:"detail"`
+	Location string `json:"location" yaml:"location"`
+	Detail   string `json:"detail"   yaml:"detail"`
 }
 
 // Blockage describes a paused, non-terminal task: the workflow is stuck at
 // Stage for Reason pending outside intervention.
 type Blockage struct {
-	Stage  string `yaml:"stage"  json:"stage"`
-	Reason string `yaml:"reason" json:"reason"`
+	Stage  string `json:"stage"  yaml:"stage"`
+	Reason string `json:"reason" yaml:"reason"`
 }
 
 // Abandonment is the task's one non-success terminal outcome. Reason is
@@ -288,14 +282,14 @@ type Blockage struct {
 // needed, superseded, ...) are not branches the workflow treats
 // differently, so there is no separate kind/taxonomy to maintain.
 type Abandonment struct {
-	Reason string    `yaml:"reason" json:"reason"`
-	At     time.Time `yaml:"at"     json:"at"`
+	Reason string    `json:"reason" yaml:"reason"`
+	At     time.Time `json:"at"     yaml:"at"`
 }
 
 type AutoFix struct {
-	Enabled     bool `yaml:"enabled"                json:"enabled"`
-	MaxRounds   int  `yaml:"max-rounds,omitempty"   json:"max-rounds,omitempty"`
-	UseSubagent bool `yaml:"use-subagent,omitempty" json:"use-subagent,omitempty"`
+	Enabled     bool `json:"enabled"                yaml:"enabled"`
+	MaxRounds   int  `json:"max-rounds,omitempty"   yaml:"max-rounds,omitempty"`
+	UseSubagent bool `json:"use-subagent,omitempty" yaml:"use-subagent,omitempty"`
 }
 
 // NewTask constructs a task in the initial specify state.
@@ -315,6 +309,16 @@ func NewTask(id uuid.UUID, definition TaskDefinition, at time.Time) (Task, error
 		return Task{}, fmt.Errorf("new task: %w", err)
 	}
 	return t, nil
+}
+
+// State returns the task's current position in the workflow: the last entry
+// of StateHistory. It is derived, never stored independently - Apply appends
+// to StateHistory rather than assigning a separate field.
+func (t Task) State() TaskState {
+	if len(t.StateHistory) == 0 {
+		return ""
+	}
+	return t.StateHistory[len(t.StateHistory)-1].State
 }
 
 // Validate checks the task's workflow and data invariants.
@@ -342,7 +346,7 @@ func (t Task) Validate() error {
 		return fmt.Errorf("abandoned state requires abandoned data")
 	}
 
-	switch state {
+	switch state { //nolint:exhaustive // only these states require a specification; others are checked below.
 	case StateSpecificationReview, StateImplement, StateVerify,
 		StateFixVerificationFailure, StateFixAutomatedReviewFindings,
 		StateAutomatedReview, StateCommit, StateHumanReview,
@@ -351,7 +355,7 @@ func (t Task) Validate() error {
 			return fmt.Errorf("state %s requires a specification", state)
 		}
 	}
-	switch state {
+	switch state { //nolint:exhaustive // only these states require implementation; others are checked below.
 	case StateVerify, StateFixVerificationFailure,
 		StateFixAutomatedReviewFindings, StateAutomatedReview,
 		StateCommit, StateHumanReview, StateFixHumanReviewFindings,

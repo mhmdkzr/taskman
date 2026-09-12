@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"net/url"
 	"time"
-
 	"uuid"
 
 	sqlite "modernc.org/sqlite"
@@ -60,7 +59,8 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open store: %w", err)
 	}
-	if _, err := db.Exec(schema); err != nil {
+	if _, err := db.ExecContext(context.Background(), schema); err != nil {
+		//nolint:errcheck // the migrate failure is returned; this close is best-effort cleanup.
 		_ = db.Close()
 		return nil, fmt.Errorf("migrate store: %w", err)
 	}
@@ -69,12 +69,20 @@ func Open(path string) (*Store, error) {
 
 // Close releases the store's database handle.
 func (s *Store) Close() error {
-	return s.db.Close()
+	if err := s.db.Close(); err != nil {
+		return fmt.Errorf("close store: %w", err)
+	}
+	return nil
 }
 
 // Create starts a new task and returns it. It fails with
 // ErrTaskAlreadyExists if id is already present.
-func (s *Store) Create(ctx context.Context, id uuid.UUID, definition task.TaskDefinition, at time.Time) (task.Task, error) {
+func (s *Store) Create(
+	ctx context.Context,
+	id uuid.UUID,
+	definition task.TaskDefinition,
+	at time.Time,
+) (task.Task, error) {
 	current, err := task.NewTask(id, definition, at)
 	if err != nil {
 		return task.Task{}, fmt.Errorf("create task: %w", err)
@@ -113,6 +121,7 @@ func (s *Store) Append(ctx context.Context, id uuid.UUID, event task.TaskEvent) 
 	if err != nil {
 		return task.Task{}, fmt.Errorf("append task %s: %w", id, err)
 	}
+	//nolint:errcheck // released back to the pool; the transaction's own result is returned.
 	defer conn.Close()
 
 	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
@@ -121,35 +130,11 @@ func (s *Store) Append(ctx context.Context, id uuid.UUID, event task.TaskEvent) 
 
 	next, err := s.appendLocked(ctx, conn, id, event)
 	if err != nil {
+		//nolint:errcheck // best-effort rollback; the original error is returned.
 		_, _ = conn.ExecContext(ctx, "ROLLBACK")
 		return task.Task{}, err
 	}
 	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
-		return task.Task{}, fmt.Errorf("append task %s: %w", id, err)
-	}
-	return next, nil
-}
-
-func (s *Store) appendLocked(ctx context.Context, conn *sql.Conn, id uuid.UUID, event task.TaskEvent) (task.Task, error) {
-	current, err := s.read(ctx, conn, id)
-	if err != nil {
-		return task.Task{}, err
-	}
-	next, err := task.Apply(current, event)
-	if err != nil {
-		return task.Task{}, err
-	}
-
-	data, err := encodeEvent(event)
-	if err != nil {
-		return task.Task{}, fmt.Errorf("append task %s: %w", id, err)
-	}
-	_, err = conn.ExecContext(ctx,
-		`INSERT INTO events (task_id, seq, kind, data)
-		 VALUES (?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM events WHERE task_id = ?), ?, ?)`,
-		id.String(), id.String(), string(event.Kind()), string(data),
-	)
-	if err != nil {
 		return task.Task{}, fmt.Errorf("append task %s: %w", id, err)
 	}
 	return next, nil
@@ -161,6 +146,7 @@ func (s *Store) List(ctx context.Context) ([]uuid.UUID, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list tasks: %w", err)
 	}
+	//nolint:errcheck // read-only rows; rows.Err() reports any iteration failure.
 	defer rows.Close()
 
 	var ids []uuid.UUID
@@ -179,6 +165,36 @@ func (s *Store) List(ctx context.Context) ([]uuid.UUID, error) {
 		return nil, fmt.Errorf("list tasks: %w", err)
 	}
 	return ids, nil
+}
+
+func (s *Store) appendLocked(
+	ctx context.Context,
+	conn *sql.Conn,
+	id uuid.UUID,
+	event task.TaskEvent,
+) (task.Task, error) {
+	current, err := s.read(ctx, conn, id)
+	if err != nil {
+		return task.Task{}, err
+	}
+	next, err := task.Apply(current, event)
+	if err != nil {
+		return task.Task{}, fmt.Errorf("append task %s: %w", id, err)
+	}
+
+	data, err := encodeEvent(event)
+	if err != nil {
+		return task.Task{}, fmt.Errorf("append task %s: %w", id, err)
+	}
+	_, err = conn.ExecContext(ctx,
+		`INSERT INTO events (task_id, seq, kind, data)
+		 VALUES (?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM events WHERE task_id = ?), ?, ?)`,
+		id.String(), id.String(), string(event.Kind()), string(data),
+	)
+	if err != nil {
+		return task.Task{}, fmt.Errorf("append task %s: %w", id, err)
+	}
+	return next, nil
 }
 
 // querier is satisfied by both *sql.DB and *sql.Conn, so read works whether
@@ -215,6 +231,7 @@ func (s *Store) read(ctx context.Context, q querier, id uuid.UUID) (task.Task, e
 	if err != nil {
 		return task.Task{}, fmt.Errorf("read task %s events: %w", id, err)
 	}
+	//nolint:errcheck // read-only rows; rows.Err() reports any iteration failure.
 	defer rows.Close()
 
 	for rows.Next() {
@@ -240,8 +257,7 @@ func (s *Store) read(ctx context.Context, q querier, id uuid.UUID) (task.Task, e
 // isConstraintViolation reports whether err is a SQLite constraint failure
 // (e.g. a duplicate primary key on tasks.id).
 func isConstraintViolation(err error) bool {
-	var sqliteErr *sqlite.Error
-	if errors.As(err, &sqliteErr) {
+	if sqliteErr, ok := errors.AsType[*sqlite.Error](err); ok {
 		return sqliteErr.Code()&0xff == sqliteConstraintResultCode
 	}
 	return false

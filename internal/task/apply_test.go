@@ -4,7 +4,6 @@ import (
 	"errors"
 	"testing"
 	"time"
-
 	"uuid"
 )
 
@@ -200,14 +199,20 @@ func TestApplyRejectsInvalidTransitions(t *testing.T) {
 
 	humanReviewOnly := newTask(t, now)
 	humanReviewOnly = apply(t, humanReviewOnly, SpecificationSubmitted{
-		Specification: Specification{Plan: "p", Review: ReviewConfiguration{Human: HumanReviewConfiguration{Required: true}}},
-		At:            now,
+		Specification: Specification{
+			Plan:   "p",
+			Review: ReviewConfiguration{Human: HumanReviewConfiguration{Required: true}},
+		},
+		At: now,
 	})
 
 	agentReviewOnly := newTask(t, now)
 	agentReviewOnly = apply(t, agentReviewOnly, SpecificationSubmitted{
-		Specification: Specification{Plan: "p", Review: ReviewConfiguration{Agent: AgentReviewConfiguration{Required: true}}},
-		At:            now,
+		Specification: Specification{
+			Plan:   "p",
+			Review: ReviewConfiguration{Agent: AgentReviewConfiguration{Required: true}},
+		},
+		At: now,
 	})
 
 	tests := []struct {
@@ -273,14 +278,20 @@ func TestApplyRejectsInvalidEventPayloads(t *testing.T) {
 
 	humanReviewOnly := newTask(t, now)
 	humanReviewOnly = apply(t, humanReviewOnly, SpecificationSubmitted{
-		Specification: Specification{Plan: "p", Review: ReviewConfiguration{Human: HumanReviewConfiguration{Required: true}}},
-		At:            now,
+		Specification: Specification{
+			Plan:   "p",
+			Review: ReviewConfiguration{Human: HumanReviewConfiguration{Required: true}},
+		},
+		At: now,
 	})
 
 	agentReviewOnly := newTask(t, now)
 	agentReviewOnly = apply(t, agentReviewOnly, SpecificationSubmitted{
-		Specification: Specification{Plan: "p", Review: ReviewConfiguration{Agent: AgentReviewConfiguration{Required: true}}},
-		At:            now,
+		Specification: Specification{
+			Plan:   "p",
+			Review: ReviewConfiguration{Agent: AgentReviewConfiguration{Required: true}},
+		},
+		At: now,
 	})
 
 	tests := []struct {
@@ -369,8 +380,11 @@ func TestApplyDoesNotMutateCurrent(t *testing.T) {
 	now := time.Now().UTC()
 	tsk := newTask(t, now)
 	tsk = apply(t, tsk, SpecificationSubmitted{
-		Specification: Specification{Plan: "p", Review: ReviewConfiguration{Agent: AgentReviewConfiguration{Required: true}}},
-		At:            now,
+		Specification: Specification{
+			Plan:   "p",
+			Review: ReviewConfiguration{Agent: AgentReviewConfiguration{Required: true}},
+		},
+		At: now,
 	})
 	before := tsk.Clone()
 

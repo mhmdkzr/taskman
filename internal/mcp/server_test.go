@@ -3,7 +3,6 @@ package mcp
 import (
 	"path/filepath"
 	"testing"
-
 	"uuid"
 
 	gosdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"

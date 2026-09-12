@@ -33,19 +33,6 @@ func humanReviewRequired(review ReviewConfiguration) bool {
 	return review.Human.Required
 }
 
-func (s TaskState) valid() bool {
-	switch s {
-	case StateSpecify, StateSpecificationReview, StateImplement, StateVerify,
-		StateFixVerificationFailure, StateFixAutomatedReviewFindings,
-		StateAutomatedReview, StateCommit, StateHumanReview,
-		StateFixHumanReviewFindings, StateMerge, StateBlocked,
-		StateCompleted, StateAbandoned:
-		return true
-	default:
-		return false
-	}
-}
-
 // ParseTaskState validates and returns the TaskState corresponding to name.
 func ParseTaskState(name string) (TaskState, error) {
 	state := TaskState(name)
@@ -57,4 +44,17 @@ func ParseTaskState(name string) (TaskState, error) {
 
 func (s TaskState) String() string {
 	return string(s)
+}
+
+func (s TaskState) valid() bool {
+	switch s {
+	case StateSpecify, StateSpecificationReview, StateImplement, StateVerify,
+		StateFixVerificationFailure, StateFixAutomatedReviewFindings,
+		StateAutomatedReview, StateCommit, StateHumanReview,
+		StateFixHumanReviewFindings, StateMerge, StateBlocked,
+		StateCompleted, StateAbandoned:
+		return true
+	default:
+		return false
+	}
 }

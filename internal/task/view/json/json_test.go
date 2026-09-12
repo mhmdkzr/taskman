@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
-
 	"uuid"
 
 	"github.com/mhmdkzr/taskman/internal/task"
@@ -48,7 +47,14 @@ func TestFromTaskCompleted(t *testing.T) {
 		t.Fatalf("NewTask() error = %v", err)
 	}
 	tsk = mustApply(t, tsk, task.SpecificationSubmitted{Specification: task.Specification{Plan: "p"}, At: now})
-	tsk = mustApply(t, tsk, task.ImplementationCompleted{Implementation: task.Implementation{Git: task.Git{Worktree: "/wt", Branch: "b"}}, At: now})
+	tsk = mustApply(
+		t,
+		tsk,
+		task.ImplementationCompleted{
+			Implementation: task.Implementation{Git: task.Git{Worktree: "/wt", Branch: "b"}},
+			At:             now,
+		},
+	)
 	tsk = mustApply(t, tsk, task.CommitRecorded{Commit: task.GitCommit{Hash: "c", At: now}, At: now})
 	tsk = mustApply(t, tsk, task.MergeCompleted{Merge: task.GitMerge{Target: "main", Commit: "c", At: now}, At: now})
 

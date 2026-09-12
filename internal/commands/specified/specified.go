@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"time"
-
 	"uuid"
 
 	"github.com/mhmdkzr/taskman/internal/task"
@@ -14,9 +13,11 @@ import (
 )
 
 // Request is specified's input.
+//
+//nolint:modernize // omitempty marks Review optional in the reflected MCP schema; omitzero would not.
 type Request struct {
-	ID     uuid.UUID                `json:"id"   jsonschema:"the task whose specification was submitted"`
-	Plan   string                   `json:"plan" jsonschema:"the specification's plan"`
+	ID     uuid.UUID                `json:"id"               jsonschema:"the task whose specification was submitted"`
+	Plan   string                   `json:"plan"             jsonschema:"the specification's plan"`
 	Review task.ReviewConfiguration `json:"review,omitempty" jsonschema:"which review gates this specification requires"`
 }
 

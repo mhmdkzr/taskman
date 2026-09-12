@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
-
 	"uuid"
 
 	"github.com/mhmdkzr/taskman/internal/task"
@@ -58,7 +57,15 @@ func TestCreateRejectsDuplicateID(t *testing.T) {
 	if _, err := s.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if _, err := s.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); !errors.Is(err, ErrTaskAlreadyExists) {
+	if _, err := s.Create(
+		t.Context(),
+		id,
+		task.TaskDefinition{Description: "d"},
+		now,
+	); !errors.Is(
+		err,
+		ErrTaskAlreadyExists,
+	) {
 		t.Fatalf("Create() error = %v, want ErrTaskAlreadyExists", err)
 	}
 }
@@ -82,7 +89,10 @@ func TestAppendAccumulatesEventsAndMatchesDirectApply(t *testing.T) {
 
 	events := []task.TaskEvent{
 		task.SpecificationSubmitted{Specification: task.Specification{Plan: "plan"}, At: now},
-		task.ImplementationCompleted{Implementation: task.Implementation{Git: task.Git{Worktree: "/wt", Branch: "b"}}, At: now},
+		task.ImplementationCompleted{
+			Implementation: task.Implementation{Git: task.Git{Worktree: "/wt", Branch: "b"}},
+			At:             now,
+		},
 		task.CommitRecorded{Commit: task.GitCommit{Hash: "abc", Message: "m", At: now}, At: now},
 		task.MergeCompleted{Merge: task.GitMerge{Target: "main", Commit: "def", At: now}, At: now},
 	}
@@ -216,7 +226,11 @@ func TestAppendRejectsInvalidEventWithoutPersistingIt(t *testing.T) {
 	}
 
 	// CommitRecorded is invalid from the initial specify state.
-	if _, err := s.Append(t.Context(), id, task.CommitRecorded{Commit: task.GitCommit{Hash: "x", At: now}, At: now}); err == nil {
+	if _, err := s.Append(
+		t.Context(),
+		id,
+		task.CommitRecorded{Commit: task.GitCommit{Hash: "x", At: now}, At: now},
+	); err == nil {
 		t.Fatal("Append() error = nil, want an error for an invalid transition")
 	}
 

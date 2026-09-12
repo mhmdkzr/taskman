@@ -25,7 +25,7 @@ func Command() *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			id, err := utils.IDFrom(cmd)
 			if err != nil {
-				return err
+				return utils.Fail(err)
 			}
 			var checks task.Checks
 			for _, c := range []struct {
@@ -39,7 +39,7 @@ func Command() *cli.Command {
 			} {
 				result, err := utils.ParseCheckResult(c.flag, cmd.String(c.flag))
 				if err != nil {
-					return err
+					return utils.Fail(err)
 				}
 				*c.dest = result
 			}
@@ -48,7 +48,7 @@ func Command() *cli.Command {
 			if err != nil {
 				return utils.Fail(err)
 			}
-			defer st.Close()
+			defer utils.CloseStore(st)
 
 			t, err := Verified(ctx, st, Request{ID: id, Checks: checks, Output: cmd.String("output")})
 			if err != nil {

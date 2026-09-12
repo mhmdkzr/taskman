@@ -14,19 +14,27 @@ func Command() *cli.Command {
 		Name:  "rejected",
 		Usage: "report a task's implementation's human review as rejected",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "id", Required: true, Usage: "the task whose implementation's human review was rejected"},
-			&cli.StringFlag{Name: "reason", Required: true, Usage: "why the implementation's human review was rejected"},
+			&cli.StringFlag{
+				Name:     "id",
+				Required: true,
+				Usage:    "the task whose implementation's human review was rejected",
+			},
+			&cli.StringFlag{
+				Name:     "reason",
+				Required: true,
+				Usage:    "why the implementation's human review was rejected",
+			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			id, err := utils.IDFrom(cmd)
 			if err != nil {
-				return err
+				return utils.Fail(err)
 			}
 			st, err := utils.StoreFrom(cmd)
 			if err != nil {
 				return utils.Fail(err)
 			}
-			defer st.Close()
+			defer utils.CloseStore(st)
 
 			t, err := Rejected(ctx, st, Request{ID: id, Reason: cmd.String("reason")})
 			if err != nil {

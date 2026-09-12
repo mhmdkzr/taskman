@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"time"
-
 	"uuid"
 
 	"github.com/mhmdkzr/taskman/internal/task"
@@ -14,12 +13,14 @@ import (
 )
 
 // Request is implemented's input.
+//
+//nolint:modernize // omitempty marks Verification/Review optional in the reflected MCP schema; omitzero would not.
 type Request struct {
 	ID           uuid.UUID                `json:"id"                     jsonschema:"the task that was implemented"`
-	Worktree     string                   `json:"worktree"                jsonschema:"the worktree the implementation was done in"`
-	Branch       string                   `json:"branch"                  jsonschema:"the branch the implementation was done on"`
-	Verification task.Verification        `json:"verification,omitempty"  jsonschema:"which verification checks this implementation requires"`
-	Review       task.ReviewConfiguration `json:"review,omitempty" jsonschema:"which review gates this implementation requires"`
+	Worktree     string                   `json:"worktree"               jsonschema:"the worktree the implementation was done in"`
+	Branch       string                   `json:"branch"                 jsonschema:"the branch the implementation was done on"`
+	Verification task.Verification        `json:"verification,omitempty" jsonschema:"which verification checks this implementation requires"`
+	Review       task.ReviewConfiguration `json:"review,omitempty"       jsonschema:"which review gates this implementation requires"`
 }
 
 func (r Request) validate() error {

@@ -27,7 +27,7 @@ func Command() *cli.Command {
 			if err != nil {
 				return utils.Fail(err)
 			}
-			defer st.Close()
+			defer utils.CloseStore(st)
 
 			t, err := Create(ctx, st, Request{
 				Title:       cmd.String("title"),

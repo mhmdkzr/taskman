@@ -15,10 +15,11 @@ const (
 	EventEscalated               EventKind = "escalated"
 	EventAbandoned               EventKind = "abandoned"
 
-	// The four review gates are each their own event kind - stage
-	// (specification/implementation) x reviewer (agent/human) - rather than
-	// one event shared across stages, so an event's Go type alone always
-	// says which gate it reports on.
+	// EventSpecificationReviewAgentApproved is the first of the four review
+	// gates' own event kinds - stage (specification/implementation) x reviewer
+	// (agent/human) - rather than one event shared across stages, so an
+	// event's Go type alone always says which gate it reports on. The other
+	// seven review-gate kinds below follow the same pattern.
 	EventSpecificationReviewAgentApproved  EventKind = "specification_review_agent_approved"
 	EventSpecificationReviewAgentRejected  EventKind = "specification_review_agent_rejected"
 	EventSpecificationReviewHumanApproved  EventKind = "specification_review_human_approved"
@@ -136,24 +137,31 @@ func (e Abandoned) Kind() EventKind               { return EventAbandoned }
 func (e SpecificationReviewAgentApproved) Kind() EventKind {
 	return EventSpecificationReviewAgentApproved
 }
+
 func (e SpecificationReviewAgentRejected) Kind() EventKind {
 	return EventSpecificationReviewAgentRejected
 }
+
 func (e SpecificationReviewHumanApproved) Kind() EventKind {
 	return EventSpecificationReviewHumanApproved
 }
+
 func (e SpecificationReviewHumanRejected) Kind() EventKind {
 	return EventSpecificationReviewHumanRejected
 }
+
 func (e ImplementationReviewAgentApproved) Kind() EventKind {
 	return EventImplementationReviewAgentApproved
 }
+
 func (e ImplementationReviewAgentRejected) Kind() EventKind {
 	return EventImplementationReviewAgentRejected
 }
+
 func (e ImplementationReviewHumanApproved) Kind() EventKind {
 	return EventImplementationReviewHumanApproved
 }
+
 func (e ImplementationReviewHumanRejected) Kind() EventKind {
 	return EventImplementationReviewHumanRejected
 }

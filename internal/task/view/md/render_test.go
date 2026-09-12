@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
 	"uuid"
 
 	"github.com/mhmdkzr/taskman/internal/task"
@@ -21,7 +20,11 @@ func mustApply(t *testing.T, current task.Task, event task.TaskEvent) task.Task 
 
 func TestRenderTaskJustCreated(t *testing.T) {
 	now := time.Now().UTC()
-	tsk, err := task.NewTask(uuid.NewV7(), task.TaskDefinition{Title: "Fix drift", Description: "do it", Labels: map[string]string{"priority": "high"}}, now)
+	tsk, err := task.NewTask(
+		uuid.NewV7(),
+		task.TaskDefinition{Title: "Fix drift", Description: "do it", Labels: map[string]string{"priority": "high"}},
+		now,
+	)
 	if err != nil {
 		t.Fatalf("NewTask() error = %v", err)
 	}
@@ -78,9 +81,27 @@ func TestRenderTaskFullLifecycleToCompleted(t *testing.T) {
 		Agent: task.AgentReviewConfiguration{Required: true, AutoFix: task.AutoFix{Enabled: true, MaxRounds: 2}},
 		Human: task.HumanReviewConfiguration{Required: true},
 	}
-	tsk = mustApply(t, tsk, task.SpecificationSubmitted{Specification: task.Specification{Plan: "the plan", Review: review}, At: now})
-	tsk = mustApply(t, tsk, task.SpecificationReviewAgentRejected{Findings: []task.Finding{{Location: "spec", Detail: "too vague"}}, At: now})
-	tsk = mustApply(t, tsk, task.SpecificationSubmitted{Specification: task.Specification{Plan: "the better plan", Review: review}, At: now})
+	tsk = mustApply(
+		t,
+		tsk,
+		task.SpecificationSubmitted{Specification: task.Specification{Plan: "the plan", Review: review}, At: now},
+	)
+	tsk = mustApply(
+		t,
+		tsk,
+		task.SpecificationReviewAgentRejected{
+			Findings: []task.Finding{{Location: "spec", Detail: "too vague"}},
+			At:       now,
+		},
+	)
+	tsk = mustApply(
+		t,
+		tsk,
+		task.SpecificationSubmitted{
+			Specification: task.Specification{Plan: "the better plan", Review: review},
+			At:            now,
+		},
+	)
 	tsk = mustApply(t, tsk, task.SpecificationReviewAgentApproved{Comment: "clear now", At: now})
 	tsk = mustApply(t, tsk, task.SpecificationReviewHumanApproved{Comment: "lgtm", At: now})
 
@@ -92,10 +113,26 @@ func TestRenderTaskFullLifecycleToCompleted(t *testing.T) {
 		},
 		At: now,
 	})
-	tsk = mustApply(t, tsk, task.VerificationFailed{Checks: task.Checks{Unit: task.CheckOK, Linters: task.CheckError}, Output: "lint error", At: now})
-	tsk = mustApply(t, tsk, task.VerificationPassed{Checks: task.Checks{Unit: task.CheckOK, Linters: task.CheckOK}, At: now})
+	tsk = mustApply(
+		t,
+		tsk,
+		task.VerificationFailed{
+			Checks: task.Checks{Unit: task.CheckOK, Linters: task.CheckError},
+			Output: "lint error",
+			At:     now,
+		},
+	)
+	tsk = mustApply(
+		t,
+		tsk,
+		task.VerificationPassed{Checks: task.Checks{Unit: task.CheckOK, Linters: task.CheckOK}, At: now},
+	)
 	tsk = mustApply(t, tsk, task.ImplementationReviewAgentApproved{Comment: "looks good", At: now})
-	tsk = mustApply(t, tsk, task.CommitRecorded{Commit: task.GitCommit{Hash: "c1", Message: "feat: ship it", At: now}, At: now})
+	tsk = mustApply(
+		t,
+		tsk,
+		task.CommitRecorded{Commit: task.GitCommit{Hash: "c1", Message: "feat: ship it", At: now}, At: now},
+	)
 	tsk = mustApply(t, tsk, task.ImplementationReviewHumanApproved{Comment: "lgtm", At: now})
 	tsk = mustApply(t, tsk, task.MergeCompleted{Merge: task.GitMerge{Target: "main", Commit: "m1", At: now}, At: now})
 
@@ -173,7 +210,14 @@ func TestRenderTaskNoReviewOrVerificationRequired(t *testing.T) {
 		t.Fatalf("NewTask() error = %v", err)
 	}
 	tsk = mustApply(t, tsk, task.SpecificationSubmitted{Specification: task.Specification{Plan: "p"}, At: now})
-	tsk = mustApply(t, tsk, task.ImplementationCompleted{Implementation: task.Implementation{Git: task.Git{Worktree: "/wt", Branch: "b"}}, At: now})
+	tsk = mustApply(
+		t,
+		tsk,
+		task.ImplementationCompleted{
+			Implementation: task.Implementation{Git: task.Git{Worktree: "/wt", Branch: "b"}},
+			At:             now,
+		},
+	)
 
 	out, err := RenderTask(tsk)
 	if err != nil {

@@ -24,7 +24,11 @@ func openTestStore(t *testing.T) *store.Store {
 
 func TestCreate(t *testing.T) {
 	st := openTestStore(t)
-	got, err := Create(t.Context(), st, Request{Title: "t", Description: "do the work", Labels: map[string]string{"k": "v"}})
+	got, err := Create(
+		t.Context(),
+		st,
+		Request{Title: "t", Description: "do the work", Labels: map[string]string{"k": "v"}},
+	)
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}

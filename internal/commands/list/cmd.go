@@ -20,7 +20,7 @@ func Command() *cli.Command {
 			if err != nil {
 				return utils.Fail(err)
 			}
-			defer st.Close()
+			defer utils.CloseStore(st)
 
 			tasks, err := List(ctx, st)
 			if err != nil {
@@ -35,24 +35,24 @@ func Command() *cli.Command {
 			}
 			if len(tasks) == 0 {
 				_, err := fmt.Fprintln(cmd.Root().Writer, "no tasks")
-				return err
+				return utils.Fail(err)
 			}
 			if cmd.Bool("md") {
 				for i, t := range tasks {
 					if i > 0 {
 						if _, err := fmt.Fprintln(cmd.Root().Writer, "\n---"); err != nil {
-							return err
+							return utils.Fail(err)
 						}
 					}
 					if err := utils.PrintMarkdown(cmd, t); err != nil {
-						return err
+						return utils.Fail(err)
 					}
 				}
 				return nil
 			}
 			for _, t := range tasks {
 				if err := utils.PrintTask(cmd, t); err != nil {
-					return err
+					return utils.Fail(err)
 				}
 			}
 			return nil

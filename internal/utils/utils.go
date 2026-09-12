@@ -10,14 +10,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"reflect"
 	"strings"
 	"text/template"
+	"uuid"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/urfave/cli/v3"
-
-	"uuid"
 
 	"github.com/mhmdkzr/taskman/internal/git"
 	"github.com/mhmdkzr/taskman/internal/task"
@@ -62,6 +62,15 @@ func StoreFrom(cmd *cli.Command) (*store.Store, error) {
 		return nil, fmt.Errorf("open store: %w", err)
 	}
 	return st, nil
+}
+
+// CloseStore releases st for a one-shot command. A failure to close the store
+// after the command's result has been produced is not actionable to the
+// caller, so it is logged rather than returned.
+func CloseStore(st *store.Store) {
+	if err := st.Close(); err != nil {
+		slog.Error("close store", "error", err)
+	}
 }
 
 // IDFrom parses the --id flag as a task id.
@@ -113,7 +122,10 @@ func ParseCheckResult(flag, value string) (task.CheckResult, error) {
 	case task.CheckOK, task.CheckError:
 		return task.CheckResult(value), nil
 	default:
-		return "", cli.Exit(fmt.Sprintf("--%s: value must be %q or %q, got %q", flag, task.CheckOK, task.CheckError, value), 2)
+		return "", cli.Exit(
+			fmt.Sprintf("--%s: value must be %q or %q, got %q", flag, task.CheckOK, task.CheckError, value),
+			2,
+		)
 	}
 }
 
@@ -239,8 +251,12 @@ func ExitCode(err error) int {
 }
 
 // Fail wraps a domain error into a cli.ExitCoder. Flag-parsing/usage errors
-// are exit code 2 and are returned directly via cli.Exit at the call site;
-// every domain error reaching here is a runtime failure, exit code 1.
+// (from IDFrom or ParseCheckResult) already carry exit code 2 and are
+// returned unchanged; every other domain error reaching here is a runtime
+// failure, exit code 1.
 func Fail(err error) error {
+	if exitErr, ok := errors.AsType[cli.ExitCoder](err); ok {
+		return exitErr
+	}
 	return cli.Exit(err, 1)
 }

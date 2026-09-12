@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
 	"uuid"
 
 	"github.com/mhmdkzr/taskman/internal/git"
@@ -63,7 +62,11 @@ func taskAtMerge(t *testing.T, st *store.Store, id uuid.UUID, now time.Time) {
 	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if _, err := st.Append(t.Context(), id, task.SpecificationSubmitted{Specification: task.Specification{Plan: "p"}, At: now}); err != nil {
+	if _, err := st.Append(
+		t.Context(),
+		id,
+		task.SpecificationSubmitted{Specification: task.Specification{Plan: "p"}, At: now},
+	); err != nil {
 		t.Fatalf("Append(SpecificationSubmitted) error = %v", err)
 	}
 	if _, err := st.Append(t.Context(), id, task.ImplementationCompleted{
@@ -72,7 +75,11 @@ func taskAtMerge(t *testing.T, st *store.Store, id uuid.UUID, now time.Time) {
 	}); err != nil {
 		t.Fatalf("Append(ImplementationCompleted) error = %v", err)
 	}
-	if _, err := st.Append(t.Context(), id, task.CommitRecorded{Commit: task.GitCommit{Hash: "c1", At: now}, At: now}); err != nil {
+	if _, err := st.Append(
+		t.Context(),
+		id,
+		task.CommitRecorded{Commit: task.GitCommit{Hash: "c1", At: now}, At: now},
+	); err != nil {
 		t.Fatalf("Append(CommitRecorded) error = %v", err)
 	}
 }
@@ -115,7 +122,10 @@ func TestMergedRecordsTargetBranchCommit(t *testing.T) {
 		t.Fatalf("Merge.Commit = %s, want the merge commit on main %s", got.Implementation.Git.Merge.Commit, merge)
 	}
 	if got.Implementation.Git.Merge.Commit == source {
-		t.Fatalf("Merge.Commit = %s, want a commit distinct from the worktree's feature head", got.Implementation.Git.Merge.Commit)
+		t.Fatalf(
+			"Merge.Commit = %s, want a commit distinct from the worktree's feature head",
+			got.Implementation.Git.Merge.Commit,
+		)
 	}
 }
 

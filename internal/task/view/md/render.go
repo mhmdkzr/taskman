@@ -9,7 +9,6 @@ import (
 	"context"
 	"fmt"
 	tmpl "text/template"
-
 	"uuid"
 
 	"github.com/mhmdkzr/taskman/internal/task"

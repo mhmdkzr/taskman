@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
-
 	"uuid"
 
 	"github.com/mhmdkzr/taskman/internal/task"
@@ -31,7 +30,12 @@ func TestList(t *testing.T) {
 	if _, err := st.Create(t.Context(), uuid.NewV7(), task.TaskDefinition{Description: "d1"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if _, err := st.Create(t.Context(), uuid.NewV7(), task.TaskDefinition{Description: "d2"}, now.Add(time.Second)); err != nil {
+	if _, err := st.Create(
+		t.Context(),
+		uuid.NewV7(),
+		task.TaskDefinition{Description: "d2"},
+		now.Add(time.Second),
+	); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 

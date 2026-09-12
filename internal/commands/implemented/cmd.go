@@ -11,7 +11,8 @@ import (
 
 // Command returns the "implemented" command.
 func Command() *cli.Command {
-	flags := []cli.Flag{
+	flags := make([]cli.Flag, 0, 10+len(utils.ReviewFlags()))
+	flags = append(flags,
 		&cli.StringFlag{Name: "id", Required: true, Usage: "the task that was implemented"},
 		&cli.StringFlag{Name: "worktree", Required: true, Usage: "the worktree the implementation was done in"},
 		&cli.StringFlag{Name: "branch", Required: true, Usage: "the branch the implementation was done on"},
@@ -22,7 +23,7 @@ func Command() *cli.Command {
 		&cli.BoolFlag{Name: "verification-auto-fix", Usage: "automatically fix verification failures"},
 		&cli.IntFlag{Name: "verification-auto-fix-max-rounds", Usage: "max verification auto-fix rounds"},
 		&cli.BoolFlag{Name: "verification-auto-fix-use-subagent", Usage: "run verification auto-fix in a subagent"},
-	}
+	)
 	flags = append(flags, utils.ReviewFlags()...)
 
 	return &cli.Command{
@@ -32,13 +33,13 @@ func Command() *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			id, err := utils.IDFrom(cmd)
 			if err != nil {
-				return err
+				return utils.Fail(err)
 			}
 			st, err := utils.StoreFrom(cmd)
 			if err != nil {
 				return utils.Fail(err)
 			}
-			defer st.Close()
+			defer utils.CloseStore(st)
 
 			t, err := Implemented(ctx, st, Request{
 				ID:       id,

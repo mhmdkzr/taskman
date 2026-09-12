@@ -23,7 +23,7 @@ func Command() *cli.Command {
 			if err != nil {
 				return utils.Fail(err)
 			}
-			defer st.Close()
+			defer utils.CloseStore(st)
 
 			server := mcp.NewServer(st, utils.GitFrom(cmd))
 			if err := server.Run(ctx, &gosdkmcp.StdioTransport{}); err != nil {

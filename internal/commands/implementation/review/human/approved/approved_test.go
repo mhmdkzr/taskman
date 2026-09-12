@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
-
 	"uuid"
 
 	"github.com/mhmdkzr/taskman/internal/task"
@@ -32,7 +31,11 @@ func TestApproved(t *testing.T) {
 	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if _, err := st.Append(t.Context(), id, task.SpecificationSubmitted{Specification: task.Specification{Plan: "p"}, At: now}); err != nil {
+	if _, err := st.Append(
+		t.Context(),
+		id,
+		task.SpecificationSubmitted{Specification: task.Specification{Plan: "p"}, At: now},
+	); err != nil {
 		t.Fatalf("Append(SpecificationSubmitted) error = %v", err)
 	}
 	if _, err := st.Append(t.Context(), id, task.ImplementationCompleted{
@@ -47,10 +50,18 @@ func TestApproved(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("Append(ImplementationCompleted) error = %v", err)
 	}
-	if _, err := st.Append(t.Context(), id, task.VerificationPassed{Checks: task.Checks{Unit: task.CheckOK}, At: now}); err != nil {
+	if _, err := st.Append(
+		t.Context(),
+		id,
+		task.VerificationPassed{Checks: task.Checks{Unit: task.CheckOK}, At: now},
+	); err != nil {
 		t.Fatalf("Append(VerificationPassed) error = %v", err)
 	}
-	if _, err := st.Append(t.Context(), id, task.CommitRecorded{Commit: task.GitCommit{Hash: "c", At: now}, At: now}); err != nil {
+	if _, err := st.Append(
+		t.Context(),
+		id,
+		task.CommitRecorded{Commit: task.GitCommit{Hash: "c", At: now}, At: now},
+	); err != nil {
 		t.Fatalf("Append(CommitRecorded) error = %v", err)
 	}
 

@@ -6,10 +6,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"uuid"
 
 	"gopkg.in/yaml.v3"
-
-	"uuid"
 )
 
 func TestTaskValidateRejectsStateWithoutRequiredData(t *testing.T) {

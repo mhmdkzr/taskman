@@ -19,13 +19,13 @@ func Command() *cli.Command {
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			id, err := utils.IDFrom(cmd)
 			if err != nil {
-				return err
+				return utils.Fail(err)
 			}
 			st, err := utils.StoreFrom(cmd)
 			if err != nil {
 				return utils.Fail(err)
 			}
-			defer st.Close()
+			defer utils.CloseStore(st)
 
 			t, err := Get(ctx, st, Request{ID: id})
 			if err != nil {
