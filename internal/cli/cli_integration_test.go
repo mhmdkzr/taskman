@@ -146,8 +146,16 @@ func TestCLIFullLifecycle(t *testing.T) {
 
 	id := onlyTaskID(t, dir, db)
 
+	if next := runTaskman(t, dir, db, "next", "--id", id); !strings.Contains(next, "specify") {
+		t.Fatalf("next output = %q, want it to mention the specify state", next)
+	}
+
 	runTaskman(t, dir, db, "specified", "--id", id, "--plan", "Update the README",
 		"--agent-review", "--human-review")
+	next := runTaskman(t, dir, db, "next", "--id", id)
+	if !strings.Contains(next, "specification review agent approved") {
+		t.Fatalf("next output = %q, want it to list the agent-review command", next)
+	}
 	runTaskman(t, dir, db, "specification", "review", "agent", "approved", "--id", id, "--comment", "ok")
 	runTaskman(t, dir, db, "specification", "review", "human", "approved", "--id", id, "--comment", "approved")
 
@@ -166,6 +174,10 @@ func TestCLIFullLifecycle(t *testing.T) {
 	final := getTaskJSON(t, dir, db, id)
 	if final.State() != task.StateCompleted {
 		t.Fatalf("final state = %v, want completed", final.State())
+	}
+
+	if next := runTaskman(t, dir, db, "next", "--id", id); !strings.Contains(next, "complete") {
+		t.Fatalf("next output = %q, want it to report the task as done", next)
 	}
 }
 
