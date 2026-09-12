@@ -61,7 +61,8 @@ call.
   `ReadCommit`, reading a worktree's current commit hash/message.
 - `internal/utils` - CLI-only plumbing shared by every slice's `cmd.go`: building a
   `*git.Client`/`*store.Store` from root flags, parsing repeated `key=value` flags, rendering
-  output (`--json` envelope or human-readable summary), and mapping errors to exit codes.
+  output (`--json` envelope, `--md` Markdown document, or human-readable summary), and mapping
+  errors to exit codes.
 
 There is no `pkg/`; everything shared lives under `internal/`.
 

@@ -5,7 +5,7 @@ The MCP frontend's assembler - not a command itself, so it lives outside `intern
 and calls each wired-up slice's own `RegisterMCP` (under `internal/commands/<slice>/mcp.go`) to add
 that slice's tool - `task_get`, `task_create`, and so on. The `mcp` CLI command itself
 (`internal/commands/mcp/cmd.go`) is a regular slice like any other: it reads the root
-`--tasks-dir`/`--git-dir`/`--worktrees-dir` flags, calls `NewServer` from this package, and serves
+`--git-dir`/`--db` flags, calls `NewServer` from this package, and serves
 the result over stdio.
 
 Each tool's input/output types and error mapping live next to the slice they belong to, not here:
@@ -19,10 +19,14 @@ handler returning a non-nil `error` is enough beyond that - the SDK's `AddTool` 
 `IsError` and surfaces the error text to the client automatically, so there's no CLI-style
 exit-code mapping to do here.
 
+A tool's output type is `task/view/json.Document` - the full task plus its derived `state` and
+`instruction` - the same document the CLI renders behind `--json`, so both frontends expose the
+same shape to an agent.
+
 See `internal/commands/mcp` for the `mcp` CLI command that serves this package's server over
 stdio.
 
-Every slice has an MCP tool (`internal/commands/<slice>/mcp.go`, registered here in `NewServer`),
+Every workflow slice has an MCP tool (`internal/commands/<slice>/mcp.go`, registered here in `NewServer`),
 following the same shape: `RegisterMCP(server, ...)` wires `mcp.AddTool(server, mcpTool(),
 mcpHandler(...))`, with the tool definition and handler factored into their own `mcpTool()`/
 `mcpHandler()` functions rather than built inline.
