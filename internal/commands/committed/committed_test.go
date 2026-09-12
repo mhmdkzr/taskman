@@ -1,7 +1,6 @@
 package committed
 
 import (
-	"context"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -51,20 +50,20 @@ func TestCommitted(t *testing.T) {
 	st := openTestStore(t)
 	id := uuid.NewV7()
 	now := time.Now().UTC()
-	if _, err := st.Create(id, task.TaskDefinition{Description: "d"}, now); err != nil {
+	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if _, err := st.Append(id, task.SpecificationSubmitted{Specification: task.Specification{Plan: "p"}, At: now}); err != nil {
+	if _, err := st.Append(t.Context(), id, task.SpecificationSubmitted{Specification: task.Specification{Plan: "p"}, At: now}); err != nil {
 		t.Fatalf("Append(SpecificationSubmitted) error = %v", err)
 	}
-	if _, err := st.Append(id, task.ImplementationCompleted{
+	if _, err := st.Append(t.Context(), id, task.ImplementationCompleted{
 		Implementation: task.Implementation{Git: task.Git{Worktree: dir, Branch: "b"}},
 		At:             now,
 	}); err != nil {
 		t.Fatalf("Append(ImplementationCompleted) error = %v", err)
 	}
 
-	got, err := Committed(context.Background(), st, git.NewClient(dir), Request{ID: id})
+	got, err := Committed(t.Context(), st, git.NewClient(dir), Request{ID: id})
 	if err != nil {
 		t.Fatalf("Committed() error = %v", err)
 	}
@@ -79,10 +78,10 @@ func TestCommitted(t *testing.T) {
 func TestCommittedRejectsBeforeImplementation(t *testing.T) {
 	st := openTestStore(t)
 	id := uuid.NewV7()
-	if _, err := st.Create(id, task.TaskDefinition{Description: "d"}, time.Now().UTC()); err != nil {
+	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, time.Now().UTC()); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if _, err := Committed(context.Background(), st, git.NewClient("."), Request{ID: id}); err == nil {
+	if _, err := Committed(t.Context(), st, git.NewClient("."), Request{ID: id}); err == nil {
 		t.Fatal("Committed() error = nil, want an error before implementation is reported")
 	}
 }

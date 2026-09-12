@@ -30,7 +30,7 @@ func TestCreateReadRoundTrip(t *testing.T) {
 	id := uuid.NewV7()
 	now := time.Now().UTC().Truncate(time.Second)
 
-	created, err := s.Create(id, task.TaskDefinition{Description: "do the work"}, now)
+	created, err := s.Create(t.Context(), id, task.TaskDefinition{Description: "do the work"}, now)
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -41,7 +41,7 @@ func TestCreateReadRoundTrip(t *testing.T) {
 		t.Fatalf("created.State() = %s, want %s", created.State(), task.StateSpecify)
 	}
 
-	read, err := s.Read(id)
+	read, err := s.Read(t.Context(), id)
 	if err != nil {
 		t.Fatalf("Read() error = %v", err)
 	}
@@ -55,17 +55,17 @@ func TestCreateRejectsDuplicateID(t *testing.T) {
 	id := uuid.NewV7()
 	now := time.Now().UTC()
 
-	if _, err := s.Create(id, task.TaskDefinition{Description: "d"}, now); err != nil {
+	if _, err := s.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if _, err := s.Create(id, task.TaskDefinition{Description: "d"}, now); !errors.Is(err, ErrTaskAlreadyExists) {
+	if _, err := s.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); !errors.Is(err, ErrTaskAlreadyExists) {
 		t.Fatalf("Create() error = %v, want ErrTaskAlreadyExists", err)
 	}
 }
 
 func TestReadRejectsMissingTask(t *testing.T) {
 	s := openTestStore(t)
-	if _, err := s.Read(uuid.NewV7()); !errors.Is(err, ErrTaskNotFound) {
+	if _, err := s.Read(t.Context(), uuid.NewV7()); !errors.Is(err, ErrTaskNotFound) {
 		t.Fatalf("Read() error = %v, want ErrTaskNotFound", err)
 	}
 }
@@ -75,7 +75,7 @@ func TestAppendAccumulatesEventsAndMatchesDirectApply(t *testing.T) {
 	id := uuid.NewV7()
 	now := time.Now().UTC().Truncate(time.Second)
 
-	current, err := s.Create(id, task.TaskDefinition{Description: "do the work"}, now)
+	current, err := s.Create(t.Context(), id, task.TaskDefinition{Description: "do the work"}, now)
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -93,7 +93,7 @@ func TestAppendAccumulatesEventsAndMatchesDirectApply(t *testing.T) {
 		if err != nil {
 			t.Fatalf("task.Apply() error = %v", err)
 		}
-		current, err = s.Append(id, event)
+		current, err = s.Append(t.Context(), id, event)
 		if err != nil {
 			t.Fatalf("Append(%T) error = %v", event, err)
 		}
@@ -102,7 +102,7 @@ func TestAppendAccumulatesEventsAndMatchesDirectApply(t *testing.T) {
 		}
 	}
 
-	read, err := s.Read(id)
+	read, err := s.Read(t.Context(), id)
 	if err != nil {
 		t.Fatalf("Read() error = %v", err)
 	}
@@ -119,7 +119,7 @@ func TestAppendRoundTripsEveryEventKind(t *testing.T) {
 	id := uuid.NewV7()
 	now := time.Now().UTC().Truncate(time.Second)
 
-	if _, err := s.Create(id, task.TaskDefinition{Description: "do the work"}, now); err != nil {
+	if _, err := s.Create(t.Context(), id, task.TaskDefinition{Description: "do the work"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 
@@ -160,7 +160,7 @@ func TestAppendRoundTripsEveryEventKind(t *testing.T) {
 	var current task.Task
 	var err error
 	for _, event := range events {
-		current, err = s.Append(id, event)
+		current, err = s.Append(t.Context(), id, event)
 		if err != nil {
 			t.Fatalf("Append(%T) error = %v", event, err)
 		}
@@ -169,7 +169,7 @@ func TestAppendRoundTripsEveryEventKind(t *testing.T) {
 		t.Fatalf("state = %s, want %s", current.State(), task.StateCompleted)
 	}
 
-	read, err := s.Read(id)
+	read, err := s.Read(t.Context(), id)
 	if err != nil {
 		t.Fatalf("Read() error = %v", err)
 	}
@@ -183,13 +183,13 @@ func TestEscalatedAndAbandonedRoundTrip(t *testing.T) {
 	id := uuid.NewV7()
 	now := time.Now().UTC()
 
-	if _, err := s.Create(id, task.TaskDefinition{Description: "d"}, now); err != nil {
+	if _, err := s.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if _, err := s.Append(id, task.Escalated{Stage: "definition", Reason: "stuck", At: now}); err != nil {
+	if _, err := s.Append(t.Context(), id, task.Escalated{Stage: "definition", Reason: "stuck", At: now}); err != nil {
 		t.Fatalf("Append(Escalated) error = %v", err)
 	}
-	current, err := s.Append(id, task.Abandoned{Reason: "moot", At: now})
+	current, err := s.Append(t.Context(), id, task.Abandoned{Reason: "moot", At: now})
 	if err != nil {
 		t.Fatalf("Append(Abandoned) error = %v", err)
 	}
@@ -197,7 +197,7 @@ func TestEscalatedAndAbandonedRoundTrip(t *testing.T) {
 		t.Fatalf("state = %s, want %s", current.State(), task.StateAbandoned)
 	}
 
-	read, err := s.Read(id)
+	read, err := s.Read(t.Context(), id)
 	if err != nil {
 		t.Fatalf("Read() error = %v", err)
 	}
@@ -211,16 +211,16 @@ func TestAppendRejectsInvalidEventWithoutPersistingIt(t *testing.T) {
 	id := uuid.NewV7()
 	now := time.Now().UTC()
 
-	if _, err := s.Create(id, task.TaskDefinition{Description: "d"}, now); err != nil {
+	if _, err := s.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 
 	// CommitRecorded is invalid from the initial specify state.
-	if _, err := s.Append(id, task.CommitRecorded{Commit: task.GitCommit{Hash: "x", At: now}, At: now}); err == nil {
+	if _, err := s.Append(t.Context(), id, task.CommitRecorded{Commit: task.GitCommit{Hash: "x", At: now}, At: now}); err == nil {
 		t.Fatal("Append() error = nil, want an error for an invalid transition")
 	}
 
-	read, err := s.Read(id)
+	read, err := s.Read(t.Context(), id)
 	if err != nil {
 		t.Fatalf("Read() error = %v", err)
 	}
@@ -234,14 +234,14 @@ func TestListEnumeratesCreatedTasks(t *testing.T) {
 	now := time.Now().UTC()
 	id1, id2 := uuid.NewV7(), uuid.NewV7()
 
-	if _, err := s.Create(id1, task.TaskDefinition{Description: "d1"}, now); err != nil {
+	if _, err := s.Create(t.Context(), id1, task.TaskDefinition{Description: "d1"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if _, err := s.Create(id2, task.TaskDefinition{Description: "d2"}, now.Add(time.Second)); err != nil {
+	if _, err := s.Create(t.Context(), id2, task.TaskDefinition{Description: "d2"}, now.Add(time.Second)); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 
-	ids, err := s.List()
+	ids, err := s.List(t.Context())
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
@@ -256,7 +256,7 @@ func TestListEnumeratesCreatedTasks(t *testing.T) {
 
 func TestListOnEmptyStoreReturnsEmpty(t *testing.T) {
 	s := openTestStore(t)
-	ids, err := s.List()
+	ids, err := s.List(t.Context())
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
@@ -270,7 +270,7 @@ func TestReadRejectsUnknownEventKind(t *testing.T) {
 	id := uuid.NewV7()
 	now := time.Now().UTC()
 
-	if _, err := s.Create(id, task.TaskDefinition{Description: "d"}, now); err != nil {
+	if _, err := s.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 	_, err := s.db.Exec(
@@ -281,7 +281,7 @@ func TestReadRejectsUnknownEventKind(t *testing.T) {
 		t.Fatalf("insert corrupt event: %v", err)
 	}
 
-	if _, err := s.Read(id); !errors.Is(err, errCorruptLog) {
+	if _, err := s.Read(t.Context(), id); !errors.Is(err, errCorruptLog) {
 		t.Fatalf("Read() error = %v, want errCorruptLog", err)
 	}
 }

@@ -22,7 +22,7 @@ func Command() *cli.Command {
 			&cli.StringFlag{Name: "linters", Usage: "the linters check's result: ok or error"},
 			&cli.StringFlag{Name: "output", Usage: "verification output/log text"},
 		},
-		Action: func(_ context.Context, cmd *cli.Command) error {
+		Action: func(ctx context.Context, cmd *cli.Command) error {
 			id, err := utils.IDFrom(cmd)
 			if err != nil {
 				return err
@@ -50,7 +50,7 @@ func Command() *cli.Command {
 			}
 			defer st.Close()
 
-			t, err := Verified(st, Request{ID: id, Checks: checks, Output: cmd.String("output")})
+			t, err := Verified(ctx, st, Request{ID: id, Checks: checks, Output: cmd.String("output")})
 			if err != nil {
 				return utils.Fail(err)
 			}

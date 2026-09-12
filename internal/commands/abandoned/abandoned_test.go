@@ -28,11 +28,11 @@ func openTestStore(t *testing.T) *store.Store {
 func TestAbandoned(t *testing.T) {
 	st := openTestStore(t)
 	id := uuid.NewV7()
-	if _, err := st.Create(id, task.TaskDefinition{Description: "d"}, time.Now().UTC()); err != nil {
+	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, time.Now().UTC()); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 
-	got, err := Abandoned(st, Request{ID: id, Reason: "no longer needed"})
+	got, err := Abandoned(t.Context(), st, Request{ID: id, Reason: "no longer needed"})
 	if err != nil {
 		t.Fatalf("Abandoned() error = %v", err)
 	}
@@ -44,7 +44,7 @@ func TestAbandoned(t *testing.T) {
 func TestAbandonedRejectsMissingReason(t *testing.T) {
 	st := openTestStore(t)
 	id := uuid.NewV7()
-	if _, err := Abandoned(st, Request{ID: id}); err == nil {
+	if _, err := Abandoned(t.Context(), st, Request{ID: id}); err == nil {
 		t.Fatal("Abandoned() error = nil, want an error for a missing reason")
 	}
 }

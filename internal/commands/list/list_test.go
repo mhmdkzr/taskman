@@ -28,14 +28,14 @@ func openTestStore(t *testing.T) *store.Store {
 func TestList(t *testing.T) {
 	st := openTestStore(t)
 	now := time.Now().UTC()
-	if _, err := st.Create(uuid.NewV7(), task.TaskDefinition{Description: "d1"}, now); err != nil {
+	if _, err := st.Create(t.Context(), uuid.NewV7(), task.TaskDefinition{Description: "d1"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if _, err := st.Create(uuid.NewV7(), task.TaskDefinition{Description: "d2"}, now.Add(time.Second)); err != nil {
+	if _, err := st.Create(t.Context(), uuid.NewV7(), task.TaskDefinition{Description: "d2"}, now.Add(time.Second)); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 
-	tasks, err := List(st)
+	tasks, err := List(t.Context(), st)
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}
@@ -46,7 +46,7 @@ func TestList(t *testing.T) {
 
 func TestListOnEmptyStoreReturnsEmpty(t *testing.T) {
 	st := openTestStore(t)
-	tasks, err := List(st)
+	tasks, err := List(t.Context(), st)
 	if err != nil {
 		t.Fatalf("List() error = %v", err)
 	}

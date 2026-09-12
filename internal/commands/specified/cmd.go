@@ -17,7 +17,7 @@ func Command() *cli.Command {
 			&cli.StringFlag{Name: "id", Required: true, Usage: "the task whose specification was submitted"},
 			&cli.StringFlag{Name: "plan", Required: true, Usage: "the specification's plan"},
 		}, utils.ReviewFlags()...),
-		Action: func(_ context.Context, cmd *cli.Command) error {
+		Action: func(ctx context.Context, cmd *cli.Command) error {
 			id, err := utils.IDFrom(cmd)
 			if err != nil {
 				return err
@@ -28,7 +28,7 @@ func Command() *cli.Command {
 			}
 			defer st.Close()
 
-			t, err := Specified(st, Request{
+			t, err := Specified(ctx, st, Request{
 				ID:     id,
 				Plan:   cmd.String("plan"),
 				Review: utils.ReviewConfigurationFrom(cmd),

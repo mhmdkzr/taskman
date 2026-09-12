@@ -73,7 +73,7 @@ func (s *Store) Close() error {
 
 // Create starts a new task and returns it. It fails with
 // ErrTaskAlreadyExists if id is already present.
-func (s *Store) Create(id uuid.UUID, definition task.TaskDefinition, at time.Time) (task.Task, error) {
+func (s *Store) Create(ctx context.Context, id uuid.UUID, definition task.TaskDefinition, at time.Time) (task.Task, error) {
 	current, err := task.NewTask(id, definition, at)
 	if err != nil {
 		return task.Task{}, fmt.Errorf("create task: %w", err)
@@ -84,7 +84,7 @@ func (s *Store) Create(id uuid.UUID, definition task.TaskDefinition, at time.Tim
 		return task.Task{}, fmt.Errorf("create task %s: %w", id, err)
 	}
 
-	_, err = s.db.ExecContext(context.Background(),
+	_, err = s.db.ExecContext(ctx,
 		`INSERT INTO tasks (id, definition, created_at) VALUES (?, ?, ?)`,
 		id.String(), string(def), at.Format(time.RFC3339Nano),
 	)
@@ -98,8 +98,8 @@ func (s *Store) Create(id uuid.UUID, definition task.TaskDefinition, at time.Tim
 }
 
 // Read replays id's events and returns the resulting task.
-func (s *Store) Read(id uuid.UUID) (task.Task, error) {
-	return s.read(context.Background(), s.db, id)
+func (s *Store) Read(ctx context.Context, id uuid.UUID) (task.Task, error) {
+	return s.read(ctx, s.db, id)
 }
 
 // Append validates event against id's current (replayed) task and, if
@@ -107,8 +107,7 @@ func (s *Store) Read(id uuid.UUID) (task.Task, error) {
 // task. It never persists a rejected event. The whole read-validate-append
 // cycle runs in one BEGIN IMMEDIATE transaction, so concurrent Appends
 // serialize instead of racing on a stale read.
-func (s *Store) Append(id uuid.UUID, event task.TaskEvent) (task.Task, error) {
-	ctx := context.Background()
+func (s *Store) Append(ctx context.Context, id uuid.UUID, event task.TaskEvent) (task.Task, error) {
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
 		return task.Task{}, fmt.Errorf("append task %s: %w", id, err)
@@ -156,8 +155,8 @@ func (s *Store) appendLocked(ctx context.Context, conn *sql.Conn, id uuid.UUID, 
 }
 
 // List returns the ids of every task in the store.
-func (s *Store) List() ([]uuid.UUID, error) {
-	rows, err := s.db.QueryContext(context.Background(), `SELECT id FROM tasks ORDER BY created_at`)
+func (s *Store) List(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id FROM tasks ORDER BY created_at`)
 	if err != nil {
 		return nil, fmt.Errorf("list tasks: %w", err)
 	}

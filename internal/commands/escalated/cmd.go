@@ -18,7 +18,7 @@ func Command() *cli.Command {
 			&cli.StringFlag{Name: "stage", Required: true, Usage: "the stage the task is stuck at"},
 			&cli.StringFlag{Name: "reason", Required: true, Usage: "why the task is stuck"},
 		},
-		Action: func(_ context.Context, cmd *cli.Command) error {
+		Action: func(ctx context.Context, cmd *cli.Command) error {
 			id, err := utils.IDFrom(cmd)
 			if err != nil {
 				return err
@@ -29,7 +29,7 @@ func Command() *cli.Command {
 			}
 			defer st.Close()
 
-			t, err := Escalated(st, Request{ID: id, Stage: cmd.String("stage"), Reason: cmd.String("reason")})
+			t, err := Escalated(ctx, st, Request{ID: id, Stage: cmd.String("stage"), Reason: cmd.String("reason")})
 			if err != nil {
 				return utils.Fail(err)
 			}

@@ -17,7 +17,7 @@ func Command() *cli.Command {
 			&cli.StringFlag{Name: "id", Required: true, Usage: "the task whose implementation's automated review was approved"},
 			&cli.StringFlag{Name: "comment", Usage: "an optional approval comment"},
 		},
-		Action: func(_ context.Context, cmd *cli.Command) error {
+		Action: func(ctx context.Context, cmd *cli.Command) error {
 			id, err := utils.IDFrom(cmd)
 			if err != nil {
 				return err
@@ -28,7 +28,7 @@ func Command() *cli.Command {
 			}
 			defer st.Close()
 
-			t, err := Approved(st, Request{ID: id, Comment: cmd.String("comment")})
+			t, err := Approved(ctx, st, Request{ID: id, Comment: cmd.String("comment")})
 			if err != nil {
 				return utils.Fail(err)
 			}

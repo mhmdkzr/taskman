@@ -29,13 +29,13 @@ func setUpToVerify(t *testing.T, st *store.Store) uuid.UUID {
 	t.Helper()
 	id := uuid.NewV7()
 	now := time.Now().UTC()
-	if _, err := st.Create(id, task.TaskDefinition{Description: "d"}, now); err != nil {
+	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if _, err := st.Append(id, task.SpecificationSubmitted{Specification: task.Specification{Plan: "p"}, At: now}); err != nil {
+	if _, err := st.Append(t.Context(), id, task.SpecificationSubmitted{Specification: task.Specification{Plan: "p"}, At: now}); err != nil {
 		t.Fatalf("Append(SpecificationSubmitted) error = %v", err)
 	}
-	if _, err := st.Append(id, task.ImplementationCompleted{
+	if _, err := st.Append(t.Context(), id, task.ImplementationCompleted{
 		Implementation: task.Implementation{Verification: task.Verification{Tests: task.TestConfiguration{Unit: true}}},
 		At:             now,
 	}); err != nil {
@@ -48,7 +48,7 @@ func TestVerifiedDerivesPassed(t *testing.T) {
 	st := openTestStore(t)
 	id := setUpToVerify(t, st)
 
-	got, err := Verified(st, Request{ID: id, Checks: task.Checks{Unit: task.CheckOK}})
+	got, err := Verified(t.Context(), st, Request{ID: id, Checks: task.Checks{Unit: task.CheckOK}})
 	if err != nil {
 		t.Fatalf("Verified() error = %v", err)
 	}
@@ -61,7 +61,7 @@ func TestVerifiedDerivesFailed(t *testing.T) {
 	st := openTestStore(t)
 	id := setUpToVerify(t, st)
 
-	got, err := Verified(st, Request{ID: id, Checks: task.Checks{Unit: task.CheckError}})
+	got, err := Verified(t.Context(), st, Request{ID: id, Checks: task.Checks{Unit: task.CheckError}})
 	if err != nil {
 		t.Fatalf("Verified() error = %v", err)
 	}
@@ -73,7 +73,7 @@ func TestVerifiedDerivesFailed(t *testing.T) {
 func TestVerifiedRejectsNoChecks(t *testing.T) {
 	st := openTestStore(t)
 	id := setUpToVerify(t, st)
-	if _, err := Verified(st, Request{ID: id}); err == nil {
+	if _, err := Verified(t.Context(), st, Request{ID: id}); err == nil {
 		t.Fatal("Verified() error = nil, want an error for no checks reported")
 	}
 }

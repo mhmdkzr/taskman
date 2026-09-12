@@ -13,6 +13,8 @@ import (
 	"github.com/urfave/cli/v3"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	jsonview "github.com/mhmdkzr/taskman/internal/task/view/json"
+	"github.com/mhmdkzr/taskman/internal/utils"
 )
 
 func TestMain(m *testing.M) {
@@ -125,11 +127,11 @@ func mergeInto(t *testing.T, gitDir, branch string) {
 func getTaskJSON(t *testing.T, gitDir, dbPath, id string) task.Task {
 	t.Helper()
 	out := runTaskman(t, gitDir, dbPath, "get", "--id", id, "--json")
-	var tk task.Task
-	if err := json.Unmarshal([]byte(out), &tk); err != nil {
+	var doc jsonview.Document
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("unmarshal: %v\noutput:\n%s", err, out)
 	}
-	return tk
+	return doc.Task
 }
 
 func TestCLIFullLifecycle(t *testing.T) {
@@ -186,12 +188,56 @@ func TestCLIList(t *testing.T) {
 	runTaskman(t, dir, db, "create", "--description", "two", "--title", "Two")
 
 	out := runTaskman(t, dir, db, "list", "--json")
-	var tasks []task.Task
-	if err := json.Unmarshal([]byte(out), &tasks); err != nil {
+	var docs []jsonview.Document
+	if err := json.Unmarshal([]byte(out), &docs); err != nil {
 		t.Fatalf("unmarshal: %v\noutput:\n%s", err, out)
 	}
-	if len(tasks) != 2 {
-		t.Fatalf("list = %+v, want 2 tasks", tasks)
+	if len(docs) != 2 {
+		t.Fatalf("list = %+v, want 2 tasks", docs)
+	}
+}
+
+func TestCLIGetMarkdown(t *testing.T) {
+	dir := newTestRepo(t)
+	db := filepath.Join(dir, "tasks.db")
+	runTaskman(t, dir, db, "create", "--description", "x", "--title", "Title")
+	id := onlyTaskID(t, dir, db)
+
+	out := runTaskman(t, dir, db, "get", "--id", id, "--md")
+	for _, want := range []string{"# Task " + id, "**State:** specify", "**Title:** Title"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("get --md output missing %q\n---\n%s", want, out)
+		}
+	}
+}
+
+func TestCLIListMarkdown(t *testing.T) {
+	dir := newTestRepo(t)
+	db := filepath.Join(dir, "tasks.db")
+	runTaskman(t, dir, db, "create", "--description", "one", "--title", "One")
+	runTaskman(t, dir, db, "create", "--description", "two", "--title", "Two")
+
+	out := runTaskman(t, dir, db, "list", "--md")
+	if got := strings.Count(out, "# Task "); got != 2 {
+		t.Fatalf("list --md rendered %d task documents, want 2\n---\n%s", got, out)
+	}
+	if !strings.Contains(out, "\n---\n") {
+		t.Fatalf("list --md output should separate task documents with a horizontal rule\n---\n%s", out)
+	}
+}
+
+func TestCLIJSONAndMDConflict(t *testing.T) {
+	dir := newTestRepo(t)
+	db := filepath.Join(dir, "tasks.db")
+	runTaskman(t, dir, db, "create", "--description", "x")
+	id := onlyTaskID(t, dir, db)
+
+	_, err := runTaskmanErr(dir, db, "get", "--id", id, "--json", "--md")
+	if err == nil {
+		t.Fatal("--json with --md: want error, got nil")
+	}
+	if got := utils.ExitCode(err); got != 2 {
+		t.Fatalf("--json with --md: ExitCode = %d, want 2 (malformed input)", got)
 	}
 }
 
@@ -207,12 +253,12 @@ func TestCLISkill(t *testing.T) {
 func onlyTaskID(t *testing.T, gitDir, dbPath string) string {
 	t.Helper()
 	out := runTaskman(t, gitDir, dbPath, "list", "--json")
-	var tasks []task.Task
-	if err := json.Unmarshal([]byte(out), &tasks); err != nil {
+	var docs []jsonview.Document
+	if err := json.Unmarshal([]byte(out), &docs); err != nil {
 		t.Fatalf("unmarshal: %v\noutput:\n%s", err, out)
 	}
-	if len(tasks) != 1 {
-		t.Fatalf("store has %d tasks, want exactly 1", len(tasks))
+	if len(docs) != 1 {
+		t.Fatalf("store has %d tasks, want exactly 1", len(docs))
 	}
-	return tasks[0].ID.String()
+	return docs[0].Task.ID.String()
 }

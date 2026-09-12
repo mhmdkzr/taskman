@@ -2,6 +2,7 @@
 package get
 
 import (
+	"context"
 	"fmt"
 
 	"uuid"
@@ -23,11 +24,11 @@ func (r Request) validate() error {
 }
 
 // Get reads req's task.
-func Get(st *store.Store, req Request) (task.Task, error) {
+func Get(ctx context.Context, st *store.Store, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("get task: %w", err)
 	}
-	t, err := st.Read(req.ID)
+	t, err := st.Read(ctx, req.ID)
 	if err != nil {
 		return task.Task{}, fmt.Errorf("get task: %w", err)
 	}

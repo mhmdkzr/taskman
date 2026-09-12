@@ -54,10 +54,18 @@ func rootCommand() *cli.Command {
 			&cli.StringFlag{Name: "git-dir", Value: ".", Usage: "repository root taskman reads commits from"},
 			&cli.StringFlag{Name: "db", Value: "./tasks.db", Usage: "path to the SQLite task database"},
 			&cli.BoolFlag{Name: "json", Usage: "print the full JSON envelope instead of a human-readable summary"},
+			&cli.BoolFlag{Name: "md", Usage: "render the task as a Markdown document instead of a human-readable summary"},
 			&cli.StringFlag{Name: "log-level", Value: "info", Usage: "debug, info, warn, or error"},
 			&cli.StringFlag{Name: "log-format", Value: "text", Usage: "text or json"},
 		},
-		Before:   initLogger,
+		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
+			// --json and --md are two renderings of the same output; asking
+			// for both is malformed input, not a silent precedence.
+			if cmd.Bool("json") && cmd.Bool("md") {
+				return ctx, cli.Exit("--json and --md are mutually exclusive", 2)
+			}
+			return initLogger(ctx, cmd)
+		},
 		Commands: commands(),
 	}
 }

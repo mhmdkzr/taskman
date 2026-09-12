@@ -5,8 +5,9 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/mhmdkzr/taskman/internal/task"
 	"github.com/mhmdkzr/taskman/internal/task/store"
+	"github.com/mhmdkzr/taskman/internal/task/view/json"
+	"github.com/mhmdkzr/taskman/internal/utils"
 )
 
 // Request is list's (empty) input.
@@ -19,17 +20,23 @@ func RegisterMCP(server *mcp.Server, st *store.Store) {
 
 func mcpTool() *mcp.Tool {
 	return &mcp.Tool{
-		Name:        "task_list",
-		Description: "List every task.",
+		Name:         "task_list",
+		Description:  "List every task.",
+		InputSchema:  utils.SchemaFor[Request](),
+		OutputSchema: utils.SchemaFor[[]json.Document](),
 	}
 }
 
-func mcpHandler(st *store.Store) mcp.ToolHandlerFor[Request, []task.Task] {
-	return func(_ context.Context, _ *mcp.CallToolRequest, _ Request) (*mcp.CallToolResult, []task.Task, error) {
-		tasks, err := List(st)
+func mcpHandler(st *store.Store) mcp.ToolHandlerFor[Request, []json.Document] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, _ Request) (*mcp.CallToolResult, []json.Document, error) {
+		tasks, err := List(ctx, st)
 		if err != nil {
 			return nil, nil, err
 		}
-		return nil, tasks, nil
+		docs := make([]json.Document, 0, len(tasks))
+		for _, t := range tasks {
+			docs = append(docs, json.FromTask(t))
+		}
+		return nil, docs, nil
 	}
 }

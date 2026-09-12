@@ -36,7 +36,7 @@ func Merged(ctx context.Context, st *store.Store, gitClient *git.Client, req Req
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("record merge: %w", err)
 	}
-	current, err := st.Read(req.ID)
+	current, err := st.Read(ctx, req.ID)
 	if err != nil {
 		return task.Task{}, fmt.Errorf("record merge: %w", err)
 	}
@@ -51,7 +51,7 @@ func Merged(ctx context.Context, st *store.Store, gitClient *git.Client, req Req
 		Merge: task.GitMerge{Target: req.Target, Commit: commit.Hash, At: commit.At},
 		At:    time.Now().UTC(),
 	}
-	t, err := st.Append(req.ID, event)
+	t, err := st.Append(ctx, req.ID, event)
 	if err != nil {
 		return task.Task{}, fmt.Errorf("record merge: %w", err)
 	}

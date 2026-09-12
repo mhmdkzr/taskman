@@ -16,7 +16,7 @@ func Command() *cli.Command {
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "id", Required: true, Usage: "the task id to read"},
 		},
-		Action: func(_ context.Context, cmd *cli.Command) error {
+		Action: func(ctx context.Context, cmd *cli.Command) error {
 			id, err := utils.IDFrom(cmd)
 			if err != nil {
 				return err
@@ -27,7 +27,7 @@ func Command() *cli.Command {
 			}
 			defer st.Close()
 
-			t, err := Get(st, Request{ID: id})
+			t, err := Get(ctx, st, Request{ID: id})
 			if err != nil {
 				return utils.Fail(err)
 			}

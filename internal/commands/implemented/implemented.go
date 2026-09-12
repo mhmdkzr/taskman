@@ -3,6 +3,7 @@
 package implemented
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -36,7 +37,7 @@ func (r Request) validate() error {
 
 // Implemented reports req's implementation as complete and returns the
 // resulting task.
-func Implemented(st *store.Store, req Request) (task.Task, error) {
+func Implemented(ctx context.Context, st *store.Store, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("record implementation: %w", err)
 	}
@@ -48,7 +49,7 @@ func Implemented(st *store.Store, req Request) (task.Task, error) {
 		},
 		At: time.Now().UTC(),
 	}
-	t, err := st.Append(req.ID, event)
+	t, err := st.Append(ctx, req.ID, event)
 	if err != nil {
 		return task.Task{}, fmt.Errorf("record implementation: %w", err)
 	}

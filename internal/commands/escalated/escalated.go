@@ -3,6 +3,7 @@
 package escalated
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -33,12 +34,12 @@ func (r Request) validate() error {
 }
 
 // Escalated blocks req's task and returns the resulting task.
-func Escalated(st *store.Store, req Request) (task.Task, error) {
+func Escalated(ctx context.Context, st *store.Store, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("escalate task: %w", err)
 	}
 	event := task.Escalated{Stage: req.Stage, Reason: req.Reason, At: time.Now().UTC()}
-	t, err := st.Append(req.ID, event)
+	t, err := st.Append(ctx, req.ID, event)
 	if err != nil {
 		return task.Task{}, fmt.Errorf("escalate task: %w", err)
 	}

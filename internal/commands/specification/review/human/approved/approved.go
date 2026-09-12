@@ -2,6 +2,7 @@
 package approved
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -26,12 +27,12 @@ func (r Request) validate() error {
 
 // Approved reports req's specification human review as approved and
 // returns the resulting task.
-func Approved(st *store.Store, req Request) (task.Task, error) {
+func Approved(ctx context.Context, st *store.Store, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("approve specification human review: %w", err)
 	}
 	event := task.SpecificationReviewHumanApproved{Comment: req.Comment, At: time.Now().UTC()}
-	t, err := st.Append(req.ID, event)
+	t, err := st.Append(ctx, req.ID, event)
 	if err != nil {
 		return task.Task{}, fmt.Errorf("approve specification human review: %w", err)
 	}

@@ -10,9 +10,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"text/template"
 
+	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/urfave/cli/v3"
 
 	"uuid"
@@ -20,6 +22,8 @@ import (
 	"github.com/mhmdkzr/taskman/internal/git"
 	"github.com/mhmdkzr/taskman/internal/task"
 	"github.com/mhmdkzr/taskman/internal/task/store"
+	jsonview "github.com/mhmdkzr/taskman/internal/task/view/json"
+	mdview "github.com/mhmdkzr/taskman/internal/task/view/md"
 )
 
 //go:embed task_summary.md
@@ -154,11 +158,33 @@ func ReviewConfigurationFrom(cmd *cli.Command) task.ReviewConfiguration {
 	}
 }
 
-// PrintTask writes t to stdout - the full JSON envelope behind --json, a
-// short human-readable summary otherwise.
+// SchemaFor infers a JSON Schema for T with taskman's uuid type registered
+// explicitly. The MCP SDK's reflection infers uuid.UUID ([16]byte) as an
+// array of integers, but JSON encodes it as a string (uuid implements
+// encoding.TextMarshaler), so without this a tool's schema would reject its
+// own wire format on both input and output.
+func SchemaFor[T any]() *jsonschema.Schema {
+	s, err := jsonschema.ForType(reflect.TypeFor[T](), &jsonschema.ForOptions{
+		TypeSchemas: map[reflect.Type]*jsonschema.Schema{
+			reflect.TypeFor[uuid.UUID](): {Type: "string", Format: "uuid"},
+		},
+	})
+	if err != nil {
+		panic(fmt.Sprintf("infer json schema for %T: %v", *new(T), err))
+	}
+	return s
+}
+
+// PrintTask writes t to stdout - the full JSON document behind --json (the
+// task plus its derived state and instruction), the full Markdown document
+// behind --md, a short human-readable summary otherwise. --json and --md are
+// mutually exclusive at the CLI root.
 func PrintTask(cmd *cli.Command, t task.Task) error {
-	if cmd.Bool("json") {
-		return PrintJSON(cmd, t)
+	switch {
+	case cmd.Bool("json"):
+		return PrintJSON(cmd, jsonview.FromTask(t))
+	case cmd.Bool("md"):
+		return PrintMarkdown(cmd, t)
 	}
 	instruction := t.Instruction()
 	if _, err := fmt.Fprintln(cmd.Root().Writer, taskSummary{
@@ -166,6 +192,18 @@ func PrintTask(cmd *cli.Command, t task.Task) error {
 		State:       t.State().String(),
 		Instruction: fmt.Sprintf("%s (%s)", instruction.Action, instruction.State),
 	}.render()); err != nil {
+		return fmt.Errorf("write output: %w", err)
+	}
+	return nil
+}
+
+// PrintMarkdown writes t to stdout as a Markdown document.
+func PrintMarkdown(cmd *cli.Command, t task.Task) error {
+	doc, err := mdview.RenderTask(t)
+	if err != nil {
+		return fmt.Errorf("render markdown: %w", err)
+	}
+	if _, err := fmt.Fprintln(cmd.Root().Writer, strings.TrimRight(doc, "\n")); err != nil {
 		return fmt.Errorf("write output: %w", err)
 	}
 	return nil

@@ -29,14 +29,14 @@ func TestImplemented(t *testing.T) {
 	st := openTestStore(t)
 	id := uuid.NewV7()
 	now := time.Now().UTC()
-	if _, err := st.Create(id, task.TaskDefinition{Description: "d"}, now); err != nil {
+	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if _, err := st.Append(id, task.SpecificationSubmitted{Specification: task.Specification{Plan: "p"}, At: now}); err != nil {
+	if _, err := st.Append(t.Context(), id, task.SpecificationSubmitted{Specification: task.Specification{Plan: "p"}, At: now}); err != nil {
 		t.Fatalf("Append(SpecificationSubmitted) error = %v", err)
 	}
 
-	got, err := Implemented(st, Request{ID: id, Worktree: "/wt", Branch: "b"})
+	got, err := Implemented(t.Context(), st, Request{ID: id, Worktree: "/wt", Branch: "b"})
 	if err != nil {
 		t.Fatalf("Implemented() error = %v", err)
 	}
@@ -48,7 +48,7 @@ func TestImplemented(t *testing.T) {
 func TestImplementedRejectsMissingWorktree(t *testing.T) {
 	st := openTestStore(t)
 	id := uuid.NewV7()
-	if _, err := Implemented(st, Request{ID: id, Branch: "b"}); err == nil {
+	if _, err := Implemented(t.Context(), st, Request{ID: id, Branch: "b"}); err == nil {
 		t.Fatal("Implemented() error = nil, want an error for a missing worktree")
 	}
 }

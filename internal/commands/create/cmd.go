@@ -18,7 +18,7 @@ func Command() *cli.Command {
 			&cli.StringFlag{Name: "description", Required: true, Usage: "what the task should accomplish"},
 			&cli.StringSliceFlag{Name: "label", Usage: "a label as key=value - repeatable"},
 		},
-		Action: func(_ context.Context, cmd *cli.Command) error {
+		Action: func(ctx context.Context, cmd *cli.Command) error {
 			labels, err := utils.SplitKV(cmd.StringSlice("label"))
 			if err != nil {
 				return cli.Exit(err, 2)
@@ -29,7 +29,7 @@ func Command() *cli.Command {
 			}
 			defer st.Close()
 
-			t, err := Create(st, Request{
+			t, err := Create(ctx, st, Request{
 				Title:       cmd.String("title"),
 				Description: cmd.String("description"),
 				Labels:      labels,

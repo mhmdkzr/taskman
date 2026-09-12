@@ -2,6 +2,7 @@
 package create
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -26,12 +27,12 @@ func (r Request) validate() error {
 }
 
 // Create starts a new task with a freshly generated id and returns it.
-func Create(st *store.Store, req Request) (task.Task, error) {
+func Create(ctx context.Context, st *store.Store, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("create task: %w", err)
 	}
 	definition := task.TaskDefinition{Title: req.Title, Description: req.Description, Labels: req.Labels}
-	t, err := st.Create(uuid.NewV7(), definition, time.Now().UTC())
+	t, err := st.Create(ctx, uuid.NewV7(), definition, time.Now().UTC())
 	if err != nil {
 		return task.Task{}, fmt.Errorf("create task: %w", err)
 	}

@@ -28,11 +28,11 @@ func openTestStore(t *testing.T) *store.Store {
 func TestEscalated(t *testing.T) {
 	st := openTestStore(t)
 	id := uuid.NewV7()
-	if _, err := st.Create(id, task.TaskDefinition{Description: "d"}, time.Now().UTC()); err != nil {
+	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, time.Now().UTC()); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 
-	got, err := Escalated(st, Request{ID: id, Stage: "definition", Reason: "stuck"})
+	got, err := Escalated(t.Context(), st, Request{ID: id, Stage: "definition", Reason: "stuck"})
 	if err != nil {
 		t.Fatalf("Escalated() error = %v", err)
 	}
@@ -44,7 +44,7 @@ func TestEscalated(t *testing.T) {
 func TestEscalatedRejectsMissingStage(t *testing.T) {
 	st := openTestStore(t)
 	id := uuid.NewV7()
-	if _, err := Escalated(st, Request{ID: id, Reason: "stuck"}); err == nil {
+	if _, err := Escalated(t.Context(), st, Request{ID: id, Reason: "stuck"}); err == nil {
 		t.Fatal("Escalated() error = nil, want an error for a missing stage")
 	}
 }

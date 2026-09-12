@@ -32,7 +32,7 @@ func Committed(ctx context.Context, st *store.Store, gitClient *git.Client, req 
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("record commit: %w", err)
 	}
-	current, err := st.Read(req.ID)
+	current, err := st.Read(ctx, req.ID)
 	if err != nil {
 		return task.Task{}, fmt.Errorf("record commit: %w", err)
 	}
@@ -43,7 +43,7 @@ func Committed(ctx context.Context, st *store.Store, gitClient *git.Client, req 
 	if err != nil {
 		return task.Task{}, fmt.Errorf("record commit: %w", err)
 	}
-	t, err := st.Append(req.ID, task.CommitRecorded{Commit: commit, At: time.Now().UTC()})
+	t, err := st.Append(ctx, req.ID, task.CommitRecorded{Commit: commit, At: time.Now().UTC()})
 	if err != nil {
 		return task.Task{}, fmt.Errorf("record commit: %w", err)
 	}

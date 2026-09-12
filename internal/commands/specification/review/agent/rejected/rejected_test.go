@@ -29,10 +29,10 @@ func TestRejected(t *testing.T) {
 	st := openTestStore(t)
 	id := uuid.NewV7()
 	now := time.Now().UTC()
-	if _, err := st.Create(id, task.TaskDefinition{Description: "d"}, now); err != nil {
+	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if _, err := st.Append(id, task.SpecificationSubmitted{
+	if _, err := st.Append(t.Context(), id, task.SpecificationSubmitted{
 		Specification: task.Specification{Plan: "p", Review: task.ReviewConfiguration{
 			Agent: task.AgentReviewConfiguration{Required: true},
 		}},
@@ -41,7 +41,7 @@ func TestRejected(t *testing.T) {
 		t.Fatalf("Append(SpecificationSubmitted) error = %v", err)
 	}
 
-	got, err := Rejected(st, Request{ID: id, Findings: []task.Finding{{Location: "x", Detail: "y"}}})
+	got, err := Rejected(t.Context(), st, Request{ID: id, Findings: []task.Finding{{Location: "x", Detail: "y"}}})
 	if err != nil {
 		t.Fatalf("Rejected() error = %v", err)
 	}
@@ -53,7 +53,7 @@ func TestRejected(t *testing.T) {
 func TestRejectedRejectsNoFindings(t *testing.T) {
 	st := openTestStore(t)
 	id := uuid.NewV7()
-	if _, err := Rejected(st, Request{ID: id}); err == nil {
+	if _, err := Rejected(t.Context(), st, Request{ID: id}); err == nil {
 		t.Fatal("Rejected() error = nil, want an error for no findings")
 	}
 }

@@ -2,6 +2,7 @@
 package rejected
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -29,12 +30,12 @@ func (r Request) validate() error {
 
 // Rejected reports req's specification human review as rejected and
 // returns the resulting task.
-func Rejected(st *store.Store, req Request) (task.Task, error) {
+func Rejected(ctx context.Context, st *store.Store, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("reject specification human review: %w", err)
 	}
 	event := task.SpecificationReviewHumanRejected{Reason: req.Reason, At: time.Now().UTC()}
-	t, err := st.Append(req.ID, event)
+	t, err := st.Append(ctx, req.ID, event)
 	if err != nil {
 		return task.Task{}, fmt.Errorf("reject specification human review: %w", err)
 	}

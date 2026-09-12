@@ -17,7 +17,7 @@ func Command() *cli.Command {
 			&cli.StringFlag{Name: "id", Required: true, Usage: "the task whose specification's automated review was rejected"},
 			&cli.StringSliceFlag{Name: "finding", Required: true, Usage: "a finding as location=detail - repeatable"},
 		},
-		Action: func(_ context.Context, cmd *cli.Command) error {
+		Action: func(ctx context.Context, cmd *cli.Command) error {
 			id, err := utils.IDFrom(cmd)
 			if err != nil {
 				return err
@@ -32,7 +32,7 @@ func Command() *cli.Command {
 			}
 			defer st.Close()
 
-			t, err := Rejected(st, Request{ID: id, Findings: findings})
+			t, err := Rejected(ctx, st, Request{ID: id, Findings: findings})
 			if err != nil {
 				return utils.Fail(err)
 			}

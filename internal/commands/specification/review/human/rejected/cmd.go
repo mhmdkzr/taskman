@@ -17,7 +17,7 @@ func Command() *cli.Command {
 			&cli.StringFlag{Name: "id", Required: true, Usage: "the task whose specification's human review was rejected"},
 			&cli.StringFlag{Name: "reason", Required: true, Usage: "why the specification's human review was rejected"},
 		},
-		Action: func(_ context.Context, cmd *cli.Command) error {
+		Action: func(ctx context.Context, cmd *cli.Command) error {
 			id, err := utils.IDFrom(cmd)
 			if err != nil {
 				return err
@@ -28,7 +28,7 @@ func Command() *cli.Command {
 			}
 			defer st.Close()
 
-			t, err := Rejected(st, Request{ID: id, Reason: cmd.String("reason")})
+			t, err := Rejected(ctx, st, Request{ID: id, Reason: cmd.String("reason")})
 			if err != nil {
 				return utils.Fail(err)
 			}

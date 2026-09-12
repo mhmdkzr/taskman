@@ -1,7 +1,6 @@
 package merged
 
 import (
-	"context"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -51,23 +50,23 @@ func TestMerged(t *testing.T) {
 	st := openTestStore(t)
 	id := uuid.NewV7()
 	now := time.Now().UTC()
-	if _, err := st.Create(id, task.TaskDefinition{Description: "d"}, now); err != nil {
+	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if _, err := st.Append(id, task.SpecificationSubmitted{Specification: task.Specification{Plan: "p"}, At: now}); err != nil {
+	if _, err := st.Append(t.Context(), id, task.SpecificationSubmitted{Specification: task.Specification{Plan: "p"}, At: now}); err != nil {
 		t.Fatalf("Append(SpecificationSubmitted) error = %v", err)
 	}
-	if _, err := st.Append(id, task.ImplementationCompleted{
+	if _, err := st.Append(t.Context(), id, task.ImplementationCompleted{
 		Implementation: task.Implementation{Git: task.Git{Worktree: dir, Branch: "b"}},
 		At:             now,
 	}); err != nil {
 		t.Fatalf("Append(ImplementationCompleted) error = %v", err)
 	}
-	if _, err := st.Append(id, task.CommitRecorded{Commit: task.GitCommit{Hash: "c1", At: now}, At: now}); err != nil {
+	if _, err := st.Append(t.Context(), id, task.CommitRecorded{Commit: task.GitCommit{Hash: "c1", At: now}, At: now}); err != nil {
 		t.Fatalf("Append(CommitRecorded) error = %v", err)
 	}
 
-	got, err := Merged(context.Background(), st, git.NewClient(dir), Request{ID: id, Target: "main"})
+	got, err := Merged(t.Context(), st, git.NewClient(dir), Request{ID: id, Target: "main"})
 	if err != nil {
 		t.Fatalf("Merged() error = %v", err)
 	}
@@ -82,7 +81,7 @@ func TestMerged(t *testing.T) {
 func TestMergedRejectsMissingTarget(t *testing.T) {
 	st := openTestStore(t)
 	id := uuid.NewV7()
-	if _, err := Merged(context.Background(), st, git.NewClient("."), Request{ID: id}); err == nil {
+	if _, err := Merged(t.Context(), st, git.NewClient("."), Request{ID: id}); err == nil {
 		t.Fatal("Merged() error = nil, want an error for a missing target")
 	}
 }

@@ -29,22 +29,29 @@ func TestApproved(t *testing.T) {
 	st := openTestStore(t)
 	id := uuid.NewV7()
 	now := time.Now().UTC()
-	if _, err := st.Create(id, task.TaskDefinition{Description: "d"}, now); err != nil {
+	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if _, err := st.Append(id, task.SpecificationSubmitted{Specification: task.Specification{Plan: "p"}, At: now}); err != nil {
+	if _, err := st.Append(t.Context(), id, task.SpecificationSubmitted{Specification: task.Specification{Plan: "p"}, At: now}); err != nil {
 		t.Fatalf("Append(SpecificationSubmitted) error = %v", err)
 	}
-	if _, err := st.Append(id, task.ImplementationCompleted{
-		Implementation: task.Implementation{Review: task.ReviewConfiguration{
-			Agent: task.AgentReviewConfiguration{Required: true},
-		}},
+	if _, err := st.Append(t.Context(), id, task.ImplementationCompleted{
+		Implementation: task.Implementation{
+			Git:          task.Git{Worktree: "/wt", Branch: "b"},
+			Verification: task.Verification{Tests: task.TestConfiguration{Unit: true}},
+			Review: task.ReviewConfiguration{
+				Agent: task.AgentReviewConfiguration{Required: true},
+			},
+		},
 		At: now,
 	}); err != nil {
 		t.Fatalf("Append(ImplementationCompleted) error = %v", err)
 	}
+	if _, err := st.Append(t.Context(), id, task.VerificationPassed{Checks: task.Checks{Unit: task.CheckOK}, At: now}); err != nil {
+		t.Fatalf("Append(VerificationPassed) error = %v", err)
+	}
 
-	got, err := Approved(st, Request{ID: id, Comment: "ok"})
+	got, err := Approved(t.Context(), st, Request{ID: id, Comment: "ok"})
 	if err != nil {
 		t.Fatalf("Approved() error = %v", err)
 	}
@@ -55,7 +62,7 @@ func TestApproved(t *testing.T) {
 
 func TestApprovedRejectsMissingID(t *testing.T) {
 	st := openTestStore(t)
-	if _, err := Approved(st, Request{}); err == nil {
+	if _, err := Approved(t.Context(), st, Request{}); err == nil {
 		t.Fatal("Approved() error = nil, want an error for a missing id")
 	}
 }

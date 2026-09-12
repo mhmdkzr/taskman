@@ -3,6 +3,7 @@
 package abandoned
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -29,12 +30,12 @@ func (r Request) validate() error {
 }
 
 // Abandoned ends req's task unsuccessfully and returns the resulting task.
-func Abandoned(st *store.Store, req Request) (task.Task, error) {
+func Abandoned(ctx context.Context, st *store.Store, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("abandon task: %w", err)
 	}
 	event := task.Abandoned{Reason: req.Reason, At: time.Now().UTC()}
-	t, err := st.Append(req.ID, event)
+	t, err := st.Append(ctx, req.ID, event)
 	if err != nil {
 		return task.Task{}, fmt.Errorf("abandon task: %w", err)
 	}

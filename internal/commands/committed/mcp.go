@@ -6,8 +6,9 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/mhmdkzr/taskman/internal/git"
-	"github.com/mhmdkzr/taskman/internal/task"
 	"github.com/mhmdkzr/taskman/internal/task/store"
+	"github.com/mhmdkzr/taskman/internal/task/view/json"
+	"github.com/mhmdkzr/taskman/internal/utils"
 )
 
 // RegisterMCP adds the "task_committed" tool to server.
@@ -17,17 +18,19 @@ func RegisterMCP(server *mcp.Server, st *store.Store, gitClient *git.Client) {
 
 func mcpTool() *mcp.Tool {
 	return &mcp.Tool{
-		Name:        "task_committed",
-		Description: "Record the task's implementation worktree's current commit.",
+		Name:         "task_committed",
+		Description:  "Record the task's implementation worktree's current commit.",
+		InputSchema:  utils.SchemaFor[Request](),
+		OutputSchema: utils.SchemaFor[json.Document](),
 	}
 }
 
-func mcpHandler(st *store.Store, gitClient *git.Client) mcp.ToolHandlerFor[Request, task.Task] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, req Request) (*mcp.CallToolResult, task.Task, error) {
+func mcpHandler(st *store.Store, gitClient *git.Client) mcp.ToolHandlerFor[Request, json.Document] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, req Request) (*mcp.CallToolResult, json.Document, error) {
 		t, err := Committed(ctx, st, gitClient, req)
 		if err != nil {
-			return nil, task.Task{}, err
+			return nil, json.Document{}, err
 		}
-		return nil, t, nil
+		return nil, json.FromTask(t), nil
 	}
 }

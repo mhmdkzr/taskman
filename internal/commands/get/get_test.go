@@ -29,11 +29,11 @@ func openTestStore(t *testing.T) *store.Store {
 func TestGet(t *testing.T) {
 	st := openTestStore(t)
 	id := uuid.NewV7()
-	if _, err := st.Create(id, task.TaskDefinition{Description: "d"}, time.Now().UTC()); err != nil {
+	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, time.Now().UTC()); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 
-	got, err := Get(st, Request{ID: id})
+	got, err := Get(t.Context(), st, Request{ID: id})
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}
@@ -44,7 +44,7 @@ func TestGet(t *testing.T) {
 
 func TestGetRejectsMissingTask(t *testing.T) {
 	st := openTestStore(t)
-	if _, err := Get(st, Request{ID: uuid.NewV7()}); !errors.Is(err, store.ErrTaskNotFound) {
+	if _, err := Get(t.Context(), st, Request{ID: uuid.NewV7()}); !errors.Is(err, store.ErrTaskNotFound) {
 		t.Fatalf("Get() error = %v, want ErrTaskNotFound", err)
 	}
 }

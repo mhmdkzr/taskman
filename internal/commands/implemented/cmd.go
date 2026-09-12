@@ -29,7 +29,7 @@ func Command() *cli.Command {
 		Name:  "implemented",
 		Usage: "report a task's implementation as complete",
 		Flags: flags,
-		Action: func(_ context.Context, cmd *cli.Command) error {
+		Action: func(ctx context.Context, cmd *cli.Command) error {
 			id, err := utils.IDFrom(cmd)
 			if err != nil {
 				return err
@@ -40,7 +40,7 @@ func Command() *cli.Command {
 			}
 			defer st.Close()
 
-			t, err := Implemented(st, Request{
+			t, err := Implemented(ctx, st, Request{
 				ID:       id,
 				Worktree: cmd.String("worktree"),
 				Branch:   cmd.String("branch"),

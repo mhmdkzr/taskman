@@ -17,7 +17,7 @@ func Command() *cli.Command {
 			&cli.StringFlag{Name: "id", Required: true, Usage: "the task being abandoned"},
 			&cli.StringFlag{Name: "reason", Required: true, Usage: "why the task is being abandoned"},
 		},
-		Action: func(_ context.Context, cmd *cli.Command) error {
+		Action: func(ctx context.Context, cmd *cli.Command) error {
 			id, err := utils.IDFrom(cmd)
 			if err != nil {
 				return err
@@ -28,7 +28,7 @@ func Command() *cli.Command {
 			}
 			defer st.Close()
 
-			t, err := Abandoned(st, Request{ID: id, Reason: cmd.String("reason")})
+			t, err := Abandoned(ctx, st, Request{ID: id, Reason: cmd.String("reason")})
 			if err != nil {
 				return utils.Fail(err)
 			}

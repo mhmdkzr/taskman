@@ -3,6 +3,7 @@
 package specified
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -31,7 +32,7 @@ func (r Request) validate() error {
 
 // Specified reports req's specification as submitted and returns the
 // resulting task.
-func Specified(st *store.Store, req Request) (task.Task, error) {
+func Specified(ctx context.Context, st *store.Store, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("record specification: %w", err)
 	}
@@ -39,7 +40,7 @@ func Specified(st *store.Store, req Request) (task.Task, error) {
 		Specification: task.Specification{Plan: req.Plan, Review: req.Review},
 		At:            time.Now().UTC(),
 	}
-	t, err := st.Append(req.ID, event)
+	t, err := st.Append(ctx, req.ID, event)
 	if err != nil {
 		return task.Task{}, fmt.Errorf("record specification: %w", err)
 	}

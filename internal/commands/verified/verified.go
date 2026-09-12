@@ -5,6 +5,7 @@
 package verified
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -40,7 +41,7 @@ func (r Request) failed() bool {
 
 // Verified reports req's verification attempt and returns the resulting
 // task.
-func Verified(st *store.Store, req Request) (task.Task, error) {
+func Verified(ctx context.Context, st *store.Store, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("record verification: %w", err)
 	}
@@ -51,7 +52,7 @@ func Verified(st *store.Store, req Request) (task.Task, error) {
 	} else {
 		event = task.VerificationPassed{Checks: req.Checks, Output: req.Output, At: at}
 	}
-	t, err := st.Append(req.ID, event)
+	t, err := st.Append(ctx, req.ID, event)
 	if err != nil {
 		return task.Task{}, fmt.Errorf("record verification: %w", err)
 	}

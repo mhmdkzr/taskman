@@ -3,6 +3,7 @@
 package approved
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -27,12 +28,12 @@ func (r Request) validate() error {
 
 // Approved reports req's implementation automated review as approved and
 // returns the resulting task.
-func Approved(st *store.Store, req Request) (task.Task, error) {
+func Approved(ctx context.Context, st *store.Store, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("approve implementation automated review: %w", err)
 	}
 	event := task.ImplementationReviewAgentApproved{Comment: req.Comment, At: time.Now().UTC()}
-	t, err := st.Append(req.ID, event)
+	t, err := st.Append(ctx, req.ID, event)
 	if err != nil {
 		return task.Task{}, fmt.Errorf("approve implementation automated review: %w", err)
 	}
