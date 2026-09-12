@@ -1,5 +1,7 @@
 package task
 
+import "slices"
+
 // InstructionAction is what an agent should do while a task sits in a given
 // state.
 type InstructionAction string
@@ -32,4 +34,24 @@ func (t Task) Instruction() Instruction {
 		return Instruction{State: t.State(), Action: InstructionDone}
 	}
 	return def.instruction
+}
+
+// ValidEvents returns the EventKinds t's current state accepts right now -
+// the same guards Apply would enforce, evaluated without attempting a
+// transition. It reads only per-state transitions, not the global
+// escalate/abandon escape hatches available from every non-terminal state.
+// The result is sorted for determinism.
+func (t Task) ValidEvents() []EventKind {
+	def, ok := workflow.states[t.State()]
+	if !ok || def.terminal {
+		return nil
+	}
+	kinds := make([]EventKind, 0, len(def.on))
+	for kind, tr := range def.on {
+		if tr.guard == nil || tr.guard(t, nil) {
+			kinds = append(kinds, kind)
+		}
+	}
+	slices.Sort(kinds)
+	return kinds
 }

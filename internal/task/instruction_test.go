@@ -1,6 +1,9 @@
 package task
 
-import "testing"
+import (
+	"slices"
+	"testing"
+)
 
 func TestInstructionReflectsCurrentState(t *testing.T) {
 	tests := []struct {
@@ -40,5 +43,46 @@ func TestInstructionOnUnknownStateIsDone(t *testing.T) {
 	tsk := Task{StateHistory: []StateChange{{State: TaskState("made_up")}}}
 	if got := tsk.Instruction().Action; got != InstructionDone {
 		t.Fatalf("Instruction().Action = %s, want done", got)
+	}
+}
+
+func TestValidEventsReflectsGuards(t *testing.T) {
+	base := Task{
+		StateHistory:  []StateChange{{State: StateSpecificationReview}},
+		Specification: &Specification{Plan: "plan"},
+	}
+
+	agentOnly := base
+	spec := *base.Specification
+	spec.Review.Agent.Required = true
+	agentOnly.Specification = &spec
+	if got := agentOnly.ValidEvents(); !slices.Equal(got, []EventKind{
+		EventSpecificationReviewAgentApproved,
+		EventSpecificationReviewAgentRejected,
+	}) {
+		t.Fatalf("ValidEvents() = %v, want only agent events", got)
+	}
+
+	both := base
+	spec = *base.Specification
+	spec.Review.Agent.Required = true
+	spec.Review.Human.Required = true
+	both.Specification = &spec
+	want := []EventKind{
+		EventSpecificationReviewAgentApproved,
+		EventSpecificationReviewAgentRejected,
+		EventSpecificationReviewHumanApproved,
+		EventSpecificationReviewHumanRejected,
+	}
+	slices.Sort(want)
+	if got := both.ValidEvents(); !slices.Equal(got, want) {
+		t.Fatalf("ValidEvents() = %v, want %v", got, want)
+	}
+}
+
+func TestValidEventsOnTerminalStateIsEmpty(t *testing.T) {
+	tsk := Task{StateHistory: []StateChange{{State: StateCompleted}}}
+	if got := tsk.ValidEvents(); len(got) != 0 {
+		t.Fatalf("ValidEvents() = %v, want empty", got)
 	}
 }
