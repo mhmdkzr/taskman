@@ -46,6 +46,26 @@ func TestHumanReviewConfigurationValidateRejectsConfigWhenNotRequired(t *testing
 	}
 }
 
+func TestImplementationValidateRejectsReviewWithoutVerification(t *testing.T) {
+	impl := Implementation{Review: ReviewConfiguration{Agent: AgentReviewConfiguration{Required: true}}}
+	if err := impl.validate(); err == nil {
+		t.Fatal("validate() error = nil, want an error for a review gate without verification")
+	}
+}
+
+func TestImplementationValidateAcceptsReviewWithVerification(t *testing.T) {
+	impl := Implementation{
+		Verification: Verification{Tests: TestConfiguration{Unit: true}},
+		Review: ReviewConfiguration{
+			Agent: AgentReviewConfiguration{Required: true},
+			Human: HumanReviewConfiguration{Required: true},
+		},
+	}
+	if err := impl.validate(); err != nil {
+		t.Fatalf("validate() error = %v, want nil with verification configured", err)
+	}
+}
+
 func TestVerificationValidateRejectsConfigWhenNotRequired(t *testing.T) {
 	v := Verification{AutoFix: AutoFix{Enabled: true}}
 	if err := v.validate(); err == nil {

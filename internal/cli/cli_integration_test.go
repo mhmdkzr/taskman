@@ -181,6 +181,19 @@ func TestCLIInvalidTransitionExitsNonZero(t *testing.T) {
 	}
 }
 
+func TestCLIImplementedRejectsReviewWithoutVerification(t *testing.T) {
+	dir := newTestRepo(t)
+	db := filepath.Join(dir, "tasks.db")
+	runTaskman(t, dir, db, "create", "--description", "x")
+	id := onlyTaskID(t, dir, db)
+	runTaskman(t, dir, db, "specified", "--id", id, "--plan", "p")
+
+	_, err := runTaskmanErr(dir, db, "implemented", "--id", id, "--worktree", "/x", "--branch", "b", "--agent-review")
+	if err == nil {
+		t.Fatal("implemented with agent review but no verification: want error, got nil")
+	}
+}
+
 func TestCLIList(t *testing.T) {
 	dir := newTestRepo(t)
 	db := filepath.Join(dir, "tasks.db")

@@ -45,6 +45,28 @@ func TestImplemented(t *testing.T) {
 	}
 }
 
+func TestImplementedRejectsReviewWithoutVerification(t *testing.T) {
+	st := openTestStore(t)
+	id := uuid.NewV7()
+	now := time.Now().UTC()
+	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if _, err := st.Append(t.Context(), id, task.SpecificationSubmitted{Specification: task.Specification{Plan: "p"}, At: now}); err != nil {
+		t.Fatalf("Append(SpecificationSubmitted) error = %v", err)
+	}
+
+	_, err := Implemented(t.Context(), st, Request{
+		ID:       id,
+		Worktree: "/wt",
+		Branch:   "b",
+		Review:   task.ReviewConfiguration{Agent: task.AgentReviewConfiguration{Required: true}},
+	})
+	if err == nil {
+		t.Fatal("Implemented() error = nil, want an error for a review gate without verification")
+	}
+}
+
 func TestImplementedRejectsMissingWorktree(t *testing.T) {
 	st := openTestStore(t)
 	id := uuid.NewV7()

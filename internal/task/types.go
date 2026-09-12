@@ -108,6 +108,24 @@ type Verification struct {
 	Attempts []VerificationResult `yaml:"attempts,omitempty" json:"attempts,omitempty"`
 }
 
+// validate enforces the implementation's configuration invariants. The key
+// one: every review gate requires verification. A rejected review always
+// loops back through a verification attempt (see StateFixAutomatedReviewFindings
+// and StateFixHumanReviewFindings), so a gate without any configured check
+// would strand the task in a fix state with no valid way out.
+func (i Implementation) validate() error {
+	if err := i.Verification.validate(); err != nil {
+		return fmt.Errorf("verification: %w", err)
+	}
+	if reviewRequired(i.Review) && !i.Verification.required() {
+		return fmt.Errorf("review gates require at least one verification check")
+	}
+	if err := i.Review.validate(); err != nil {
+		return fmt.Errorf("review: %w", err)
+	}
+	return nil
+}
+
 // required reports whether any verification check is configured to run.
 func (v Verification) required() bool {
 	return v.Tests.Unit || v.Tests.Integration || v.Tests.EndToEnd || v.Linters
@@ -356,11 +374,8 @@ func (t Task) Validate() error {
 		}
 	}
 	if t.Implementation != nil {
-		if err := t.Implementation.Review.validate(); err != nil {
-			return fmt.Errorf("implementation review: %w", err)
-		}
-		if err := t.Implementation.Verification.validate(); err != nil {
-			return fmt.Errorf("implementation verification: %w", err)
+		if err := t.Implementation.validate(); err != nil {
+			return fmt.Errorf("implementation: %w", err)
 		}
 	}
 	return nil
