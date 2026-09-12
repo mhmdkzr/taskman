@@ -1,8 +1,8 @@
 // Package utils holds the plumbing shared by every taskman CLI command's
-// cmd.go: building a GitClient from the root flags, parsing repeated flag
-// values, rendering output, and mapping errors to exit codes. It has no
-// dependency on internal/commands or any slice under it, so any of them can
-// import it without a cycle.
+// cmd.go: building a Git client and a store handle from the root flags,
+// parsing repeated flag values, rendering output, and mapping errors to
+// exit codes. It has no dependency on internal/commands or any slice under
+// it, so any of them can import it without a cycle.
 package utils
 
 import (
@@ -15,8 +15,11 @@ import (
 
 	"github.com/urfave/cli/v3"
 
+	"uuid"
+
 	"github.com/mhmdkzr/taskman/internal/git"
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
 //go:embed task_summary.md
@@ -26,14 +29,12 @@ var taskSummaryTmpl = template.Must(template.New("task_summary.md").
 	ParseFS(taskSummaryFile, "task_summary.md"))
 
 // taskSummary is the default (non-JSON) CLI output for any command that
-// returns a Task rather than a next.Guidance - the one prompt template
-// genuinely shared by many command slices, so it lives here rather than in
-// any one of them.
+// returns a Task - the one prompt template genuinely shared by every
+// command slice, so it lives here rather than in any one of them.
 type taskSummary struct {
-	TaskID string
-	Title  string
-	State  string
-	Stage  string
+	TaskID      string
+	State       string
+	Instruction string
 }
 
 func (p taskSummary) render() string {
@@ -49,16 +50,25 @@ func GitFrom(cmd *cli.Command) *git.Client {
 	return git.NewClient(cmd.String("git-dir"))
 }
 
-// WorktreesDirFrom reads the --worktrees-dir root flag.
-func WorktreesDirFrom(cmd *cli.Command) string {
-	return cmd.String("worktrees-dir")
+// StoreFrom opens the task store at the --db root flag. Callers are
+// responsible for closing it.
+func StoreFrom(cmd *cli.Command) (*store.Store, error) {
+	st, err := store.Open(cmd.String("db"))
+	if err != nil {
+		return nil, fmt.Errorf("open store: %w", err)
+	}
+	return st, nil
 }
 
-// RequireID reads the task id from the command's first positional argument.
-func RequireID(cmd *cli.Command) (string, error) {
-	id := cmd.Args().First()
-	if id == "" {
-		return "", cli.Exit("a task id is required", 2)
+// IDFrom parses the --id flag as a task id.
+func IDFrom(cmd *cli.Command) (uuid.UUID, error) {
+	raw := cmd.String("id")
+	if raw == "" {
+		return uuid.Nil(), cli.Exit("--id is required", 2)
+	}
+	id, err := uuid.Parse(raw)
+	if err != nil {
+		return uuid.Nil(), cli.Exit(fmt.Sprintf("--id: %v", err), 2)
 	}
 	return id, nil
 }
@@ -77,35 +87,71 @@ func SplitKV(pairs []string) (map[string]string, error) {
 	return out, nil
 }
 
-// ParseChecks parses repeated --check name=ok|error pairs.
-func ParseChecks(pairs []string) (map[string]task.CheckResult, error) {
-	kv, err := SplitKV(pairs)
-	if err != nil {
-		return nil, err
-	}
-	checks := make(map[string]task.CheckResult, len(kv))
-	for name, value := range kv {
-		switch task.CheckResult(value) {
-		case task.CheckOK, task.CheckError:
-			checks[name] = task.CheckResult(value)
-		default:
-			return nil, fmt.Errorf("--check %s=%s: value must be %q or %q", name, value, task.CheckOK, task.CheckError)
-		}
-	}
-	return checks, nil
-}
-
-// ParseFindings parses repeated --finding file=detail pairs.
+// ParseFindings parses repeated --finding location=detail pairs.
 func ParseFindings(pairs []string) ([]task.Finding, error) {
 	kv, err := SplitKV(pairs)
 	if err != nil {
 		return nil, err
 	}
 	findings := make([]task.Finding, 0, len(kv))
-	for file, detail := range kv {
-		findings = append(findings, task.Finding{File: file, Detail: detail})
+	for location, detail := range kv {
+		findings = append(findings, task.Finding{Location: location, Detail: detail})
 	}
 	return findings, nil
+}
+
+// ParseCheckResult parses a --unit/--integration/--end-to-end/--linters
+// flag's value. An empty value means the check wasn't reported.
+func ParseCheckResult(flag, value string) (task.CheckResult, error) {
+	switch task.CheckResult(value) {
+	case "":
+		return "", nil
+	case task.CheckOK, task.CheckError:
+		return task.CheckResult(value), nil
+	default:
+		return "", cli.Exit(fmt.Sprintf("--%s: value must be %q or %q, got %q", flag, task.CheckOK, task.CheckError, value), 2)
+	}
+}
+
+// ReviewFlags are shared by every command that reports a review gate's
+// configuration (specified, implemented): whether an agent/human review is
+// required, and each one's auto-fix policy.
+func ReviewFlags() []cli.Flag {
+	return []cli.Flag{
+		&cli.BoolFlag{Name: "agent-review", Usage: "require an automated review"},
+		&cli.BoolFlag{Name: "agent-review-use-subagent", Usage: "run the automated review in a subagent"},
+		&cli.BoolFlag{Name: "agent-review-auto-fix", Usage: "automatically fix automated review findings"},
+		&cli.IntFlag{Name: "agent-review-auto-fix-max-rounds", Usage: "max automated-review auto-fix rounds"},
+		&cli.BoolFlag{Name: "agent-review-auto-fix-use-subagent", Usage: "run automated-review auto-fix in a subagent"},
+		&cli.BoolFlag{Name: "human-review", Usage: "require a human review"},
+		&cli.BoolFlag{Name: "human-review-auto-fix", Usage: "automatically fix human review findings"},
+		&cli.IntFlag{Name: "human-review-auto-fix-max-rounds", Usage: "max human-review auto-fix rounds"},
+		&cli.BoolFlag{Name: "human-review-auto-fix-use-subagent", Usage: "run human-review auto-fix in a subagent"},
+	}
+}
+
+// ReviewConfigurationFrom builds a task.ReviewConfiguration from the flags
+// ReviewFlags declares.
+func ReviewConfigurationFrom(cmd *cli.Command) task.ReviewConfiguration {
+	return task.ReviewConfiguration{
+		Agent: task.AgentReviewConfiguration{
+			Required:    cmd.Bool("agent-review"),
+			UseSubagent: cmd.Bool("agent-review-use-subagent"),
+			AutoFix: task.AutoFix{
+				Enabled:     cmd.Bool("agent-review-auto-fix"),
+				MaxRounds:   cmd.Int("agent-review-auto-fix-max-rounds"),
+				UseSubagent: cmd.Bool("agent-review-auto-fix-use-subagent"),
+			},
+		},
+		Human: task.HumanReviewConfiguration{
+			Required: cmd.Bool("human-review"),
+			AutoFix: task.AutoFix{
+				Enabled:     cmd.Bool("human-review-auto-fix"),
+				MaxRounds:   cmd.Int("human-review-auto-fix-max-rounds"),
+				UseSubagent: cmd.Bool("human-review-auto-fix-use-subagent"),
+			},
+		},
+	}
 }
 
 // PrintTask writes t to stdout - the full JSON envelope behind --json, a
@@ -114,11 +160,11 @@ func PrintTask(cmd *cli.Command, t task.Task) error {
 	if cmd.Bool("json") {
 		return PrintJSON(cmd, t)
 	}
+	instruction := t.Instruction()
 	if _, err := fmt.Fprintln(cmd.Root().Writer, taskSummary{
-		TaskID: t.ID,
-		Title:  t.Title,
-		State:  string(t.State),
-		Stage:  CurrentStage(t),
+		TaskID:      t.ID.String(),
+		State:       t.State().String(),
+		Instruction: fmt.Sprintf("%s (%s)", instruction.Action, instruction.State),
 	}.render()); err != nil {
 		return fmt.Errorf("write output: %w", err)
 	}
@@ -137,46 +183,6 @@ func PrintJSON(cmd *cli.Command, v any) error {
 	return nil
 }
 
-// CurrentStage describes, in one short phrase, which stage a task is
-// waiting on - task_summary.md's Stage param.
-func CurrentStage(t task.Task) string {
-	switch t.State {
-	case task.StateSpecify:
-		return "awaiting specification"
-	case task.StateSpecificationReview:
-		return "awaiting specification approval"
-	case task.StateImplement:
-		return "awaiting implementation"
-	case task.StateVerify:
-		return "awaiting verification"
-	case task.StateFixVerificationFailure:
-		return "fixing verification failure"
-	case task.StateFixAutomatedReviewFindings:
-		return "fixing automated review findings"
-	case task.StateAutomatedReview:
-		return fmt.Sprintf("awaiting automated review (attempt %d)", len(t.Reviews)+1)
-	case task.StateCommit:
-		return "awaiting commit"
-	case task.StateHumanReview:
-		return "awaiting human review"
-	case task.StateFixHumanReviewFindings:
-		return "fixing human review findings"
-	case task.StateMerge:
-		return "awaiting merge"
-	case task.StateCompleted:
-		return "completed"
-	case task.StateAbandoned:
-		return "abandoned"
-	case task.StateBlocked:
-		if t.Blocked != nil {
-			return "blocked in " + t.Blocked.Stage
-		}
-		return "blocked"
-	default:
-		return "unknown"
-	}
-}
-
 // ExitCode maps a returned error to a process exit code.
 func ExitCode(err error) int {
 	if exitErr, ok := errors.AsType[cli.ExitCoder](err); ok {
@@ -185,20 +191,9 @@ func ExitCode(err error) int {
 	return 1
 }
 
-// Fail wraps a domain error from internal/task into a cli.ExitCoder with
-// the right exit code.
+// Fail wraps a domain error into a cli.ExitCoder. Flag-parsing/usage errors
+// are exit code 2 and are returned directly via cli.Exit at the call site;
+// every domain error reaching here is a runtime failure, exit code 1.
 func Fail(err error) error {
-	switch {
-	case errors.Is(err, task.ErrTaskNotFound):
-		return cli.Exit(err, 1)
-	case errors.Is(err, task.ErrWorkingTreeDirty):
-		return cli.Exit(err, 1)
-	case errors.Is(err, task.ErrInvalidLabel):
-		return cli.Exit(err, 2)
-	default:
-		if _, ok := errors.AsType[*task.InvalidTransitionError](err); ok {
-			return cli.Exit(err, 1)
-		}
-		return cli.Exit(err, 1)
-	}
+	return cli.Exit(err, 1)
 }

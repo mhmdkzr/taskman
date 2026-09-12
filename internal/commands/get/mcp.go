@@ -6,22 +6,24 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
-func RegisterMCP(server *mcp.Server, tasksDir string) {
-	mcp.AddTool(server, mcpTool(), mcpHandler(tasksDir))
+// RegisterMCP adds the "task_get" tool to server.
+func RegisterMCP(server *mcp.Server, st *store.Store) {
+	mcp.AddTool(server, mcpTool(), mcpHandler(st))
 }
 
 func mcpTool() *mcp.Tool {
 	return &mcp.Tool{
 		Name:        "task_get",
-		Description: "Read the current state of a task by id.",
+		Description: "Read one task's current state and instruction.",
 	}
 }
 
-func mcpHandler(tasksDir string) mcp.ToolHandlerFor[Request, task.Task] {
+func mcpHandler(st *store.Store) mcp.ToolHandlerFor[Request, task.Task] {
 	return func(_ context.Context, _ *mcp.CallToolRequest, req Request) (*mcp.CallToolResult, task.Task, error) {
-		t, err := Get(tasksDir, req)
+		t, err := Get(st, req)
 		if err != nil {
 			return nil, task.Task{}, err
 		}

@@ -1,35 +1,35 @@
-// Package get owns the "get" command: its domain logic and CLI wiring.
+// Package get owns the "get" command: it reads one task's current state.
 package get
 
 import (
 	"fmt"
 
+	"uuid"
+
 	"github.com/mhmdkzr/taskman/internal/task"
 	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
-// Request is get's input. Shared verbatim by the CLI (cmd.go builds it from
-// the positional id argument) and MCP (mcp.go uses it as the tool's input
-// type directly) frontends; the jsonschema tag describes it to MCP clients.
+// Request is get's input.
 type Request struct {
-	ID string `json:"id" jsonschema:"the task id to read"`
+	ID uuid.UUID `json:"id" jsonschema:"the task id to read"`
 }
 
 func (r Request) validate() error {
-	if r.ID == "" {
+	if r.ID == uuid.Nil() {
 		return fmt.Errorf("id is required")
 	}
 	return nil
 }
 
-// Get reads the current state of req.ID under tasksDir.
-func Get(tasksDir string, req Request) (task.Task, error) {
+// Get reads req's task.
+func Get(st *store.Store, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
 		return task.Task{}, fmt.Errorf("get task: %w", err)
 	}
-	t, err := store.Read(tasksDir, req.ID)
+	t, err := st.Read(req.ID)
 	if err != nil {
-		return task.Task{}, fmt.Errorf("read task: %w", err)
+		return task.Task{}, fmt.Errorf("get task: %w", err)
 	}
 	return t, nil
 }

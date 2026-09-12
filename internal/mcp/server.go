@@ -1,63 +1,60 @@
-// Package mcp assembles taskman's MCP server: each slice's own RegisterMCP
-// (under internal/commands/<slice>/mcp.go) wires the same domain function
-// its CLI command calls into an MCP tool, over stdio instead of flags/args.
+// Package mcp assembles taskman's MCP server: every command slice's tool,
+// registered onto one *mcp.Server.
 package mcp
 
 import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/mhmdkzr/taskman/internal/commands/abandon"
-	automatedreviewapprove "github.com/mhmdkzr/taskman/internal/commands/automatedreview/approve"
-	automatedreviewreject "github.com/mhmdkzr/taskman/internal/commands/automatedreview/reject"
-	"github.com/mhmdkzr/taskman/internal/commands/commit"
+	"github.com/mhmdkzr/taskman/internal/commands/abandoned"
+	"github.com/mhmdkzr/taskman/internal/commands/committed"
 	"github.com/mhmdkzr/taskman/internal/commands/create"
-	"github.com/mhmdkzr/taskman/internal/commands/delete"
-	"github.com/mhmdkzr/taskman/internal/commands/escalate"
+	"github.com/mhmdkzr/taskman/internal/commands/escalated"
 	"github.com/mhmdkzr/taskman/internal/commands/get"
-	"github.com/mhmdkzr/taskman/internal/commands/implement"
+	implementationreviewagentapproved "github.com/mhmdkzr/taskman/internal/commands/implementation/review/agent/approved"
+	implementationreviewagentrejected "github.com/mhmdkzr/taskman/internal/commands/implementation/review/agent/rejected"
+	implementationreviewhumanapproved "github.com/mhmdkzr/taskman/internal/commands/implementation/review/human/approved"
+	implementationreviewhumanrejected "github.com/mhmdkzr/taskman/internal/commands/implementation/review/human/rejected"
+	"github.com/mhmdkzr/taskman/internal/commands/implemented"
 	"github.com/mhmdkzr/taskman/internal/commands/list"
-	"github.com/mhmdkzr/taskman/internal/commands/merge"
-	"github.com/mhmdkzr/taskman/internal/commands/next"
-	"github.com/mhmdkzr/taskman/internal/commands/prune"
-	"github.com/mhmdkzr/taskman/internal/commands/review/approve"
-	"github.com/mhmdkzr/taskman/internal/commands/review/reject"
-	"github.com/mhmdkzr/taskman/internal/commands/specification"
-	specificationapprove "github.com/mhmdkzr/taskman/internal/commands/specification/approve"
-	specificationreject "github.com/mhmdkzr/taskman/internal/commands/specification/reject"
-	"github.com/mhmdkzr/taskman/internal/commands/update"
-	"github.com/mhmdkzr/taskman/internal/commands/verify"
+	"github.com/mhmdkzr/taskman/internal/commands/merged"
+	specificationreviewagentapproved "github.com/mhmdkzr/taskman/internal/commands/specification/review/agent/approved"
+	specificationreviewagentrejected "github.com/mhmdkzr/taskman/internal/commands/specification/review/agent/rejected"
+	specificationreviewhumanapproved "github.com/mhmdkzr/taskman/internal/commands/specification/review/human/approved"
+	specificationreviewhumanrejected "github.com/mhmdkzr/taskman/internal/commands/specification/review/human/rejected"
+	"github.com/mhmdkzr/taskman/internal/commands/specified"
+	"github.com/mhmdkzr/taskman/internal/commands/verified"
 	"github.com/mhmdkzr/taskman/internal/git"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
-// serverName/serverVersion identify taskman to MCP clients.
 const (
 	serverName    = "taskman"
 	serverVersion = "0.1.0"
 )
 
-// NewServer builds the MCP server with every task_* tool registered,
-// operating against tasksDir/worktreesDir via git.
-func NewServer(tasksDir, worktreesDir string, gitClient *git.Client) *mcp.Server {
+// NewServer builds an MCP server exposing every command as a tool. st and
+// gitClient are shared across every tool call for the server's lifetime.
+func NewServer(st *store.Store, gitClient *git.Client) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{Name: serverName, Version: serverVersion}, nil)
-	list.RegisterMCP(server, tasksDir)
-	get.RegisterMCP(server, tasksDir)
-	create.RegisterMCP(server, tasksDir, worktreesDir, gitClient)
-	update.RegisterMCP(server, tasksDir)
-	specification.RegisterMCP(server, tasksDir)
-	specificationapprove.RegisterMCP(server, tasksDir)
-	specificationreject.RegisterMCP(server, tasksDir)
-	implement.RegisterMCP(server, tasksDir)
-	verify.RegisterMCP(server, tasksDir)
-	automatedreviewapprove.RegisterMCP(server, tasksDir)
-	automatedreviewreject.RegisterMCP(server, tasksDir)
-	commit.RegisterMCP(server, tasksDir, gitClient)
-	escalate.RegisterMCP(server, tasksDir)
-	approve.RegisterMCP(server, tasksDir, gitClient)
-	reject.RegisterMCP(server, tasksDir)
-	merge.RegisterMCP(server, tasksDir, gitClient)
-	abandon.RegisterMCP(server, tasksDir, gitClient)
-	next.RegisterMCP(server, tasksDir)
-	delete.RegisterMCP(server, tasksDir)
-	prune.RegisterMCP(server, tasksDir)
+
+	create.RegisterMCP(server, st)
+	get.RegisterMCP(server, st)
+	list.RegisterMCP(server, st)
+	specified.RegisterMCP(server, st)
+	specificationreviewagentapproved.RegisterMCP(server, st)
+	specificationreviewagentrejected.RegisterMCP(server, st)
+	specificationreviewhumanapproved.RegisterMCP(server, st)
+	specificationreviewhumanrejected.RegisterMCP(server, st)
+	implemented.RegisterMCP(server, st)
+	verified.RegisterMCP(server, st)
+	implementationreviewagentapproved.RegisterMCP(server, st)
+	implementationreviewagentrejected.RegisterMCP(server, st)
+	implementationreviewhumanapproved.RegisterMCP(server, st)
+	implementationreviewhumanrejected.RegisterMCP(server, st)
+	committed.RegisterMCP(server, st, gitClient)
+	merged.RegisterMCP(server, st, gitClient)
+	escalated.RegisterMCP(server, st)
+	abandoned.RegisterMCP(server, st)
+
 	return server
 }

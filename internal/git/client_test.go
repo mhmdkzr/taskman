@@ -2,9 +2,7 @@ package git
 
 import (
 	"context"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"testing"
 )
 
@@ -24,76 +22,18 @@ func newTestRepo(t *testing.T) string {
 	run("init", "-q")
 	run("config", "user.email", "test@example.com")
 	run("config", "user.name", "Test")
-	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("hello\n"), 0o644); err != nil {
-		t.Fatalf("write README: %v", err)
-	}
-	run("add", "README.md")
-	run("commit", "-q", "-m", "chore: init")
+	run("commit", "--allow-empty", "-q", "-m", "chore: init")
 	return dir
 }
 
-func TestGitClientIsClean(t *testing.T) {
+func TestGitClientReadCommit(t *testing.T) {
 	dir := newTestRepo(t)
 	git := NewClient(dir)
 	ctx := context.Background()
 
-	clean, err := git.IsClean(ctx)
-	if err != nil {
-		t.Fatalf("is clean: %v", err)
-	}
-	if !clean {
-		t.Error("fresh repo: want clean, got dirty")
-	}
-
-	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("changed\n"), 0o644); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-	clean, err = git.IsClean(ctx)
-	if err != nil {
-		t.Fatalf("is clean: %v", err)
-	}
-	if clean {
-		t.Error("dirty repo: want dirty, got clean")
-	}
-}
-
-func TestGitClientCreateWorktreeAndReadCommit(t *testing.T) {
-	dir := newTestRepo(t)
-	git := NewClient(dir)
-	ctx := context.Background()
-
-	worktreesDir := filepath.Join(t.TempDir(), "worktrees")
-	worktree, branch, err := git.CreateWorktree(ctx, worktreesDir, "abc", "abc")
-	if err != nil {
-		t.Fatalf("create worktree: %v", err)
-	}
-	if branch != "task/abc" {
-		t.Errorf("branch = %q, want task/abc", branch)
-	}
-	if _, err := os.Stat(filepath.Join(worktree, "README.md")); err != nil {
-		t.Fatalf("worktree missing checked-out content: %v", err)
-	}
-
-	if err := os.WriteFile(filepath.Join(worktree, "NOTES.md"), []byte("notes\n"), 0o644); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-	commitInWorktree := func(args ...string) {
-		t.Helper()
-		cmd := exec.Command("git", args...)
-		cmd.Dir = worktree
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v: %s", args, err, out)
-		}
-	}
-	commitInWorktree("add", "NOTES.md")
-	commitInWorktree("commit", "-q", "-m", "docs: add notes\n\nlonger body line")
-
-	commit, err := git.ReadCommit(ctx, worktree, "")
+	commit, err := git.ReadCommit(ctx, dir, "")
 	if err != nil {
 		t.Fatalf("read commit: %v", err)
-	}
-	if commit.Type != "docs" {
-		t.Errorf("type = %q, want docs", commit.Type)
 	}
 	if commit.Hash == "" {
 		t.Error("hash is empty")
@@ -101,67 +41,31 @@ func TestGitClientCreateWorktreeAndReadCommit(t *testing.T) {
 	if commit.Message == "" {
 		t.Error("message is empty")
 	}
-}
-
-func TestGitClientUseTrunk(t *testing.T) {
-	dir := newTestRepo(t)
-	git := NewClient(dir)
-	ctx := context.Background()
-
-	worktree, branch, err := git.UseTrunk(ctx)
-	if err != nil {
-		t.Fatalf("use trunk: %v", err)
-	}
-	if worktree != dir {
-		t.Errorf("worktree = %q, want %q", worktree, dir)
-	}
-	if branch != "main" && branch != "master" {
-		t.Errorf("branch = %q, want main or master", branch)
+	if commit.At.IsZero() {
+		t.Error("at is zero")
 	}
 }
 
-func TestGitClientUseTrunkDetachedHEAD(t *testing.T) {
+func TestGitClientReadCommitExplicitRef(t *testing.T) {
 	dir := newTestRepo(t)
 	git := NewClient(dir)
 	ctx := context.Background()
-	run := func(args ...string) {
-		t.Helper()
-		cmd := exec.Command("git", args...)
-		cmd.Dir = dir
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v: %s", args, err, out)
-		}
-	}
-	run("checkout", "-q", "--detach", "HEAD")
-
-	if _, _, err := git.UseTrunk(ctx); err == nil {
-		t.Fatal("use trunk in detached HEAD: want error, got nil")
-	}
-}
-
-func TestGitClientReadCommitNoConventionalPrefix(t *testing.T) {
-	dir := newTestRepo(t)
-	git := NewClient(dir)
-	ctx := context.Background()
-	run := func(args ...string) {
-		t.Helper()
-		cmd := exec.Command("git", args...)
-		cmd.Dir = dir
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v: %s", args, err, out)
-		}
-	}
-	run("commit", "--allow-empty", "-q", "-m", "just a plain message, no prefix")
 
 	commit, err := git.ReadCommit(ctx, dir, "HEAD")
 	if err != nil {
 		t.Fatalf("read commit: %v", err)
 	}
-	if commit.Type != "" {
-		t.Errorf("type = %q, want empty (message has no conventional-commit prefix)", commit.Type)
+	if commit.Hash == "" {
+		t.Error("hash is empty")
 	}
 }
 
-// Reading a real commit back via GitClient.ReadCommit (used by the commit
-// slice's own domain function, internal/commands/commit) is covered by
-// that slice's own tests - see internal/commands/commit/commit_test.go.
+func TestGitClientReadCommitRejectsUnknownRef(t *testing.T) {
+	dir := newTestRepo(t)
+	git := NewClient(dir)
+	ctx := context.Background()
+
+	if _, err := git.ReadCommit(ctx, dir, "not-a-real-ref"); err == nil {
+		t.Fatal("read commit with unknown ref: want error, got nil")
+	}
+}

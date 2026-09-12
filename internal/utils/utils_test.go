@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/mhmdkzr/taskman/internal/task"
@@ -16,58 +17,34 @@ func TestSplitKV(t *testing.T) {
 	}
 }
 
-func TestParseChecks(t *testing.T) {
-	got, err := ParseChecks([]string{"test=ok", "lint=error"})
-	if err != nil {
-		t.Fatalf("ParseChecks: %v", err)
-	}
-	if got["test"] != task.CheckOK || got["lint"] != task.CheckError {
-		t.Fatalf("got %#v", got)
-	}
-	if _, err := ParseChecks([]string{"test=maybe"}); err == nil {
-		t.Fatal("invalid check: want error")
-	}
-}
-
 func TestParseFindings(t *testing.T) {
 	got, err := ParseFindings([]string{"main.go=bad"})
 	if err != nil {
 		t.Fatalf("ParseFindings: %v", err)
 	}
-	if len(got) != 1 || got[0].File != "main.go" || got[0].Detail != "bad" {
+	if len(got) != 1 || got[0].Location != "main.go" || got[0].Detail != "bad" {
 		t.Fatalf("got %#v", got)
 	}
 }
 
-func TestCurrentStage(t *testing.T) {
-	tests := []struct {
-		name  string
-		state task.State
-		want  string
-	}{
-		{"specify", task.StateSpecify, "awaiting specification"},
-		{"specification review", task.StateSpecificationReview, "awaiting specification approval"},
-		{"implement", task.StateImplement, "awaiting implementation"},
-		{"verify", task.StateVerify, "awaiting verification"},
-		{"commit", task.StateCommit, "awaiting commit"},
-		{"human review", task.StateHumanReview, "awaiting human review"},
-		{"merge", task.StateMerge, "awaiting merge"},
-		{"completed", task.StateCompleted, "completed"},
-		{"abandoned", task.StateAbandoned, "abandoned"},
+func TestParseCheckResult(t *testing.T) {
+	got, err := ParseCheckResult("unit", "ok")
+	if err != nil {
+		t.Fatalf("ParseCheckResult: %v", err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := CurrentStage(task.Task{State: tt.state}); got != tt.want {
-				t.Fatalf("got %q, want %q", got, tt.want)
-			}
-		})
+	if got != task.CheckOK {
+		t.Fatalf("got %q, want %q", got, task.CheckOK)
+	}
+	if got, err := ParseCheckResult("unit", ""); err != nil || got != "" {
+		t.Fatalf("empty value: got (%q, %v), want (\"\", nil)", got, err)
+	}
+	if _, err := ParseCheckResult("unit", "maybe"); err == nil {
+		t.Fatal("invalid value: want error")
 	}
 }
 
 func TestFailMapsErrorsToExitCodes(t *testing.T) {
-	if got := ExitCode(
-		Fail(&task.InvalidTransitionError{State: task.StateVerify, Event: task.EventCommitRecorded}),
-	); got != 1 {
-		t.Errorf("InvalidTransitionError exit = %d, want 1", got)
+	if got := ExitCode(Fail(errors.New("boom"))); got != 1 {
+		t.Errorf("Fail exit = %d, want 1", got)
 	}
 }

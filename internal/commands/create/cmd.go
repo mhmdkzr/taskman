@@ -2,7 +2,6 @@ package create
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/urfave/cli/v3"
 
@@ -13,64 +12,32 @@ import (
 func Command() *cli.Command {
 	return &cli.Command{
 		Name:  "create",
-		Usage: "create a task and its worktree/branch (or --trunk to work it on the current branch)",
+		Usage: "create a new task",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "definition", Required: true, Usage: "what the task should accomplish"},
-			&cli.StringFlag{Name: "id", Usage: "use this id instead of generating one"},
 			&cli.StringFlag{Name: "title", Usage: "short human-readable title"},
+			&cli.StringFlag{Name: "description", Required: true, Usage: "what the task should accomplish"},
 			&cli.StringSliceFlag{Name: "label", Usage: "a label as key=value - repeatable"},
-			&cli.StringSliceFlag{Name: "reference", Usage: "a file or location relevant to this task - repeatable"},
-			&cli.StringFlag{
-				Name:  "specification",
-				Usage: "skip straight to implementation by providing the specification up front (requires --done-when)",
-			},
-			&cli.StringFlag{Name: "done-when", Usage: "acceptance criteria - required together with --specification"},
-			&cli.BoolFlag{
-				Name:  "trunk",
-				Usage: "work this task on the current branch instead of creating a worktree and branch",
-			},
-			&cli.BoolFlag{
-				Name:  "auto-approve",
-				Usage: "skip the human review gate - review completes on its own once the commit is made",
-			},
 		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
+		Action: func(_ context.Context, cmd *cli.Command) error {
 			labels, err := utils.SplitKV(cmd.StringSlice("label"))
 			if err != nil {
 				return cli.Exit(err, 2)
 			}
-			t, err := Create(
-				ctx,
-				cmd.String("tasks-dir"),
-				utils.WorktreesDirFrom(cmd),
-				utils.GitFrom(cmd),
-				Request{
-					Definition:    cmd.String("definition"),
-					ID:            cmd.String("id"),
-					Title:         cmd.String("title"),
-					Labels:        labels,
-					References:    cmd.StringSlice("reference"),
-					Specification: cmd.String("specification"),
-					DoneWhen:      cmd.String("done-when"),
-					Trunk:         cmd.Bool("trunk"),
-					AutoApprove:   cmd.Bool("auto-approve"),
-				},
-			)
+			st, err := utils.StoreFrom(cmd)
 			if err != nil {
 				return utils.Fail(err)
 			}
-			if cmd.Bool("json") {
-				return utils.PrintJSON(cmd, t)
+			defer st.Close()
+
+			t, err := Create(st, Request{
+				Title:       cmd.String("title"),
+				Description: cmd.String("description"),
+				Labels:      labels,
+			})
+			if err != nil {
+				return utils.Fail(err)
 			}
-			if _, err := fmt.Fprintln(cmd.Root().Writer, Summary{
-				TaskID:   t.ID,
-				Title:    t.Title,
-				Worktree: t.Git.Worktree,
-				Branch:   t.Git.Branch,
-			}.Render()); err != nil {
-				return fmt.Errorf("write output: %w", err)
-			}
-			return nil
+			return utils.PrintTask(cmd, t)
 		},
 	}
 }

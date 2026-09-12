@@ -19,7 +19,13 @@ func Command() *cli.Command {
 		Name:  "mcp",
 		Usage: "serve task operations over MCP/stdio instead of the CLI",
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			server := mcp.NewServer(cmd.String("tasks-dir"), utils.WorktreesDirFrom(cmd), utils.GitFrom(cmd))
+			st, err := utils.StoreFrom(cmd)
+			if err != nil {
+				return utils.Fail(err)
+			}
+			defer st.Close()
+
+			server := mcp.NewServer(st, utils.GitFrom(cmd))
 			if err := server.Run(ctx, &gosdkmcp.StdioTransport{}); err != nil {
 				return fmt.Errorf("serve mcp: %w", err)
 			}

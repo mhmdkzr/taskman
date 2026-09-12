@@ -1,1 +1,0 @@
-Task {{ .TaskID }} ('{{ .Title }}') is blocked in {{ .Stage }}, waiting since {{ .WaitingSince }}. {{ .Reason }} A human needs to look at {{ .Worktree }} (branch {{ .Branch }}) before this can continue.

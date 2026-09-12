@@ -4,28 +4,32 @@ import (
 	"context"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
-func RegisterMCP(server *mcp.Server, tasksDir string) {
-	mcp.AddTool(server, mcpTool(), mcpHandler(tasksDir))
+// Request is list's (empty) input.
+type Request struct{}
+
+// RegisterMCP adds the "task_list" tool to server.
+func RegisterMCP(server *mcp.Server, st *store.Store) {
+	mcp.AddTool(server, mcpTool(), mcpHandler(st))
 }
 
 func mcpTool() *mcp.Tool {
 	return &mcp.Tool{
 		Name:        "task_list",
-		Description: "List tasks, optionally filtered by state/label and paginated.",
+		Description: "List every task.",
 	}
 }
 
-func mcpHandler(tasksDir string) mcp.ToolHandlerFor[Request, Result] {
-	return func(_ context.Context, _ *mcp.CallToolRequest, req Request) (*mcp.CallToolResult, Result, error) {
-		if req.Limit == 0 {
-			req.Limit = defaultLimit
-		}
-		result, err := List(tasksDir, req)
+func mcpHandler(st *store.Store) mcp.ToolHandlerFor[Request, []task.Task] {
+	return func(_ context.Context, _ *mcp.CallToolRequest, _ Request) (*mcp.CallToolResult, []task.Task, error) {
+		tasks, err := List(st)
 		if err != nil {
-			return nil, Result{}, err
+			return nil, nil, err
 		}
-		return nil, result, nil
+		return nil, tasks, nil
 	}
 }

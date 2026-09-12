@@ -1,7 +1,9 @@
 // Package cli is the taskman CLI. It is a one-shot process: parse flags,
 // run exactly one command, print, exit. There is no persistent daemon.
-// Every command (list, get, create, ...) is mounted directly on the root -
-// there is no intermediate "task" grouping command.
+// Every command is mounted directly on the root - there is no intermediate
+// "task" grouping command, except for the two review-gate groupings
+// (specification, implementation), each of which mounts its own
+// review/{agent,human}/{approved,rejected} tree.
 package cli
 
 import (
@@ -14,24 +16,20 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/mhmdkzr/taskman/internal/commands/abandon"
-	"github.com/mhmdkzr/taskman/internal/commands/automatedreview"
-	"github.com/mhmdkzr/taskman/internal/commands/commit"
+	"github.com/mhmdkzr/taskman/internal/commands/abandoned"
+	"github.com/mhmdkzr/taskman/internal/commands/committed"
 	"github.com/mhmdkzr/taskman/internal/commands/create"
-	"github.com/mhmdkzr/taskman/internal/commands/delete"
-	"github.com/mhmdkzr/taskman/internal/commands/escalate"
+	"github.com/mhmdkzr/taskman/internal/commands/escalated"
 	"github.com/mhmdkzr/taskman/internal/commands/get"
-	"github.com/mhmdkzr/taskman/internal/commands/implement"
+	"github.com/mhmdkzr/taskman/internal/commands/implementation"
+	"github.com/mhmdkzr/taskman/internal/commands/implemented"
 	"github.com/mhmdkzr/taskman/internal/commands/list"
 	"github.com/mhmdkzr/taskman/internal/commands/mcp"
-	"github.com/mhmdkzr/taskman/internal/commands/merge"
-	"github.com/mhmdkzr/taskman/internal/commands/next"
-	"github.com/mhmdkzr/taskman/internal/commands/prune"
-	"github.com/mhmdkzr/taskman/internal/commands/review"
+	"github.com/mhmdkzr/taskman/internal/commands/merged"
 	"github.com/mhmdkzr/taskman/internal/commands/skill"
 	"github.com/mhmdkzr/taskman/internal/commands/specification"
-	"github.com/mhmdkzr/taskman/internal/commands/update"
-	"github.com/mhmdkzr/taskman/internal/commands/verify"
+	"github.com/mhmdkzr/taskman/internal/commands/specified"
+	"github.com/mhmdkzr/taskman/internal/commands/verified"
 	"github.com/mhmdkzr/taskman/internal/utils"
 )
 
@@ -51,15 +49,10 @@ func Run() int {
 func rootCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "taskman",
-		Usage: "a file-backed, stateless, one-shot CLI task server",
+		Usage: "a SQLite-backed, event-sourced, one-shot CLI task server",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "git-dir", Value: ".", Usage: "repository root taskman operates against"},
-			&cli.StringFlag{Name: "tasks-dir", Value: ".tasks", Usage: "directory holding task files"},
-			&cli.StringFlag{
-				Name:  "worktrees-dir",
-				Value: ".worktrees",
-				Usage: "directory task create creates worktrees under",
-			},
+			&cli.StringFlag{Name: "git-dir", Value: ".", Usage: "repository root taskman reads commits from"},
+			&cli.StringFlag{Name: "db", Value: "./tasks.db", Usage: "path to the SQLite task database"},
 			&cli.BoolFlag{Name: "json", Usage: "print the full JSON envelope instead of a human-readable summary"},
 			&cli.StringFlag{Name: "log-level", Value: "info", Usage: "debug, info, warn, or error"},
 			&cli.StringFlag{Name: "log-format", Value: "text", Usage: "text or json"},
@@ -71,23 +64,18 @@ func rootCommand() *cli.Command {
 
 func commands() []*cli.Command {
 	return []*cli.Command{
-		list.Command(),
-		get.Command(),
 		create.Command(),
-		update.Command(),
+		specified.Command(),
 		specification.Command(),
-		specification.SpecifiedCommand(),
-		implement.Command(),
-		verify.Command(),
-		review.Command(),
-		automatedreview.Command(),
-		commit.Command(),
-		escalate.Command(),
-		merge.Command(),
-		abandon.Command(),
-		next.Command(),
-		delete.Command(),
-		prune.Command(),
+		implemented.Command(),
+		implementation.Command(),
+		verified.Command(),
+		committed.Command(),
+		merged.Command(),
+		escalated.Command(),
+		abandoned.Command(),
+		get.Command(),
+		list.Command(),
 		skill.Command(),
 		mcp.Command(),
 	}

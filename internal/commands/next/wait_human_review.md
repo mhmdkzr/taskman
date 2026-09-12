@@ -1,1 +1,0 @@
-Task {{ .TaskID }} ('{{ .Title }}') is awaiting human review. Verification passed on attempt {{ .Attempt }}; the change is committed as {{ .CommitHash }} on branch {{ .Branch }} in {{ .Worktree }}. It's been waiting since {{ .WaitingSince }}. Nothing to do until a human runs review approved or review rejected.

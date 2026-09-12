@@ -1,9 +1,10 @@
 ## Stack
 
 - Go 1.27+
-- File-backed YAML task store (`.tasks/*.yaml`) with per-task file locking
-- `git` on `PATH` (taskman shells out through `internal/gitclient` for worktrees, reading
-  commits, and committing a terminal task's own file)
+- SQLite-backed, event-sourced task store (`internal/task/store`, via `modernc.org/sqlite`): a
+  task's current state is never stored directly, only derived by replaying its events through
+  `task.Apply`
+- `git` on `PATH` (taskman shells out through `internal/git` to read a worktree's current commit)
 - `urfave/cli` v3 for the CLI frontend, `modelcontextprotocol/go-sdk` for the MCP frontend
 
 Taskman is a one-shot process that validates and records the state transitions reported to it, either as a CLI command or (via `taskman mcp`) as an MCP/stdio tool call.
@@ -12,44 +13,55 @@ Taskman is a one-shot process that validates and records the state transitions r
 
 ## Vertical Slices
 
-Every `taskman <command>` is a vertical slice: one package under `internal/commands`, with the
-review stage nested as `internal/commands/review/{record,approve,reject}`. There is no
-intermediate grouping command - every slice's `Command()` mounts directly on the `taskman` root
-(`internal/cli/cli.go`), except `review`'s own `record`/`approve`/`reject`, which nest under
-`review`. A slice keeps its domain logic (`<name>.go`), its frontends - `cmd.go` (CLI,
-exports `Command()`) and, where wired up, `mcp.go` (MCP, exports `RegisterMCP()`) - prompt
-templates (`prompt.go`/`prompt.md` where the command dispatches an agent), and documentation
-(`README.md`) close together. A slice's application function never imports either frontend package;
-`cmd.go` and `mcp.go` both call straight into it, so the two frontends stay two thin, independent
-callers of the same logic rather than one wrapping the other. Workflow commands are imperative
-shells: they validate input, obtain external facts, construct a typed `task.Event`, and apply it
-through the pure `task.Apply` function inside `store.Update`. An application function's entire
-caller-supplied input - including the task id itself, since MCP has no positional-argument
+Every `taskman <command>` is a vertical slice: one package under `internal/commands`. The two
+review-bearing stages each get their own grouping tree -
+`internal/commands/specification/review/{agent,human}/{approved,rejected}` and
+`internal/commands/implementation/review/{agent,human}/{approved,rejected}` - four fully
+independent leaf packages per stage (`specification review agent approved`, `implementation
+review human rejected`, etc.), each backed by its own dedicated `task.TaskEvent` type
+(`SpecificationReviewAgentApproved`, `ImplementationReviewHumanRejected`, ...): stage and reviewer
+type are baked into the event's Go type itself, not inferred from the task's state at apply time,
+so nothing is shared between the two stages' review commands even though a couple of them (the
+agent-review pair) happen to have identical bodies. There is no intermediate grouping command
+otherwise - every slice's `Command()` mounts directly on the `taskman` root
+(`internal/cli/cli.go`), except `specification`/`implementation`'s own `review/{agent,human}`
+nesting. A slice keeps its domain logic
+(`<name>.go`), its frontends - `cmd.go` (CLI, exports `Command()`) and, where wired up, `mcp.go`
+(MCP, exports `RegisterMCP()`) - and documentation (`README.md`) close together. A slice's
+application function never imports either frontend package; `cmd.go` and `mcp.go` both call
+straight into it, so the two frontends stay two thin, independent callers of the same logic
+rather than one wrapping the other. Workflow commands are imperative shells: they validate input,
+obtain external facts, construct a typed `task.TaskEvent`, and apply it through the store's
+`Append`, which validates via the pure `task.Apply` before persisting. An application function's
+entire caller-supplied input - including the task id itself, since MCP has no positional-argument
 concept the way a CLI does - is one `Request` struct defined in `<name>.go` (not duplicated per
 frontend): `json`/`jsonschema` struct tags make it usable as-is for both `cmd.go` (built
-field-by-field from flags/args) and `mcp.go` (passed directly as the tool's typed input). Where
+field-by-field from flags) and `mcp.go` (passed directly as the tool's typed input). Where
 `Request` has anything worth checking (a required field, a non-empty id), it gets a
 `func (r Request) validate() error` method, called once at the top of the domain function -
 shared automatically by both frontends rather than checked twice or only in one. Runtime deps a
-frontend doesn't get from the caller (`tasksDir`, `worktreesDir`, `*gitclient.Client`) stay separate
-function parameters, not `Request` fields, since MCP binds them once at server startup rather than
-per call.
+frontend doesn't get from the caller (`*store.Store`, `*git.Client`) stay separate function
+parameters, not `Request` fields, since MCP binds them once at server startup rather than per
+call.
 
 ## Shared Packages
 
-- `internal/task` - the pure functional core: the `Task` aggregate, its single authoritative
-  workflow `State`, typed events, declarative compiled workflow, `Apply`, and `Next`. It performs
-  no filesystem, Git, clock, logging, CLI, or MCP operations. `Apply` clones its input before
-  reducing an event, so callers never observe partial mutation.
-- `internal/taskstore` - YAML persistence: `Read`, `Write`, and `Update`
-  (lock → read → call a value-returning update → validate → atomic write).
-- `internal/gitclient` - the imperative Git adapter used by command shells.
-- `internal/taskid` - task ID generation and slugging.
-- `internal/migration/taskv1` - the isolated legacy schema reader used only by `taskman migrate`;
-  normal runtime code understands the current schema only.
+- `internal/task` - the pure functional core: the `Task` aggregate, its append-only
+  `StateHistory` (current state is `Task.State()`, its last entry - never a separate mutable
+  field), the closed set of `TaskEvent` types, the declarative compiled workflow (`workflow.go`),
+  `Apply`, and `Instruction` (the pure per-state projection of what should happen next). It
+  performs no filesystem, Git, clock, logging, CLI, or MCP operations - every event carries its
+  own `At`, supplied by the caller. `Apply` clones its input before reducing an event, so callers
+  never observe partial mutation.
+- `internal/task/store` - SQLite-backed, event-sourced persistence (`Store`, opened once via
+  `Open`): `Create`, `Read` (replays a task's events through `task.Apply`), `Append` (validates
+  one more event via `task.Apply` inside a single transaction before persisting it - a rejected
+  event is never written), and `List`.
+- `internal/git` - the imperative Git adapter used by command shells: currently just
+  `ReadCommit`, reading a worktree's current commit hash/message.
 - `internal/utils` - CLI-only plumbing shared by every slice's `cmd.go`: building a
-  `GitClient`/worktrees dir from root flags, parsing repeated `key=value` flags, rendering output
-  (`--json` envelope or human-readable summary), and mapping errors to exit codes.
+  `*git.Client`/`*store.Store` from root flags, parsing repeated `key=value` flags, rendering
+  output (`--json` envelope or human-readable summary), and mapping errors to exit codes.
 
 There is no `pkg/`; everything shared lives under `internal/`.
 
@@ -58,28 +70,31 @@ There is no `pkg/`; everything shared lives under `internal/`.
 1. **Slice-level**: each slice's `cmd.go` exports a `Command()` func returning a `*cli.Command`;
    a slice wired up for MCP also has `mcp.go` exporting `RegisterMCP()`, which adds that slice's
    tool to an `*mcp.Server`.
-2. **Stage-level**: `internal/commands/review/cmd.go` mounts `record`/`approve`/`reject` into
-   `review` - the one nested grouping command left. `internal/mcp/server.go` mounts every
-   wired-up slice's `RegisterMCP()` into the MCP server the same way.
+2. **Stage-level**: `internal/commands/specification/cmd.go` mounts `review`, which mounts
+   `agent`/`human`, each of which mounts its own `approved`/`rejected` children -
+   `internal/commands/implementation` mirrors this exactly. These are the only nested grouping
+   commands. `internal/mcp/server.go` mounts every wired-up slice's `RegisterMCP()` into the MCP
+   server the same way (flat - MCP tools aren't nested, so the four leaves under each stage get
+   distinct, self-describing tool names like `task_specification_review_agent_approved`), sharing
+   one `*store.Store` and `*git.Client` across every tool call for the server's lifetime.
 3. **Root-level**: `internal/cli/cli.go`'s `rootCommand` mounts every slice's `Command()` -
-   including `review.Command()`, `skill.Command()`, and `mcp.Command()` (from
-   `internal/commands/mcp`, which calls `internal/mcp.NewServer` and serves it over stdio) -
-   directly under the `taskman` root with the root flags, and wires `initLogger` (defined in the
-   same file) as its `Before` hook.
+   including the two review-stage grouping commands, `skill.Command()`, and `mcp.Command()` (from
+   `internal/commands/mcp`, which opens a `*store.Store` from `--db`, calls
+   `internal/mcp.NewServer`, and serves it over stdio) - directly under the `taskman` root with
+   the root flags, and wires `initLogger` (defined in the same file) as its `Before` hook.
 
 ## CLI Conventions
 
-- A slice's `cmd.go` `Action` parses flags/args into the request its domain function expects,
-  calls the application function (a plain function taking `tasksDir` and other runtime deps
-  directly), renders success via `internal/utils`
-  (`utils.PrintTask`/`utils.PrintJSON`), and returns errors through `utils.Fail`.
+- A slice's `cmd.go` `Action` parses flags into the request its domain function expects, opens a
+  `*store.Store` via `utils.StoreFrom` (closed with `defer`), calls the application function,
+  renders success via `internal/utils` (`utils.PrintTask`/`utils.PrintJSON`), and returns errors
+  through `utils.Fail`.
 - Every flag has a `Usage` string written for someone who only has the compiled binary - no
-  references to files or paths in this repo.
+  references to files or paths in this repo. `--id` is always a flag, never a positional
+  argument, so the same `Request` struct binds identically for MCP.
 - Slices must not import `internal/cli` (it imports them, so that would cycle) - shared helpers
-  go in `internal/utils`, which depends on `internal/task` and `urfave/cli` only.
-- `next` is the one slice allowed to import sibling slices (`specify`, `implement`), since
-  guiding a task means knowing what every stage's own commands would accept next; none of them
-  import it back.
+  go in `internal/utils`, which depends on `internal/task`, `internal/task/store`, `internal/git`,
+  and `urfave/cli` only.
 
 ---
 

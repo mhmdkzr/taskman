@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/mhmdkzr/taskman/internal/commands/list"
 	"github.com/mhmdkzr/taskman/internal/task"
 )
 
@@ -45,41 +43,32 @@ func newTestRepo(t *testing.T) string {
 	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("hello\n"), 0o644); err != nil {
 		t.Fatalf("write README: %v", err)
 	}
-	// .worktrees/ is where task create checks out each task's worktree -
-	// it must be gitignored, or every task after the first makes
-	// the clean-working-tree precondition fail on the untracked directory
-	// the previous one left behind.
-	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte(".worktrees/\n"), 0o644); err != nil {
-		t.Fatalf("write .gitignore: %v", err)
-	}
-	git("add", "README.md", ".gitignore")
+	git("add", "README.md")
 	git("commit", "-q", "-m", "chore: init")
 	return dir
 }
 
-// run invokes the taskman CLI in-process against gitDir, returning stdout.
-// It fails the test if the command errors.
-func runTaskman(t *testing.T, gitDir string, args ...string) string {
+// run invokes the taskman CLI in-process against gitDir/db, returning
+// stdout. It fails the test if the command errors.
+func runTaskman(t *testing.T, gitDir, dbPath string, args ...string) string {
 	t.Helper()
-	out, err := runTaskmanErr(gitDir, args...)
+	out, err := runTaskmanErr(gitDir, dbPath, args...)
 	if err != nil {
 		t.Fatalf("taskman %v: %v\noutput:\n%s", args, err, out)
 	}
 	return out
 }
 
-// runErr is like run but returns the error instead of failing the test.
-// Every directory flag is pinned under gitDir explicitly, rather than
-// relying on the test process's current working directory matching it.
-func runTaskmanErr(gitDir string, args ...string) (string, error) {
+// runTaskmanErr is like run but returns the error instead of failing the
+// test.
+func runTaskmanErr(gitDir, dbPath string, args ...string) (string, error) {
 	var buf bytes.Buffer
 	cmd := rootCommand()
 	fixStdout(cmd, &buf)
 	full := append([]string{
 		"taskman",
 		"--git-dir", gitDir,
-		"--tasks-dir", filepath.Join(gitDir, ".tasks"),
-		"--worktrees-dir", filepath.Join(gitDir, ".worktrees"),
+		"--db", dbPath,
 	}, args...)
 	err := cmd.Run(context.Background(), full)
 	return buf.String(), err
@@ -94,206 +83,17 @@ func fixStdout(cmd *cli.Command, w *bytes.Buffer) {
 	}
 }
 
-func TestCLIFullLifecycle(t *testing.T) {
-	dir := newTestRepo(t)
-
-	created := runTaskman(t, dir, "create", "--definition", "Fix doc drift", "--title", "Fix Doc Drift")
-	if !strings.Contains(created, "Created task") {
-		t.Fatalf("create output = %q", created)
-	}
-
-	id := onlyTaskID(t, dir)
-
-	runTaskman(t, dir, "specified", id, "--result", "Update the README", "--done-when", "README reflects reality")
-	runTaskman(t, dir, "specification", "approved", id, "--comment", "Approved")
-	runTaskman(t, dir, "implemented", id)
-	runTaskman(t, dir, "verified", id, "--check", "vet=ok")
-	runTaskman(t, dir, "automated-review", "approved", id)
-
-	worktree := filepath.Join(dir, ".worktrees", id)
-	gitCommit(t, worktree, "docs: update readme")
-
-	runTaskman(t, dir, "committed", id)
-	runTaskman(t, dir, "review", "approved", id, "--comment", "LGTM")
-
-	mergeInto(t, dir, getTaskJSON(t, dir, id).Git.Branch)
-	runTaskman(t, dir, "merged", id)
-
-	final := getTaskJSON(t, dir, id)
-	if final.State != task.StateCompleted {
-		t.Fatalf("final state = %v, want completed", final.State)
-	}
-	if final.State != task.StateCompleted {
-		t.Fatalf("state = %s, want completed", final.State)
-	}
-
-	next := runTaskman(t, dir, "next", id)
-	if !strings.Contains(next, "complete") {
-		t.Fatalf("next output = %q, want it to say the task is complete", next)
-	}
-}
-
-// TestCLIFullLifecycleTrunk mirrors TestCLIFullLifecycle, but with --trunk:
-// the task works directly on gitDir/the current branch instead of an
-// isolated worktree, so there's no separate branch to git-merge back in.
-func TestCLIFullLifecycleTrunk(t *testing.T) {
-	dir := newTestRepo(t)
-
-	created := runTaskman(t, dir, "create",
-		"--definition", "Fix doc drift", "--title", "Fix Doc Drift", "--trunk")
-	if !strings.Contains(created, "Created task") {
-		t.Fatalf("create output = %q", created)
-	}
-
-	id := onlyTaskID(t, dir)
-
-	before := getTaskJSON(t, dir, id)
-	if before.Git.Worktree != dir {
-		t.Fatalf("worktree = %q, want %q (the repo root)", before.Git.Worktree, dir)
-	}
-	if before.Git.Branch == "" {
-		t.Fatalf("branch is empty")
-	}
-	if !before.Git.Trunk {
-		t.Fatalf("Git.Trunk = false, want true for a --trunk task")
-	}
-	if _, err := os.Stat(filepath.Join(dir, ".worktrees")); err == nil {
-		t.Fatalf("--worktrees-dir was created despite --trunk")
-	}
-
-	runTaskman(t, dir, "specified", id, "--result", "Update the README", "--done-when", "README reflects reality")
-	runTaskman(t, dir, "specification", "approved", id, "--comment", "Approved")
-	runTaskman(t, dir, "implemented", id)
-	runTaskman(t, dir, "verified", id, "--check", "vet=ok")
-	runTaskman(t, dir, "automated-review", "approved", id)
-
-	gitCommit(t, dir, "docs: update readme")
-
-	runTaskman(t, dir, "committed", id)
-	runTaskman(t, dir, "review", "approved", id, "--comment", "LGTM")
-
-	// A trunk task has nothing to merge, so review approved completes it
-	// directly - no separate merge call is needed or expected.
-	final := getTaskJSON(t, dir, id)
-	if final.State != task.StateCompleted {
-		t.Fatalf("final state = %v, want completed", final.State)
-	}
-	if final.State != task.StateCompleted {
-		t.Fatalf("state = %s, want completed", final.State)
-	}
-
-	done := runTaskman(t, dir, "next", id)
-	if !strings.Contains(done, "already on branch") {
-		t.Fatalf("next after merge = %q, want it to say already on branch, not that it merged", done)
-	}
-	if strings.Contains(done, "merged into main") {
-		t.Fatalf("next after merge = %q, should not claim a merge into main", done)
-	}
-}
-
-func TestCLIDirtyWorkingTreeRefused(t *testing.T) {
-	dir := newTestRepo(t)
-	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("dirty\n"), 0o644); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-	_, err := runTaskmanErr(dir, "create", "--definition", "x")
-	if err == nil {
-		t.Fatal("create on dirty tree: want error, got nil")
-	}
-}
-
-func TestCLIInvalidTransitionExitsNonZero(t *testing.T) {
-	dir := newTestRepo(t)
-	runTaskman(t, dir, "create", "--definition", "x")
-	id := onlyTaskID(t, dir)
-
-	_, err := runTaskmanErr(dir, "implemented", id)
-	if err == nil {
-		t.Fatal("implement before specify: want error, got nil")
-	}
-	if _, ok := errors.AsType[cli.ExitCoder](err); !ok {
-		t.Fatalf("err = %v (%T), want an ExitCoder", err, err)
-	}
-}
-
-func TestCLIList(t *testing.T) {
-	dir := newTestRepo(t)
-	runTaskman(t, dir, "create", "--definition", "one", "--title", "One")
-	commitTaskFiles(t, dir)
-	runTaskman(t, dir, "create", "--definition", "two", "--title", "Two", "--label", "priority=high")
-	commitTaskFiles(t, dir)
-
-	out := runTaskman(t, dir, "list", "--json")
-	var result list.Result
-	if err := json.Unmarshal([]byte(out), &result); err != nil {
-		t.Fatalf("unmarshal: %v\noutput:\n%s", err, out)
-	}
-	if len(result.Tasks) != 2 || result.Total != 2 {
-		t.Fatalf("list = %+v, want 2 tasks, total 2", result)
-	}
-
-	filtered := runTaskman(t, dir, "list", "--label", "priority=high", "--json")
-	var filteredResult list.Result
-	if err := json.Unmarshal([]byte(filtered), &filteredResult); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if len(filteredResult.Tasks) != 1 || filteredResult.Tasks[0].Title != "Two" {
-		t.Fatalf("filtered = %+v, want just Two", filteredResult)
-	}
-
-	paged := runTaskman(t, dir, "list", "--limit", "1", "--json")
-	var pagedResult list.Result
-	if err := json.Unmarshal([]byte(paged), &pagedResult); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if len(pagedResult.Tasks) != 1 || pagedResult.Total != 2 {
-		t.Fatalf("paged = %+v, want 1 task, total 2", pagedResult)
-	}
-
-	pagedOut := runTaskman(t, dir, "list", "--limit", "1")
-	if !strings.Contains(pagedOut, "1 more") || !strings.Contains(pagedOut, "--offset 1") {
-		t.Fatalf("paged output = %q, want a hint about the remaining task", pagedOut)
-	}
-}
-
-func TestCLISkill(t *testing.T) {
-	dir := newTestRepo(t)
-	out := runTaskman(t, dir, "skill")
-	if !strings.Contains(out, "name: taskman") {
-		t.Fatalf("skill output = %q, want it to contain the SKILL.md frontmatter", out)
-	}
-}
-
-func onlyTaskID(t *testing.T, gitDir string) string {
+// createWorktree creates a git worktree at worktreesDir/name on a new
+// branch task/name, and returns its path.
+func createWorktree(t *testing.T, gitDir, worktreesDir, name string) string {
 	t.Helper()
-	entries, err := os.ReadDir(filepath.Join(gitDir, ".tasks"))
-	if err != nil {
-		t.Fatalf("read tasks dir: %v", err)
+	worktree := filepath.Join(worktreesDir, name)
+	cmd := exec.Command("git", "worktree", "add", worktree, "-b", "task/"+name)
+	cmd.Dir = gitDir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git worktree add: %v: %s", err, out)
 	}
-	var ids []string
-	for _, e := range entries {
-		if before, ok := strings.CutSuffix(e.Name(), ".yaml"); ok {
-			ids = append(ids, before)
-		}
-	}
-	if len(ids) != 1 {
-		t.Fatalf("tasks dir has %d task files, want exactly 1: %v", len(ids), ids)
-	}
-	return ids[0]
-}
-
-func commitTaskFiles(t *testing.T, gitDir string) {
-	t.Helper()
-	for _, args := range [][]string{
-		{"add", ".tasks"},
-		{"commit", "-q", "-m", "chore: track task"},
-	} {
-		cmd := exec.Command("git", args...)
-		cmd.Dir = gitDir
-		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Fatalf("git %v: %v: %s", args, err, out)
-		}
-	}
+	return worktree
 }
 
 func gitCommit(t *testing.T, worktree, message string) {
@@ -306,8 +106,6 @@ func gitCommit(t *testing.T, worktree, message string) {
 			t.Fatalf("git %v: %v: %s", args, err, out)
 		}
 	}
-	run("config", "user.email", "test@example.com")
-	run("config", "user.name", "Test")
 	if err := os.WriteFile(filepath.Join(worktree, "CHANGE.md"), []byte("change\n"), 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}
@@ -324,12 +122,97 @@ func mergeInto(t *testing.T, gitDir, branch string) {
 	}
 }
 
-func getTaskJSON(t *testing.T, gitDir, id string) task.Task {
+func getTaskJSON(t *testing.T, gitDir, dbPath, id string) task.Task {
 	t.Helper()
-	out := runTaskman(t, gitDir, "get", id, "--json")
+	out := runTaskman(t, gitDir, dbPath, "get", "--id", id, "--json")
 	var tk task.Task
 	if err := json.Unmarshal([]byte(out), &tk); err != nil {
 		t.Fatalf("unmarshal: %v\noutput:\n%s", err, out)
 	}
 	return tk
+}
+
+func TestCLIFullLifecycle(t *testing.T) {
+	dir := newTestRepo(t)
+	db := filepath.Join(dir, "tasks.db")
+	worktreesDir := t.TempDir()
+
+	created := runTaskman(t, dir, db, "create", "--description", "Fix doc drift", "--title", "Fix Doc Drift")
+	if !strings.Contains(created, "specify") {
+		t.Fatalf("create output = %q, want it to mention the initial state", created)
+	}
+
+	id := onlyTaskID(t, dir, db)
+
+	runTaskman(t, dir, db, "specified", "--id", id, "--plan", "Update the README",
+		"--agent-review", "--human-review")
+	runTaskman(t, dir, db, "specification", "review", "agent", "approved", "--id", id, "--comment", "ok")
+	runTaskman(t, dir, db, "specification", "review", "human", "approved", "--id", id, "--comment", "approved")
+
+	worktree := createWorktree(t, dir, worktreesDir, id)
+	runTaskman(t, dir, db, "implemented", "--id", id, "--worktree", worktree, "--branch", "task/"+id,
+		"--unit", "--human-review")
+	runTaskman(t, dir, db, "verified", "--id", id, "--unit", "ok")
+
+	gitCommit(t, worktree, "docs: update readme")
+	runTaskman(t, dir, db, "committed", "--id", id)
+	runTaskman(t, dir, db, "implementation", "review", "human", "approved", "--id", id, "--comment", "lgtm")
+
+	mergeInto(t, dir, "task/"+id)
+	runTaskman(t, dir, db, "merged", "--id", id, "--target", "main")
+
+	final := getTaskJSON(t, dir, db, id)
+	if final.State() != task.StateCompleted {
+		t.Fatalf("final state = %v, want completed", final.State())
+	}
+}
+
+func TestCLIInvalidTransitionExitsNonZero(t *testing.T) {
+	dir := newTestRepo(t)
+	db := filepath.Join(dir, "tasks.db")
+	runTaskman(t, dir, db, "create", "--description", "x")
+	id := onlyTaskID(t, dir, db)
+
+	_, err := runTaskmanErr(dir, db, "implemented", "--id", id, "--worktree", "/x", "--branch", "b")
+	if err == nil {
+		t.Fatal("implement before specify: want error, got nil")
+	}
+}
+
+func TestCLIList(t *testing.T) {
+	dir := newTestRepo(t)
+	db := filepath.Join(dir, "tasks.db")
+	runTaskman(t, dir, db, "create", "--description", "one", "--title", "One")
+	runTaskman(t, dir, db, "create", "--description", "two", "--title", "Two")
+
+	out := runTaskman(t, dir, db, "list", "--json")
+	var tasks []task.Task
+	if err := json.Unmarshal([]byte(out), &tasks); err != nil {
+		t.Fatalf("unmarshal: %v\noutput:\n%s", err, out)
+	}
+	if len(tasks) != 2 {
+		t.Fatalf("list = %+v, want 2 tasks", tasks)
+	}
+}
+
+func TestCLISkill(t *testing.T) {
+	dir := newTestRepo(t)
+	db := filepath.Join(dir, "tasks.db")
+	out := runTaskman(t, dir, db, "skill")
+	if !strings.Contains(out, "name: taskman") {
+		t.Fatalf("skill output = %q, want it to contain the SKILL.md frontmatter", out)
+	}
+}
+
+func onlyTaskID(t *testing.T, gitDir, dbPath string) string {
+	t.Helper()
+	out := runTaskman(t, gitDir, dbPath, "list", "--json")
+	var tasks []task.Task
+	if err := json.Unmarshal([]byte(out), &tasks); err != nil {
+		t.Fatalf("unmarshal: %v\noutput:\n%s", err, out)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("store has %d tasks, want exactly 1", len(tasks))
+	}
+	return tasks[0].ID.String()
 }
