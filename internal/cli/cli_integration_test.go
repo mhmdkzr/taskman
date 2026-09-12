@@ -194,6 +194,26 @@ func TestCLIImplementedRejectsReviewWithoutVerification(t *testing.T) {
 	}
 }
 
+func TestCLIMissingRequiredFlagExitsTwo(t *testing.T) {
+	dir := newTestRepo(t)
+	db := filepath.Join(dir, "tasks.db")
+
+	for _, args := range [][]string{
+		{"get"},
+		{"create", "--title", "no description"},
+		{"merged", "--id", "01a094c6-313c-7bce-91b9-29287b30bf3e"},
+		{"escalated", "--id", "01a094c6-313c-7bce-91b9-29287b30bf3e", "--stage", "s"},
+	} {
+		_, err := runTaskmanErr(dir, db, args...)
+		if err == nil {
+			t.Fatalf("taskman %v: error = nil, want a missing-required-flag error", args)
+		}
+		if got := utils.ExitCode(err); got != 2 {
+			t.Fatalf("taskman %v: ExitCode = %d, want 2 (malformed input)", args, got)
+		}
+	}
+}
+
 func TestCLIList(t *testing.T) {
 	dir := newTestRepo(t)
 	db := filepath.Join(dir, "tasks.db")

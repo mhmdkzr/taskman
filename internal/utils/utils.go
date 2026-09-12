@@ -226,6 +226,15 @@ func ExitCode(err error) int {
 	if exitErr, ok := errors.AsType[cli.ExitCoder](err); ok {
 		return exitErr.ExitCode()
 	}
+	// urfave/cli reports an omitted required flag as its unexported
+	// errRequiredFlags, not a cli.ExitCoder, so a missing required input
+	// would otherwise surface as a domain error (exit 1). It is malformed
+	// input, so classify it as exit 2, matching the explicit cli.Exit(..., 2)
+	// checks that back the other required inputs.
+	if err != nil && (strings.HasPrefix(err.Error(), "Required flag ") ||
+		strings.HasPrefix(err.Error(), "Required flags ")) {
+		return 2
+	}
 	return 1
 }
 
