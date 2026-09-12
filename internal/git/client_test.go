@@ -19,7 +19,7 @@ func newTestRepo(t *testing.T) string {
 			t.Fatalf("git %v: %v: %s", args, err, out)
 		}
 	}
-	run("init", "-q")
+	run("init", "-q", "-b", "main")
 	run("config", "user.email", "test@example.com")
 	run("config", "user.name", "Test")
 	run("commit", "--allow-empty", "-q", "-m", "chore: init")
@@ -67,5 +67,29 @@ func TestGitClientReadCommitRejectsUnknownRef(t *testing.T) {
 
 	if _, err := git.ReadCommit(ctx, dir, "not-a-real-ref"); err == nil {
 		t.Fatal("read commit with unknown ref: want error, got nil")
+	}
+}
+
+func TestGitClientReadBranchCommit(t *testing.T) {
+	dir := newTestRepo(t)
+	git := NewClient(dir)
+	ctx := context.Background()
+
+	commit, err := git.ReadBranchCommit(ctx, "main")
+	if err != nil {
+		t.Fatalf("read branch commit: %v", err)
+	}
+	if commit.Hash == "" || commit.Message == "" {
+		t.Fatalf("commit = %+v, want non-empty hash and message", commit)
+	}
+}
+
+func TestGitClientReadBranchCommitRejectsUnknownBranch(t *testing.T) {
+	dir := newTestRepo(t)
+	git := NewClient(dir)
+	ctx := context.Background()
+
+	if _, err := git.ReadBranchCommit(ctx, "no-such-branch"); err == nil {
+		t.Fatal("read branch commit with unknown branch: want error, got nil")
 	}
 }

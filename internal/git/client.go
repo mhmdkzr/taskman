@@ -44,6 +44,14 @@ func (g *Client) ReadCommit(ctx context.Context, worktreeDir, ref string) (task.
 	}, nil
 }
 
+// ReadBranchCommit reads ref's hash and message from the client's
+// repository root - for refs that live in the main repository (like the
+// target branch of a merge) rather than in one of a task's implementation
+// worktrees.
+func (g *Client) ReadBranchCommit(ctx context.Context, ref string) (task.GitCommit, error) {
+	return g.ReadCommit(ctx, g.dir, ref)
+}
+
 func (g *Client) run(ctx context.Context, dir string, args ...string) (string, error) {
 	//nolint:gosec // taskman invokes Git with its own validated operation arguments.
 	cmd := exec.CommandContext(ctx, "git", args...)

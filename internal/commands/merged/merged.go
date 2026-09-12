@@ -30,7 +30,7 @@ func (r Request) validate() error {
 	return nil
 }
 
-// Merged reads req's implementation worktree's resulting commit and
+// Merged reads the merge's resulting commit on req's target branch and
 // records the merge, returning the resulting task.
 func Merged(ctx context.Context, st *store.Store, gitClient *git.Client, req Request) (task.Task, error) {
 	if err := req.validate(); err != nil {
@@ -43,7 +43,7 @@ func Merged(ctx context.Context, st *store.Store, gitClient *git.Client, req Req
 	if current.Implementation == nil {
 		return task.Task{}, fmt.Errorf("record merge: implementation not yet reported")
 	}
-	commit, err := gitClient.ReadCommit(ctx, current.Implementation.Git.Worktree, "")
+	commit, err := gitClient.ReadBranchCommit(ctx, req.Target)
 	if err != nil {
 		return task.Task{}, fmt.Errorf("record merge: %w", err)
 	}
