@@ -1,6 +1,6 @@
 # taskman
 
-Taskman provides a deterministic workflow driver for coding agents to perform generic pre-defined programming tasks. After a task is defined, the agent can simply call `taskman next <id>` and taskman will simply tell the agent what to do next based on the current state of the task and how it is configured.
+Taskman provides a deterministic workflow for coding agents to perform generic pre-defined programming tasks. After a task is defined, the agent can simply call `taskman next <id>` and taskman will simply tell the agent what to do next based on the current state of the task and its configuration. The agent can use taskman as a CLI or MCP server (over stdio). Taskman is a good fit for tasks that are clear, well-defined and don't require direct supervision or interaction with the model, which makes it good for performing them asynchronously.
 
 > **Status:** alpha. Expect breaking changes and potential bugs.
 
@@ -29,7 +29,7 @@ taskman create \
 `create` prints the generated task id. Give that id to an agent:
 
 ```text
-Use taskman to perform task <id>. Follow taskman instructions.
+Use taskman and follow its instructions to perform task <id>.
 ```
 
 `taskman next --id <id>` renders that instruction as guidance: a message built from the task's own
@@ -55,15 +55,6 @@ The main path is:
 specify → specification_review → implement → verify → automated_review → commit → human_review → merge → completed
 ```
 
-Every command that returns a task can render it three ways:
-
-- default: a one-line text summary;
-- `--json`: the task plus its derived `state` and `instruction`;
-- `--md`: a full Markdown document.
-
-`--json` and `--md` are mutually exclusive. See [Commands](#commands) for the global flags every
-command accepts, and the full per-command flag reference.
-
 ## Commands
 
 Every command accepts these global flags, in addition to any command-specific ones listed below:
@@ -71,8 +62,8 @@ Every command accepts these global flags, in addition to any command-specific on
 ```text
 --git-dir <path>    repository root taskman reads commits from (default ".")
 --db <path>         SQLite task database (default "./tasks.db")
---json              print the JSON envelope
---md                render a Markdown document
+--json              print the JSON envelope, can't be used with --md
+--md                render a Markdown document, can't be used with --json
 --log-level <lvl>   debug, info, warn, or error (default "info")
 --log-format <fmt>  text or json (default "text")
 ```
@@ -192,6 +183,8 @@ taskman mcp
   (no command-specific flags; serves task operations over MCP/stdio)
 ```
 
+Run `taskman --help` or `taskman <command> --help` for the complete command reference.
+
 ## MCP
 
 `taskman mcp` serves the same CLI operations as MCP tools over stdio, using the root flags bound at
@@ -206,7 +199,7 @@ The current state is never stored directly; it is derived by replaying the task'
 
 ## Architecture
 
-Taskman uses a functional core, imperative shell:
+Taskman uses a functional core, imperative shell, event sourced, vertical slice architecture.
 
 ```text
 CLI or MCP request
@@ -219,21 +212,6 @@ task.Apply(current, event) → updated task
         ↓
 SQLite persistence (validated in a transaction)
 ```
-
-- `internal/task` is the pure core: the `Task` aggregate, its append-only state history, the closed
-  set of event types, the compiled workflow, `Apply`, and `Instruction`. It performs no
-  filesystem, Git, clock, logging, CLI, MCP, or rendering work.
-- `internal/task/store` is the SQLite-backed event store (`Open`, `Create`, `Read`, `Append`,
-  `List`, `Delete`).
-- `internal/git` is the imperative Git adapter used by command shells to read commits.
-- `internal/utils` holds the CLI plumbing shared by every slice, including the `--json`/`--md`
-  renderers and exit-code mapping.
-- `internal/commands/<slice>` is one vertical slice per command, with its domain logic, CLI
-  frontend (`cmd.go`), MCP frontend (`mcp.go`, where wired up), and README together. The two
-  frontends are thin, independent callers of the same application function.
-- `internal/cli` assembles the root command; `internal/mcp` assembles the MCP server.
-
-Run `taskman --help` or `taskman <command> --help` for the complete command reference.
 
 ## Development
 
