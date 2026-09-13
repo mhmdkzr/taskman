@@ -38,16 +38,14 @@ the command(s) that would currently report an outcome.
 
 ## Web UI
 
-Serve a read-only web UI listing every task, grouped by what it needs next, with each task
-expanding in place to its description, plan, Git facts, verification and review results, and full
-state history. The page stays live over datastar/SSE.
+Taskman has a built-in, realtime and read-only web UI that serves a listing of all tasks, grouped by what they need next. Each task expands in place to show its description, plan, Git facts, verification and review results, and full state history. 
 
 ```bash
 taskman --web --db ./tasks.db --port 8080
 ```
 
 `--web` is a long-running server, not a one-shot command: it cannot be combined with a task
-command, and `--port` requires it. See [`internal/web`](internal/web/README.md).
+command. 
 
 ## Workflow
 
