@@ -99,7 +99,7 @@ templ Page(tasks []task.Task) {
 				.task-section-chevron { color: var(--text-faint); font-size: 9px; transition: transform 0.12s ease; }
 				.task-section-chevron.open { transform: rotate(90deg); }
 				.task-section-body { max-height: 0; overflow: hidden; transition: max-height 0.25s ease; }
-				.task-section-body.open { max-height: 10000px; }
+				.task-section-body.open { max-height: 10000px; overflow-y: auto; }
 				@media (prefers-reduced-motion: reduce) { .task-section-body { transition: none; } }
 				.task-grid { display: flex; flex-direction: column; gap: 8px; }
 
@@ -142,15 +142,17 @@ templ Page(tasks []task.Task) {
 				}
 				.task-card-chevron.open { transform: rotate(90deg); }
 
-				/* Expand/collapse is a max-height transition, capped generously
-				   above any real content, rather than an abrupt display toggle. */
+				/* Expand/collapse is a max-height transition rather than an abrupt
+				   display toggle. Open, the detail grows to at most the viewport
+				   height and scrolls beyond that, so a long description or plan is
+				   never clipped out of reach. */
 				.task-card-detail {
 					max-height: 0;
 					overflow: hidden;
 					transition: max-height 0.25s ease;
 					border-top: 1px solid var(--border);
 				}
-				.task-card-detail.open { max-height: 4000px; }
+				.task-card-detail.open { max-height: 80vh; overflow-y: auto; }
 				.task-card-detail-inner {
 					display: flex;
 					flex-direction: column;
