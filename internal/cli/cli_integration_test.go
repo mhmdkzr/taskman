@@ -267,6 +267,54 @@ func TestCLIDelete(t *testing.T) {
 	}
 }
 
+func TestCLIPrune(t *testing.T) {
+	dir := newTestRepo(t)
+	db := filepath.Join(dir, "tasks.db")
+	id := completeTask(t, dir, db)
+
+	// A dry run reports the completed task but leaves it in place.
+	if out := runTaskman(t, dir, db, "prune", "--dry-run"); !strings.Contains(out, id) {
+		t.Fatalf("prune --dry-run output = %q, want it to mention %s", out, id)
+	}
+	if _, err := runTaskmanErr(dir, db, "get", "--id", id); err != nil {
+		t.Fatalf("get after prune --dry-run: %v, want the task to survive", err)
+	}
+
+	// A real prune removes it.
+	if out := runTaskman(t, dir, db, "prune"); !strings.Contains(out, id) {
+		t.Fatalf("prune output = %q, want it to mention %s", out, id)
+	}
+	if _, err := runTaskmanErr(dir, db, "get", "--id", id); err == nil {
+		t.Fatal("get after prune: want error, got nil")
+	}
+
+	out := runTaskman(t, dir, db, "list", "--json")
+	var docs []jsonview.Document
+	if err := json.Unmarshal([]byte(out), &docs); err != nil {
+		t.Fatalf("unmarshal: %v\noutput:\n%s", err, out)
+	}
+	if len(docs) != 0 {
+		t.Fatalf("list after prune = %+v, want no tasks", docs)
+	}
+}
+
+// completeTask creates a task and drives it to the completed state with no
+// review gates, returning its id.
+func completeTask(t *testing.T, dir, db string) string {
+	t.Helper()
+	runTaskman(t, dir, db, "create", "--description", "x", "--title", "Title")
+	id := onlyTaskID(t, dir, db)
+
+	runTaskman(t, dir, db, "specified", "--id", id, "--plan", "p")
+	worktree := createWorktree(t, dir, t.TempDir(), id)
+	runTaskman(t, dir, db, "implemented", "--id", id, "--worktree", worktree, "--branch", "task/"+id)
+	gitCommit(t, worktree, "feat: work")
+	runTaskman(t, dir, db, "committed", "--id", id)
+	mergeInto(t, dir, "task/"+id)
+	runTaskman(t, dir, db, "merged", "--id", id, "--target", "main")
+	return id
+}
+
 func TestCLIGetMarkdown(t *testing.T) {
 	dir := newTestRepo(t)
 	db := filepath.Join(dir, "tasks.db")

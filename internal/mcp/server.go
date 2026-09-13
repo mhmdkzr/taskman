@@ -19,6 +19,7 @@ import (
 	"github.com/mhmdkzr/taskman/internal/commands/list"
 	"github.com/mhmdkzr/taskman/internal/commands/merged"
 	"github.com/mhmdkzr/taskman/internal/commands/next"
+	"github.com/mhmdkzr/taskman/internal/commands/prune"
 	specificationreviewagentapproved "github.com/mhmdkzr/taskman/internal/commands/specification/review/agent/approved"
 	specificationreviewagentrejected "github.com/mhmdkzr/taskman/internal/commands/specification/review/agent/rejected"
 	specificationreviewhumanapproved "github.com/mhmdkzr/taskman/internal/commands/specification/review/human/approved"
@@ -59,6 +60,7 @@ func NewServer(st *store.Store, gitClient *git.Client) *mcp.Server {
 	escalated.RegisterMCP(server, st)
 	abandoned.RegisterMCP(server, st)
 	delete.RegisterMCP(server, st)
+	prune.RegisterMCP(server, st)
 
 	return server
 }
