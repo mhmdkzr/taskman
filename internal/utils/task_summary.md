@@ -1,1 +1,1 @@
-Task {{ .TaskID }} is {{ .State }} - {{ .Instruction }}.
+Task {{ .TaskID }}{{ with .Title }} ({{ . }}){{ end }} is {{ .State }} - {{ .Instruction }}.

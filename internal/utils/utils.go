@@ -37,6 +37,7 @@ var taskSummaryTmpl = template.Must(template.New("task_summary.md").
 // command slice, so it lives here rather than in any one of them.
 type taskSummary struct {
 	TaskID      string
+	Title       string
 	State       string
 	Instruction string
 }
@@ -201,6 +202,7 @@ func PrintTask(cmd *cli.Command, t task.Task) error {
 	instruction := t.Instruction()
 	if _, err := fmt.Fprintln(cmd.Root().Writer, taskSummary{
 		TaskID:      t.ID.String(),
+		Title:       t.Definition.Title,
 		State:       t.State().String(),
 		Instruction: fmt.Sprintf("%s (%s)", instruction.Action, instruction.State),
 	}.render()); err != nil {
