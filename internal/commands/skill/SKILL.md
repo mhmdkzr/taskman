@@ -154,6 +154,12 @@ confirmed; do not claim a build or test that did not run.
 | `get --id <id>` | Read one task's current state and instruction. |
 | `list` | List every task. |
 | `next --id <id>` | Show guidance for what to do next, and the command(s) to report it. |
+| `delete --id <id>` | Permanently delete a task and its event log. Irreversible. |
+
+`delete` is the one management command that destroys data: it removes the task and its entire event
+log from any state, including a completed one, after which `get`/`next` report it as not found and
+`list` no longer shows it. Taskman does not grant the authority to delete - only run it when a human
+has explicitly authorized it.
 
 Global CLI flags are `--git-dir` (default `.`), `--db` (default `./tasks.db`), `--json`,
 `--md`, `--log-level`, and `--log-format`. `--json` and `--md` are mutually exclusive: they

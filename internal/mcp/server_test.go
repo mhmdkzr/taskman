@@ -101,4 +101,26 @@ func TestServerToolsCallOverInMemoryTransport(t *testing.T) {
 	if got["state"] != "specify" {
 		t.Fatalf("task_get state = %v, want %q", got["state"], "specify")
 	}
+
+	res, err = session.CallTool(t.Context(), &gosdkmcp.CallToolParams{
+		Name:      "task_delete",
+		Arguments: map[string]any{"id": id},
+	})
+	if err != nil {
+		t.Fatalf("task_delete: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("task_delete IsError: %v", res.Content)
+	}
+
+	res, err = session.CallTool(t.Context(), &gosdkmcp.CallToolParams{
+		Name:      "task_get",
+		Arguments: map[string]any{"id": id},
+	})
+	if err != nil {
+		t.Fatalf("task_get after delete: %v", err)
+	}
+	if !res.IsError {
+		t.Fatal("task_get after delete: want IsError, got success")
+	}
 }

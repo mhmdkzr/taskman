@@ -279,6 +279,77 @@ func TestListOnEmptyStoreReturnsEmpty(t *testing.T) {
 	}
 }
 
+func TestDeleteRemovesTaskAndEvents(t *testing.T) {
+	s := openTestStore(t)
+	id := uuid.NewV7()
+	now := time.Now().UTC().Truncate(time.Second)
+
+	if _, err := s.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if _, err := s.Append(t.Context(), id, task.Abandoned{Reason: "x", At: now}); err != nil {
+		t.Fatalf("Append() error = %v", err)
+	}
+
+	if err := s.Delete(t.Context(), id); err != nil {
+		t.Fatalf("Delete() error = %v", err)
+	}
+
+	if _, err := s.Read(t.Context(), id); !errors.Is(err, ErrTaskNotFound) {
+		t.Fatalf("Read() after Delete() error = %v, want ErrTaskNotFound", err)
+	}
+	ids, err := s.List(t.Context())
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	if len(ids) != 0 {
+		t.Fatalf("List() = %v, want no tasks after deletion", ids)
+	}
+	var events int
+	if err := s.db.QueryRowContext(t.Context(),
+		`SELECT COUNT(*) FROM events WHERE task_id = ?`, id.String()).Scan(&events); err != nil {
+		t.Fatalf("count events: %v", err)
+	}
+	if events != 0 {
+		t.Fatalf("events after Delete() = %d, want 0", events)
+	}
+}
+
+// TestDeleteRemovesTaskWithUnreplayableLog pins the guarantee that delete
+// never replays the task: a task whose log cannot be read back is still
+// removable, which is the case that most needs deleting.
+func TestDeleteRemovesTaskWithUnreplayableLog(t *testing.T) {
+	s := openTestStore(t)
+	id := uuid.NewV7()
+
+	if _, err := s.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, time.Now().UTC()); err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if _, err := s.db.Exec(
+		`INSERT INTO events (task_id, seq, kind, data) VALUES (?, 1, ?, ?)`,
+		id.String(), "not_a_real_kind", `{}`,
+	); err != nil {
+		t.Fatalf("insert corrupt event: %v", err)
+	}
+	if _, err := s.Read(t.Context(), id); !errors.Is(err, errCorruptLog) {
+		t.Fatalf("Read() error = %v, want errCorruptLog", err)
+	}
+
+	if err := s.Delete(t.Context(), id); err != nil {
+		t.Fatalf("Delete() error = %v", err)
+	}
+	if _, err := s.Read(t.Context(), id); !errors.Is(err, ErrTaskNotFound) {
+		t.Fatalf("Read() after Delete() error = %v, want ErrTaskNotFound", err)
+	}
+}
+
+func TestDeleteRejectsMissingTask(t *testing.T) {
+	s := openTestStore(t)
+	if err := s.Delete(t.Context(), uuid.NewV7()); !errors.Is(err, ErrTaskNotFound) {
+		t.Fatalf("Delete() error = %v, want ErrTaskNotFound", err)
+	}
+}
+
 func TestReadRejectsUnknownEventKind(t *testing.T) {
 	s := openTestStore(t)
 	id := uuid.NewV7()

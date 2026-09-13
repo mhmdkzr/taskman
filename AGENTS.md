@@ -54,9 +54,10 @@ call.
   own `At`, supplied by the caller. `Apply` clones its input before reducing an event, so callers
   never observe partial mutation.
 - `internal/task/store` - SQLite-backed, event-sourced persistence (`Store`, opened once via
-  `Open`): `Create`, `Read` (replays a task's events through `task.Apply`), `Append` (validates
-  one more event via `task.Apply` inside a single transaction before persisting it - a rejected
-  event is never written), and `List`.
+  `Open`): `Create`, `Read` (replays a task's events through `task.Apply`), `Append` (validates one
+  more event via `task.Apply` inside a single transaction before persisting it - a rejected event
+  is never written), `Delete` (the sole non-append-only operation: it permanently removes a task
+  and its event log by identity, without replaying the log), and `List`.
 - `internal/git` - the imperative Git adapter used by command shells: currently just
   `ReadCommit`, reading a worktree's current commit hash/message.
 - `internal/utils` - CLI-only plumbing shared by every slice's `cmd.go`: building a

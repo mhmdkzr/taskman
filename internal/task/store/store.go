@@ -140,6 +140,53 @@ func (s *Store) Append(ctx context.Context, id uuid.UUID, event task.TaskEvent) 
 	return next, nil
 }
 
+// Delete permanently removes id's task and its entire event log. It is the
+// one store operation that is not append-only, and the only one that never
+// replays the task's events: it finds the task by identity alone, so a task
+// whose log can no longer be replayed is still removable. The events are
+// removed before the task row inside one BEGIN IMMEDIATE transaction, because
+// foreign keys forbid leaving events that reference a missing task. It fails
+// with ErrTaskNotFound if id is unknown.
+func (s *Store) Delete(ctx context.Context, id uuid.UUID) error {
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("delete task %s: %w", id, err)
+	}
+	//nolint:errcheck // released back to the pool; the transaction's own result is returned.
+	defer conn.Close()
+
+	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+		return fmt.Errorf("delete task %s: %w", id, err)
+	}
+
+	if _, err := conn.ExecContext(ctx, `DELETE FROM events WHERE task_id = ?`, id.String()); err != nil {
+		//nolint:errcheck // best-effort rollback; the original error is returned.
+		_, _ = conn.ExecContext(ctx, "ROLLBACK")
+		return fmt.Errorf("delete task %s: %w", id, err)
+	}
+	res, err := conn.ExecContext(ctx, `DELETE FROM tasks WHERE id = ?`, id.String())
+	if err != nil {
+		//nolint:errcheck // best-effort rollback; the original error is returned.
+		_, _ = conn.ExecContext(ctx, "ROLLBACK")
+		return fmt.Errorf("delete task %s: %w", id, err)
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		//nolint:errcheck // best-effort rollback; the original error is returned.
+		_, _ = conn.ExecContext(ctx, "ROLLBACK")
+		return fmt.Errorf("delete task %s: %w", id, err)
+	}
+	if affected == 0 {
+		//nolint:errcheck // best-effort rollback; ErrTaskNotFound is returned.
+		_, _ = conn.ExecContext(ctx, "ROLLBACK")
+		return fmt.Errorf("delete task %s: %w", id, ErrTaskNotFound)
+	}
+	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
+		return fmt.Errorf("delete task %s: %w", id, err)
+	}
+	return nil
+}
+
 // List returns the ids of every task in the store.
 func (s *Store) List(ctx context.Context) ([]uuid.UUID, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT id FROM tasks ORDER BY created_at`)

@@ -8,6 +8,7 @@ import (
 	"github.com/mhmdkzr/taskman/internal/commands/abandoned"
 	"github.com/mhmdkzr/taskman/internal/commands/committed"
 	"github.com/mhmdkzr/taskman/internal/commands/create"
+	"github.com/mhmdkzr/taskman/internal/commands/delete"
 	"github.com/mhmdkzr/taskman/internal/commands/escalated"
 	"github.com/mhmdkzr/taskman/internal/commands/get"
 	implementationreviewagentapproved "github.com/mhmdkzr/taskman/internal/commands/implementation/review/agent/approved"
@@ -57,6 +58,7 @@ func NewServer(st *store.Store, gitClient *git.Client) *mcp.Server {
 	merged.RegisterMCP(server, st, gitClient)
 	escalated.RegisterMCP(server, st)
 	abandoned.RegisterMCP(server, st)
+	delete.RegisterMCP(server, st)
 
 	return server
 }

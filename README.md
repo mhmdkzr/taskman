@@ -162,6 +162,9 @@ taskman abandoned
   --id string      the task being abandoned
   --reason string  why the task is being abandoned
 
+taskman delete
+  --id string  the task id to delete
+
 taskman get
   --id string  the task id to read
 
@@ -188,6 +191,7 @@ startup. Tools are named `task_<command>` - for example `task_get`, `task_commit
 
 Tasks are stored as an append-only event log in a single SQLite file. 
 The current state is never stored directly; it is derived by replaying the task's events. 
+`delete` is the one exception: it permanently removes a task and its entire event log.
 
 ## Architecture
 
@@ -209,7 +213,7 @@ SQLite persistence (validated in a transaction)
   set of event types, the compiled workflow, `Apply`, and `Instruction`. It performs no
   filesystem, Git, clock, logging, CLI, MCP, or rendering work.
 - `internal/task/store` is the SQLite-backed event store (`Open`, `Create`, `Read`, `Append`,
-  `List`).
+  `List`, `Delete`).
 - `internal/git` is the imperative Git adapter used by command shells to read commits.
 - `internal/utils` holds the CLI plumbing shared by every slice, including the `--json`/`--md`
   renderers and exit-code mapping.

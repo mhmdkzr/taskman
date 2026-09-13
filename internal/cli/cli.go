@@ -19,6 +19,7 @@ import (
 	"github.com/mhmdkzr/taskman/internal/commands/abandoned"
 	"github.com/mhmdkzr/taskman/internal/commands/committed"
 	"github.com/mhmdkzr/taskman/internal/commands/create"
+	"github.com/mhmdkzr/taskman/internal/commands/delete"
 	"github.com/mhmdkzr/taskman/internal/commands/escalated"
 	"github.com/mhmdkzr/taskman/internal/commands/get"
 	"github.com/mhmdkzr/taskman/internal/commands/implementation"
@@ -86,6 +87,7 @@ func commands() []*cli.Command {
 		merged.Command(),
 		escalated.Command(),
 		abandoned.Command(),
+		delete.Command(),
 		get.Command(),
 		list.Command(),
 		next.Command(),

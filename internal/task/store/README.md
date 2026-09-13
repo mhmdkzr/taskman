@@ -19,6 +19,10 @@ kind, JSON data). The schema is created on `Open`.
 - `Append(ctx, id, event)` - reads the current task, validates the event via `task.Apply`, and
   inserts it as the next `seq` - all inside one `BEGIN IMMEDIATE` transaction, so concurrent
   appends serialize and a rejected event is never written.
+- `Delete(ctx, id)` - permanently removes the task and its entire event log in one transaction.
+  The sole non-append-only operation, and the only one that never replays the log: it resolves the
+  task by identity alone, so a task whose events can't be replayed is still removable. Fails with
+  `ErrTaskNotFound` when the id is unknown.
 - `List(ctx)` - every task id, ordered by creation time.
 
 Event encoding/decoding (`record.go`) is a `kind`-keyed switch over the concrete `task.TaskEvent`

@@ -215,6 +215,7 @@ func TestCLIMissingRequiredFlagExitsTwo(t *testing.T) {
 		{"create", "--title", "no description"},
 		{"merged", "--id", "01a094c6-313c-7bce-91b9-29287b30bf3e"},
 		{"escalated", "--id", "01a094c6-313c-7bce-91b9-29287b30bf3e", "--stage", "s"},
+		{"delete"},
 	} {
 		_, err := runTaskmanErr(dir, db, args...)
 		if err == nil {
@@ -239,6 +240,30 @@ func TestCLIList(t *testing.T) {
 	}
 	if len(docs) != 2 {
 		t.Fatalf("list = %+v, want 2 tasks", docs)
+	}
+}
+
+func TestCLIDelete(t *testing.T) {
+	dir := newTestRepo(t)
+	db := filepath.Join(dir, "tasks.db")
+	runTaskman(t, dir, db, "create", "--description", "x", "--title", "Title")
+	id := onlyTaskID(t, dir, db)
+
+	if out := runTaskman(t, dir, db, "delete", "--id", id); !strings.Contains(out, id) {
+		t.Fatalf("delete output = %q, want it to mention the deleted task %s", out, id)
+	}
+
+	if _, err := runTaskmanErr(dir, db, "get", "--id", id); err == nil {
+		t.Fatal("get after delete: want error, got nil")
+	}
+
+	out := runTaskman(t, dir, db, "list", "--json")
+	var docs []jsonview.Document
+	if err := json.Unmarshal([]byte(out), &docs); err != nil {
+		t.Fatalf("unmarshal: %v\noutput:\n%s", err, out)
+	}
+	if len(docs) != 0 {
+		t.Fatalf("list after delete = %+v, want no tasks", docs)
 	}
 }
 
