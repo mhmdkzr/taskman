@@ -89,8 +89,9 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// handleTasks is the datastar SSE endpoint. It long-polls the store and
-// patches the task list into the page whenever the stored tasks change.
+// handleTasks is the datastar SSE endpoint. It sends the current task list
+// when a client connects, then long-polls the store and patches the list into
+// the page whenever the stored tasks change.
 func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
 	last, err := s.renderTaskList(r.Context())
 	if err != nil {
@@ -100,6 +101,16 @@ func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sse := datastar.NewSSE(w, r)
+
+	// Push the current list immediately, not only on the next change: a
+	// client connecting or reconnecting may have missed an update while its
+	// stream was down (or between the page render and this stream opening),
+	// so the server re-syncs it instead of assuming its DOM is current.
+	if err := patchTaskList(sse, last); err != nil {
+		slog.Error("patch tasks", "error", err)
+		return
+	}
+
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 	for {
@@ -116,17 +127,24 @@ func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			last = current
-			err = sse.PatchElements(
-				current,
-				datastar.WithSelectorID(components.TasksID),
-				datastar.WithModeInner(),
-			)
-			if err != nil {
+			if err := patchTaskList(sse, current); err != nil {
 				slog.Error("patch tasks", "error", err)
 				return
 			}
 		}
 	}
+}
+
+// patchTaskList replaces the rendered task list inside the page.
+func patchTaskList(sse *datastar.ServerSentEventGenerator, html string) error {
+	if err := sse.PatchElements(
+		html,
+		datastar.WithSelectorID(components.TasksID),
+		datastar.WithModeInner(),
+	); err != nil {
+		return fmt.Errorf("patch task list: %w", err)
+	}
+	return nil
 }
 
 // renderTaskList reads every task and renders just the list fragment, so it
