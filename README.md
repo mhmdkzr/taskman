@@ -12,11 +12,7 @@ Taskman requires Go 1.27+ and `git` on `PATH`.
 go install github.com/mhmdkzr/taskman@latest
 ```
 
-Tasks are stored in a single SQLite file, `./tasks.db` by default. Keep it out of version control:
-
-```gitignore
-tasks.db
-```
+Tasks are stored in a single SQLite file, `./tasks.db` by default.
 
 ## Use
 
