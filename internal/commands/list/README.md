@@ -11,8 +11,8 @@ Lists every task.
 taskman list
 ```
 
-Prints a summary per task, a `[]json.Document` array with `--json`, or a Markdown document per
-task with `--md`.
+Prints one line per task as `id - title - [state]` (the title segment is omitted when a task has
+no title), a `[]json.Document` array with `--json`, or a Markdown document per task with `--md`.
 
 ## MCP
 

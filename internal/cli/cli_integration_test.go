@@ -241,6 +241,13 @@ func TestCLIList(t *testing.T) {
 	if len(docs) != 2 {
 		t.Fatalf("list = %+v, want 2 tasks", docs)
 	}
+
+	out = runTaskman(t, dir, db, "list")
+	for _, want := range []string{" - One - [specify]", " - Two - [specify]"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("list output missing %q\n---\n%s", want, out)
+		}
+	}
 }
 
 func TestCLIDelete(t *testing.T) {
