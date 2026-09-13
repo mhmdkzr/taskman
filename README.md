@@ -36,6 +36,19 @@ Use taskman to perform task <id>. Follow taskman instructions.
 data (its plan, its worktree/branch, a failed check's output, a rejected review's findings) and
 the command(s) that would currently report an outcome. 
 
+## Web UI
+
+Serve a read-only web UI listing every task, grouped by what it needs next, with each task
+expanding in place to its description, plan, Git facts, verification and review results, and full
+state history. The page stays live over datastar/SSE.
+
+```bash
+taskman --web --db ./tasks.db --port 8080
+```
+
+`--web` is a long-running server, not a one-shot command: it cannot be combined with a task
+command, and `--port` requires it. See [`internal/web`](internal/web/README.md).
+
 ## Workflow
 
 The main path is:

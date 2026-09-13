@@ -1,0 +1,153 @@
+package components
+
+import "github.com/mhmdkzr/taskman/internal/task"
+
+templ statusPill(state task.TaskState) {
+	<span class={ "status-pill", statusClass(state) }>{ statusLabel(state) }</span>
+}
+
+templ reviewPill(approved bool) {
+	if approved {
+		<span class="status-pill completed">Approved</span>
+	} else {
+		<span class="status-pill interrupted">Rejected</span>
+	}
+}
+
+// specificationReviews renders every recorded specification review attempt -
+// agent first, then human - embedded in the task's Specification.
+templ specificationReviews(spec *task.Specification) {
+	if len(spec.Review.Agent.Results) > 0 || len(spec.Review.Human.Results) > 0 {
+		<div>
+			<div class="section-label">Specification review</div>
+			<div class="result-panels">
+				for i, r := range spec.Review.Agent.Results {
+					@agentReviewPanel("Agent · attempt "+intString(i+1), r)
+				}
+				for i, r := range spec.Review.Human.Results {
+					@humanReviewPanel("Human · attempt "+intString(i+1), r)
+				}
+			</div>
+		</div>
+	}
+}
+
+// implementationReviews renders every recorded implementation review attempt -
+// agent first, then human - embedded in the task's Implementation.
+templ implementationReviews(impl *task.Implementation) {
+	if len(impl.Review.Agent.Results) > 0 || len(impl.Review.Human.Results) > 0 {
+		<div>
+			<div class="section-label">Implementation review</div>
+			<div class="result-panels">
+				for i, r := range impl.Review.Agent.Results {
+					@agentReviewPanel("Agent · attempt "+intString(i+1), r)
+				}
+				for i, r := range impl.Review.Human.Results {
+					@humanReviewPanel("Human · attempt "+intString(i+1), r)
+				}
+			</div>
+		</div>
+	}
+}
+
+templ agentReviewPanel(who string, r task.AgentReviewResult) {
+	<div class="result-panel">
+		<div class="result-panel-head">
+			<span class="who">{ who }</span>
+			@reviewPill(r.Approved)
+			<span class="when tabular">{ formatTime(r.At) }</span>
+		</div>
+		if r.Comment != "" || len(r.Findings) > 0 {
+			<div class="result-panel-body">
+				if r.Comment != "" {
+					<div class="result-comment">{ r.Comment }</div>
+				}
+				for _, f := range r.Findings {
+					<div class="result-finding">
+						<span class="where">{ f.Location }</span>
+						<span class="what">{ f.Detail }</span>
+					</div>
+				}
+			</div>
+		}
+	</div>
+}
+
+templ humanReviewPanel(who string, r task.HumanReviewResult) {
+	<div class="result-panel">
+		<div class="result-panel-head">
+			<span class="who">{ who }</span>
+			@reviewPill(r.Approved)
+			<span class="when tabular">{ formatTime(r.At) }</span>
+		</div>
+		if r.Comment != "" {
+			<div class="result-panel-body">
+				<div class="result-comment">{ r.Comment }</div>
+			</div>
+		}
+	</div>
+}
+
+// verificationAttempts renders every recorded verification attempt with its
+// per-check outcomes and captured output.
+templ verificationAttempts(impl *task.Implementation) {
+	if len(impl.Verification.Attempts) > 0 {
+		<div>
+			<div class="section-label">Verification</div>
+			<div class="result-panels">
+				for i, a := range impl.Verification.Attempts {
+					@verificationPanel(i+1, a)
+				}
+			</div>
+		</div>
+	}
+}
+
+templ verificationPanel(index int, a task.VerificationResult) {
+	<div class="result-panel">
+		<div class="result-panel-head">
+			<span class="who">Attempt { intString(index) }</span>
+			if a.Passed {
+				<span class="status-pill completed">Passed</span>
+			} else {
+				<span class="status-pill interrupted">Failed</span>
+			}
+			<span class="when tabular">{ formatTime(a.At) }</span>
+		</div>
+		<div class="result-panel-body">
+			@checkRow("unit", a.Checks.Unit)
+			@checkRow("integration", a.Checks.Integration)
+			@checkRow("end-to-end", a.Checks.EndToEnd)
+			@checkRow("linters", a.Checks.Linters)
+			if a.Output != "" {
+				<pre class="result-output">{ a.Output }</pre>
+			}
+		</div>
+	</div>
+}
+
+// checkRow renders one verification check, omitted entirely when the check
+// wasn't applicable to the task (CheckResult's empty zero value).
+templ checkRow(name string, result task.CheckResult) {
+	if result != "" {
+		<div class="check-row">
+			<span class="check-name">{ name }</span>
+			<span class={ "status-pill", checkClass(result) }>{ string(result) }</span>
+		</div>
+	}
+}
+
+// stateHistory renders the task's append-only state history as a timeline.
+templ stateHistory(t task.Task) {
+	<div>
+		<div class="section-label">State history</div>
+		<div class="timeline">
+			for _, sc := range t.StateHistory {
+				<div class="timeline-item">
+					<span class="state">{ statusLabel(sc.State) }</span>
+					<span class="when tabular">{ formatTime(sc.At) }</span>
+				</div>
+			}
+		</div>
+	</div>
+}

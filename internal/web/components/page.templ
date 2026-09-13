@@ -1,0 +1,291 @@
+// Package components contains taskman's server-rendered web components.
+package components
+
+import "github.com/mhmdkzr/taskman/internal/task"
+
+// TasksID is the id of the element the SSE stream patches. It is shared
+// between the page template and the stream handler so the selector can never
+// drift from the rendered markup.
+const TasksID = "tasks"
+
+// Page is the shared HTML document shell: fonts, styling, and the Datastar
+// bundle. The dark-only palette is deliberate - this is a tool for watching
+// tasks move through a workflow, not a document meant to match the reader's
+// system theme.
+templ Page(tasks []task.Task) {
+	<!doctype html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>taskman</title>
+			<link rel="preconnect" href="https://fonts.googleapis.com"/>
+			<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous"/>
+			<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+			<script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.3/bundles/datastar.js"></script>
+			<style>
+				:root {
+					--bg: #0a0b0d;
+					--surface: #101214;
+					--surface-2: #16181b;
+					--border: #202327;
+					--text: #d9d7d2;
+					--text-dim: #8b8e92;
+					--text-faint: #4d5054;
+					--accent: #63a89f;
+					--accent-dim: #63a89f22;
+					--ok: #7bab86;
+					--ok-bg: #7bab861a;
+					--warn: #d1a24e;
+					--warn-bg: #d1a24e1a;
+					--bad: #c47c5f;
+					--bad-bg: #c47c5f1a;
+					--neutral: #7d8085;
+					--neutral-bg: #7d808530;
+				}
+
+				* { box-sizing: border-box; }
+
+				html, body {
+					margin: 0;
+					padding: 0;
+					height: 100%;
+					background: var(--bg);
+					color: var(--text);
+				}
+
+				body {
+					font-family: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+					font-size: 13.5px;
+					line-height: 1.6;
+				}
+
+				::selection { background: var(--accent-dim); }
+
+				a { color: inherit; text-decoration: none; }
+
+				button:focus-visible, a:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; }
+
+				.tabular { font-variant-numeric: tabular-nums; }
+
+				.tag { font-size: 9.5px; color: var(--text-dim); background: var(--surface-2); border-radius: 3px; padding: 1px 6px; font-family: "JetBrains Mono", monospace; }
+
+				/* ---------- tasks app ---------- */
+
+				.tasks-app { min-height: 100%; }
+
+				/* .col centers one reading column at a consistent width, so
+				   wide windows don't stretch content into unreadably long lines. */
+				.col { max-width: 900px; margin: 0 auto; box-sizing: border-box; }
+
+				.task-list-view { padding-top: 40px; }
+				.task-sections { padding: 22px 28px; display: flex; flex-direction: column; gap: 26px; }
+				.task-section-head {
+					display: flex;
+					align-items: center;
+					gap: 8px;
+					width: 100%;
+					padding: 0;
+					margin: 0 0 10px;
+					background: none;
+					border: none;
+					color: inherit;
+					font: inherit;
+					text-align: left;
+					cursor: pointer;
+				}
+				.task-section-label { font-family: "JetBrains Mono", monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); }
+				.task-section-head:hover .task-section-label { color: var(--text-dim); }
+				.task-section-chevron { color: var(--text-faint); font-size: 9px; transition: transform 0.12s ease; }
+				.task-section-chevron.open { transform: rotate(90deg); }
+				.task-section-body { max-height: 0; overflow: hidden; transition: max-height 0.25s ease; }
+				.task-section-body.open { max-height: 10000px; }
+				@media (prefers-reduced-motion: reduce) { .task-section-body { transition: none; } }
+				.task-grid { display: flex; flex-direction: column; gap: 8px; }
+
+				/* Each task is a card the whole time - collapsed, it's just the
+				   summary button; expanded, task-card-detail continues inside
+				   the SAME card. Status reads from the pill alone. */
+				.task-card {
+					background: var(--surface);
+					border: 1px solid var(--border);
+					border-radius: 6px;
+					color: var(--text);
+					overflow: hidden;
+				}
+				.task-card:hover { border-color: var(--text-faint); }
+
+				.task-card-summary {
+					display: flex;
+					flex-direction: column;
+					gap: 8px;
+					width: 100%;
+					padding: 14px 16px;
+					background: none;
+					border: none;
+					margin: 0;
+					color: inherit;
+					font: inherit;
+					text-align: left;
+					cursor: pointer;
+				}
+				.task-card-top { display: flex; align-items: center; gap: 12px; }
+				.task-card-title { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+				.task-card-bottom { display: flex; align-items: center; gap: 10px; }
+				.task-card-labels { display: flex; gap: 6px; flex-wrap: wrap; }
+				.task-card-meta { margin-left: auto; flex: none; font-size: 11px; color: var(--text-faint); }
+				.task-card-chevron {
+					flex: none;
+					color: var(--text-faint);
+					font-size: 10px;
+					transition: transform 0.12s ease;
+				}
+				.task-card-chevron.open { transform: rotate(90deg); }
+
+				/* Expand/collapse is a max-height transition, capped generously
+				   above any real content, rather than an abrupt display toggle. */
+				.task-card-detail {
+					max-height: 0;
+					overflow: hidden;
+					transition: max-height 0.25s ease;
+					border-top: 1px solid var(--border);
+				}
+				.task-card-detail.open { max-height: 4000px; }
+				.task-card-detail-inner {
+					display: flex;
+					flex-direction: column;
+					gap: 22px;
+					padding: 20px 16px;
+				}
+				@media (prefers-reduced-motion: reduce) { .task-card-detail { transition: none; } }
+
+				/* Facts split identity/configuration strings from the workflow
+				   timeline into separate groups, rather than one mixed run. */
+				.detail-cell { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+				.detail-cell .name {
+					font-family: "JetBrains Mono", monospace;
+					font-size: 10px;
+					text-transform: uppercase;
+					letter-spacing: 0.06em;
+					color: var(--text-faint);
+				}
+				.detail-cell .val { font-size: 12.5px; color: var(--text-dim); font-family: "JetBrains Mono", monospace; overflow-wrap: anywhere; }
+				.detail-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 28px; max-width: 720px; }
+				.detail-facts + .detail-facts { margin-top: 20px; }
+
+				/* ---------- result rows (reviews, verification) ---------- */
+
+				.result-panels { display: flex; flex-direction: column; gap: 8px; }
+				.result-panel {
+					border: 1px solid var(--border);
+					border-radius: 7px;
+					background: var(--surface);
+					overflow: hidden;
+				}
+				.result-panel-head { display: flex; align-items: center; gap: 12px; padding: 10px 13px; }
+				.result-panel-head .who { font-family: "JetBrains Mono", monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); }
+				.result-panel-head .when { margin-left: auto; font-size: 10.5px; color: var(--text-faint); }
+				.result-panel-body { padding: 0 13px 12px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
+				.result-comment { font-size: 12.5px; color: var(--text-dim); white-space: pre-wrap; }
+				.result-finding { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; }
+				.result-finding .where { font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--accent); overflow-wrap: anywhere; }
+				.result-finding .what { color: var(--text-dim); white-space: pre-wrap; }
+				.check-row { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+				.check-row .check-name { font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--text-dim); min-width: 96px; }
+				.result-output {
+					background: var(--surface-2);
+					border-radius: 4px;
+					padding: 8px 10px;
+					overflow-x: auto;
+					white-space: pre;
+					color: var(--text-dim);
+					font-size: 11.5px;
+					margin: 0;
+				}
+
+				/* ---------- state history timeline ---------- */
+
+				.timeline { display: flex; flex-direction: column; }
+				.timeline-item { display: flex; align-items: baseline; gap: 12px; padding: 5px 0; font-size: 12px; }
+				.timeline-item + .timeline-item { border-top: 1px solid var(--border); }
+				.timeline-item .state { font-family: "JetBrains Mono", monospace; font-size: 11px; color: var(--text); }
+				.timeline-item .when { margin-left: auto; color: var(--text-faint); font-size: 10.5px; }
+
+				.status-pill {
+					display: inline-flex;
+					align-items: center;
+					font-family: "JetBrains Mono", monospace;
+					font-size: 10.5px;
+					text-transform: uppercase;
+					letter-spacing: 0.06em;
+					padding: 3px 8px;
+					border-radius: 20px;
+					flex: none;
+				}
+				.status-pill.running { color: var(--warn); background: var(--warn-bg); }
+				.status-pill.completed { color: var(--ok); background: var(--ok-bg); }
+				.status-pill.interrupted { color: var(--bad); background: var(--bad-bg); }
+				.status-pill.neutral { color: var(--text-faint); background: var(--surface-2); }
+
+				.empty-state {
+					display: flex;
+					align-items: center;
+					justify-content: center;
+					min-height: 40vh;
+					color: var(--text-faint);
+					font-size: 13px;
+				}
+
+				.section-label { font-family: "JetBrains Mono", monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-faint); margin-bottom: 10px; }
+				.spec-block { font-size: 13px; color: var(--text); line-height: 1.7; }
+
+				/* ---------- markdown (description, specification plan) ---------- */
+
+				.md-content { font-size: 13px; line-height: 1.7; }
+				.md-content > :first-child { margin-top: 0; }
+				.md-content > :last-child { margin-bottom: 0; }
+				.md-content p, .md-content ul, .md-content ol, .md-content blockquote, .md-content pre, .md-content table { margin: 0 0 12px; }
+				.md-content h1, .md-content h2, .md-content h3, .md-content h4 {
+					font-family: "JetBrains Mono", monospace;
+					font-weight: 600;
+					margin: 20px 0 8px;
+					line-height: 1.4;
+				}
+				.md-content h1 { font-size: 16px; }
+				.md-content h2 { font-size: 14.5px; }
+				.md-content h3, .md-content h4 { font-size: 13px; color: var(--text-dim); }
+				.md-content ul, .md-content ol { padding-left: 22px; }
+				.md-content li { margin-bottom: 4px; }
+				.md-content a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+				.md-content code {
+					font-family: "IBM Plex Mono", monospace;
+					font-size: 12px;
+					background: var(--surface-2);
+					border-radius: 3px;
+					padding: 1px 5px;
+				}
+				.md-content pre {
+					background: var(--surface-2);
+					border-radius: 6px;
+					padding: 10px 12px;
+					overflow-x: auto;
+				}
+				.md-content pre code { background: none; padding: 0; }
+				.md-content blockquote {
+					border-left: 2px solid var(--border);
+					padding-left: 12px;
+					color: var(--text-dim);
+				}
+				.md-content table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+				.md-content th, .md-content td { border: 1px solid var(--border); padding: 6px 9px; text-align: left; }
+				.md-content th { color: var(--text-dim); font-family: "JetBrains Mono", monospace; font-size: 11px; }
+				.md-content hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+			</style>
+		</head>
+		<body>
+			<div class="tasks-app" id={ TasksID } data-init="@get('/tasks')">
+				@TaskList(tasks)
+			</div>
+		</body>
+	</html>
+}

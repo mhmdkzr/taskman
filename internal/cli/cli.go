@@ -1,5 +1,7 @@
 // Package cli is the taskman CLI. It is a one-shot process: parse flags,
 // run exactly one command, print, exit. There is no persistent daemon.
+// The one exception is the root --web flag, which serves a long-running
+// read-only web UI instead of running a command.
 // Every command is mounted directly on the root - there is no intermediate
 // "task" grouping command, except for the two review-gate groupings
 // (specification, implementation), each of which mounts its own
@@ -34,6 +36,7 @@ import (
 	"github.com/mhmdkzr/taskman/internal/commands/specified"
 	"github.com/mhmdkzr/taskman/internal/commands/verified"
 	"github.com/mhmdkzr/taskman/internal/utils"
+	"github.com/mhmdkzr/taskman/internal/web"
 )
 
 // Run parses os.Args, runs exactly one command, and returns the process
@@ -63,6 +66,15 @@ func rootCommand() *cli.Command {
 			},
 			&cli.StringFlag{Name: "log-level", Value: "info", Usage: "debug, info, warn, or error"},
 			&cli.StringFlag{Name: "log-format", Value: "text", Usage: "text or json"},
+			&cli.BoolFlag{
+				Name:  "web",
+				Usage: "serve a read-only web UI listing every task instead of running a command",
+			},
+			&cli.IntFlag{
+				Name:  "port",
+				Value: 8080,
+				Usage: "port the --web UI listens on",
+			},
 		},
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 			// --json and --md are two renderings of the same output; asking
@@ -70,7 +82,30 @@ func rootCommand() *cli.Command {
 			if cmd.Bool("json") && cmd.Bool("md") {
 				return ctx, cli.Exit("--json and --md are mutually exclusive", 2)
 			}
+			// --web is a long-running server, not a task command: it has no
+			// subcommand to run, and --port means nothing without it.
+			if cmd.Args().Present() && cmd.Bool("web") {
+				return ctx, cli.Exit("--web cannot be combined with a command", 2)
+			}
+			if cmd.IsSet("port") && !cmd.Bool("web") {
+				return ctx, cli.Exit("--port requires --web", 2)
+			}
 			return initLogger(ctx, cmd)
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			if !cmd.Bool("web") {
+				return cli.ShowRootCommandHelp(cmd)
+			}
+			st, err := utils.StoreFrom(cmd)
+			if err != nil {
+				return utils.Fail(err)
+			}
+			defer utils.CloseStore(st)
+
+			if err := web.NewServer(st).Run(ctx, fmt.Sprintf(":%d", cmd.Int("port"))); err != nil {
+				return utils.Fail(err)
+			}
+			return nil
 		},
 		Commands: commands(),
 	}

@@ -1,0 +1,171 @@
+package components
+
+import "github.com/mhmdkzr/taskman/internal/task"
+
+// TaskList is the only view: every task grouped into sections by what it needs
+// next - tasks needing attention float to the top - each rendered as a card
+// that expands in place to its full detail when clicked.
+templ TaskList(tasks []task.Task) {
+	<div class="task-list-view">
+		if len(tasks) == 0 {
+			<div class="empty-state">No tasks yet.</div>
+		} else {
+			<div class="col task-sections">
+				for _, section := range groupTasks(tasks) {
+					<div class="task-section" { sectionOpenAttrs(section.Key)... }>
+						<button type="button" class="task-section-head" data-on:click={ sectionToggleAction(section.Key) }>
+							<span class="task-section-label">{ section.Label } ({ intString(len(section.Tasks)) })</span>
+							<span class="task-section-chevron" data-class:open={ sectionOpenExpr(section.Key) }>▸</span>
+						</button>
+						<div class="task-section-body" data-class:open={ sectionOpenExpr(section.Key) }>
+							<div class="task-grid">
+								for _, t := range section.Tasks {
+									@taskCard(t)
+								}
+							</div>
+						</div>
+					</div>
+				}
+			</div>
+		}
+	</div>
+}
+
+// taskCard is one task, collapsed to a summary row by default: clicking it
+// expands the same card to show its description, specification plan, recorded
+// facts, review and verification results, and its full state history inline.
+templ taskCard(t task.Task) {
+	{{ taskID := t.ID.String() }}
+	<div class="task-card" { taskOpenAttrs(taskID)... }>
+		<button type="button" class="task-card-summary" data-on:click={ taskToggleAction(taskID) }>
+			<div class="task-card-top">
+				<span class="task-card-title">{ taskTitle(t) }</span>
+				@statusPill(t.State())
+			</div>
+			<div class="task-card-bottom">
+				if len(t.Definition.Labels) > 0 {
+					<div class="task-card-labels">
+						for _, l := range sortedLabels(t.Definition.Labels) {
+							<span class="tag">{ l.Key }={ l.Value }</span>
+						}
+					</div>
+				}
+				<span class="task-card-meta tabular">{ taskMeta(t) }</span>
+				<span class="task-card-chevron" data-class:open={ taskOpenExpr(taskID) }>▸</span>
+			</div>
+		</button>
+		<div class="task-card-detail" data-class:open={ taskOpenExpr(taskID) }>
+			<div class="task-card-detail-inner">
+				<div>
+					<div class="section-label">Description</div>
+					<div class="spec-block md-content">@renderMarkdown(t.Definition.Description)</div>
+				</div>
+				if t.Specification != nil {
+					<div>
+						<div class="section-label">Specification plan</div>
+						<div class="spec-block md-content">@renderMarkdown(t.Specification.Plan)</div>
+					</div>
+				}
+				@taskConfiguration(t)
+				@taskGitFacts(t)
+				if t.Blocked != nil {
+					<div>
+						<div class="section-label">Blocked</div>
+						<div class="result-comment">{ t.Blocked.Stage }: { t.Blocked.Reason }</div>
+					</div>
+				}
+				if t.Abandoned != nil {
+					<div>
+						<div class="section-label">Abandoned</div>
+						<div class="result-comment">{ t.Abandoned.Reason }</div>
+					</div>
+				}
+				if t.Implementation != nil {
+					@verificationAttempts(t.Implementation)
+					@implementationReviews(t.Implementation)
+				}
+				if t.Specification != nil {
+					@specificationReviews(t.Specification)
+				}
+				@stateHistory(t)
+			</div>
+		</div>
+	</div>
+}
+
+// taskConfiguration renders the recorded workflow configuration - which review
+// gates and verification checks the task was set up with.
+templ taskConfiguration(t task.Task) {
+	if t.Specification != nil || t.Implementation != nil {
+		<div>
+			<div class="section-label">Configuration</div>
+			<div class="detail-facts">
+				if t.Specification != nil {
+					<div class="detail-cell">
+						<span class="name">Spec review</span>
+						<span class="val">{ reviewSummary(t.Specification.Review) }</span>
+					</div>
+				}
+				if t.Implementation != nil {
+					<div class="detail-cell">
+						<span class="name">Impl review</span>
+						<span class="val">{ reviewSummary(t.Implementation.Review) }</span>
+					</div>
+					<div class="detail-cell">
+						<span class="name">Verification</span>
+						<span class="val">{ verificationSummary(t.Implementation.Verification) }</span>
+					</div>
+				}
+			</div>
+		</div>
+	}
+}
+
+// taskGitFacts renders the implementation's Git facts, if any were recorded.
+templ taskGitFacts(t task.Task) {
+	if t.Implementation != nil && gitHasFacts(t.Implementation.Git) {
+		{{ git := t.Implementation.Git }}
+		<div>
+			<div class="detail-facts">
+				if git.Branch != "" {
+					<div class="detail-cell">
+						<span class="name">Branch</span>
+						<span class="val">{ git.Branch }</span>
+					</div>
+				}
+				if git.Worktree != "" {
+					<div class="detail-cell">
+						<span class="name">Worktree</span>
+						<span class="val">{ git.Worktree }</span>
+					</div>
+				}
+				if len(git.Commits) > 0 {
+					{{ last := git.Commits[len(git.Commits)-1] }}
+					<div class="detail-cell">
+						<span class="name">Commit</span>
+						<span class="val">{ last.Hash }</span>
+					</div>
+				}
+				if git.Merge != nil {
+					<div class="detail-cell">
+						<span class="name">Merged into</span>
+						<span class="val">{ git.Merge.Target }</span>
+					</div>
+					<div class="detail-cell">
+						<span class="name">Merge commit</span>
+						<span class="val">{ git.Merge.Commit }</span>
+					</div>
+				}
+			</div>
+			if len(git.Commits) > 0 {
+				{{ last := git.Commits[len(git.Commits)-1] }}
+				<div class="detail-facts">
+					<div class="detail-cell">
+						<span class="name">Latest commit</span>
+						<span class="val">{ last.Message }</span>
+					</div>
+				</div>
+			}
+		</div>
+	}
+}
