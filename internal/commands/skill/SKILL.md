@@ -121,6 +121,9 @@ When Taskman calls for a commit:
 `merged` works the same way: perform the actual `git merge` yourself, then call
 `taskman merged --id <id> --target <branch>` so Taskman can read the resulting commit.
 
+Once `merged` is recorded, the task is done and its worktree and branch are no longer needed -
+clean them up yourself (Taskman does not): `git worktree remove <worktree-path>`, then `git branch -d <branch>`.
+
 ## Reporting commands
 
 | Command | Meaning |
