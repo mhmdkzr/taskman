@@ -12,8 +12,6 @@ GO_FILES := $(shell find . -name '*.go' -not -path './vendor/*' -not -path './.w
 
 lint: vet staticcheck golangci-lint govulncheck
 
-# ── Backend ──────────────────────────────────────────────────────────────────
-
 golangci-lint:
 	@$(GOLANGCI_LINT) run $(PKG_PATTERNS)
 

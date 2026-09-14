@@ -108,21 +108,21 @@ taskman implemented
   --worktree string                       the worktree the implementation was done in
   --branch string                         the branch the implementation was done on
   --unit                                  require unit tests
-  --integration                          require integration tests
-  --end-to-end                           require end-to-end tests
+  --integration                           require integration tests
+  --end-to-end                            require end-to-end tests
   --linters                               require linters
   --verification-auto-fix                 automatically fix verification failures
-  --verification-auto-fix-max-rounds int   max verification auto-fix rounds (default 0)
-  --verification-auto-fix-use-subagent     run verification auto-fix in a subagent
+  --verification-auto-fix-max-rounds int  max verification auto-fix rounds (default 0)
+  --verification-auto-fix-use-subagent    run verification auto-fix in a subagent
   --agent-review                          require an automated review
-  --agent-review-use-subagent              run the automated review in a subagent
-  --agent-review-auto-fix                  automatically fix automated review findings
-  --agent-review-auto-fix-max-rounds int   max automated-review auto-fix rounds (default 0)
-  --agent-review-auto-fix-use-subagent     run automated-review auto-fix in a subagent
+  --agent-review-use-subagent             run the automated review in a subagent
+  --agent-review-auto-fix                 automatically fix automated review findings
+  --agent-review-auto-fix-max-rounds int  max automated-review auto-fix rounds (default 0)
+  --agent-review-auto-fix-use-subagent    run automated-review auto-fix in a subagent
   --human-review                          require a human review
-  --human-review-auto-fix                  automatically fix human review findings
-  --human-review-auto-fix-max-rounds int   max human-review auto-fix rounds (default 0)
-  --human-review-auto-fix-use-subagent     run human-review auto-fix in a subagent
+  --human-review-auto-fix                 automatically fix human review findings
+  --human-review-auto-fix-max-rounds int  max human-review auto-fix rounds (default 0)
+  --human-review-auto-fix-use-subagent    run human-review auto-fix in a subagent
 
 taskman implementation review agent approved
   --id string       the task whose implementation's automated review was approved
@@ -199,7 +199,7 @@ The current state is never stored directly; it is derived by replaying the task'
 
 ## Architecture
 
-Taskman uses a functional core, imperative shell, event sourced, vertical slice architecture.
+Taskman uses a functional core, imperative shell architecture. Task state is event sourced, and code structure follows vertical slice architecture.
 
 ```text
 CLI or MCP request
