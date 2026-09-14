@@ -10,10 +10,13 @@ import (
 	"github.com/mhmdkzr/taskman/internal/utils"
 )
 
-type Request struct{}
-
+// Result is list's output: the requested page of tasks plus enough to tell
+// whether more pages remain.
 type Result struct {
-	Tasks []json.Document `json:"tasks"`
+	Tasks  []json.Document `json:"tasks"`
+	Total  int             `json:"total"`
+	Limit  int             `json:"limit"`
+	Offset int             `json:"offset"`
 }
 
 // RegisterMCP adds the "task_list" tool to server.
@@ -24,15 +27,15 @@ func RegisterMCP(server *mcp.Server, st *store.Store) {
 func mcpTool() *mcp.Tool {
 	return &mcp.Tool{
 		Name:         "task_list",
-		Description:  "List every task.",
+		Description:  "List tasks, optionally filtered by state and labels and paginated.",
 		InputSchema:  utils.SchemaFor[Request](),
 		OutputSchema: utils.SchemaFor[Result](),
 	}
 }
 
 func mcpHandler(st *store.Store) mcp.ToolHandlerFor[Request, Result] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, _ Request) (*mcp.CallToolResult, Result, error) {
-		tasks, err := List(ctx, st)
+	return func(ctx context.Context, _ *mcp.CallToolRequest, req Request) (*mcp.CallToolResult, Result, error) {
+		tasks, total, err := List(ctx, st, req)
 		if err != nil {
 			return nil, Result{}, err
 		}
@@ -40,6 +43,6 @@ func mcpHandler(st *store.Store) mcp.ToolHandlerFor[Request, Result] {
 		for _, t := range tasks {
 			docs = append(docs, json.FromTask(t))
 		}
-		return nil, Result{Tasks: docs}, nil
+		return nil, Result{Tasks: docs, Total: total, Limit: req.Limit, Offset: req.Offset}, nil
 	}
 }
