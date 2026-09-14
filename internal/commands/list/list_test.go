@@ -8,6 +8,7 @@ import (
 
 	"github.com/mhmdkzr/taskman/internal/task"
 	"github.com/mhmdkzr/taskman/internal/task/store"
+	"github.com/mhmdkzr/taskman/internal/utils"
 )
 
 func openTestStore(t *testing.T) *store.Store {
@@ -61,5 +62,12 @@ func TestListOnEmptyStoreReturnsEmpty(t *testing.T) {
 	}
 	if len(tasks) != 0 {
 		t.Fatalf("List() = %v, want empty", tasks)
+	}
+}
+
+func TestMCPOutputSchemaIsObject(t *testing.T) {
+	schema := utils.SchemaFor[Result]()
+	if schema.Type != "object" {
+		t.Fatalf("task_list output schema type = %q, want %q", schema.Type, "object")
 	}
 }

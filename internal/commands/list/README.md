@@ -16,4 +16,5 @@ Markdown document per task with `--md`.
 
 ## MCP
 
-`task_list`, returning `[]json.Document`.
+`task_list`, returning `{"tasks": [...]}` where each element is a `json.Document`. The tasks are
+wrapped in an object because MCP structured content must be a JSON object, not a bare array.
