@@ -10,6 +10,8 @@ with each task expanding in place to its full detail. It is the one long-running
 taskman --web --db ./tasks.db --port 8080
 ```
 
+It binds `127.0.0.1` by default; use `--host <address>` to bind elsewhere (e.g. `0.0.0.0`).
+
 The page is kept live over datastar/SSE: it opens a stream to `/tasks`. The server sends the
 current list as soon as a client connects - so a client that reconnects after missing an update is
 re-synced - then re-renders the task list on a one-second poll, patching the `#tasks` element only

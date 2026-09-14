@@ -12,8 +12,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"github.com/urfave/cli/v3"
@@ -70,6 +72,11 @@ func rootCommand() *cli.Command {
 				Name:  "web",
 				Usage: "serve a read-only web UI listing every task instead of running a command",
 			},
+			&cli.StringFlag{
+				Name:  "host",
+				Value: "127.0.0.1",
+				Usage: "host the --web UI binds to",
+			},
 			&cli.IntFlag{
 				Name:  "port",
 				Value: 8080,
@@ -90,6 +97,9 @@ func rootCommand() *cli.Command {
 			if cmd.IsSet("port") && !cmd.Bool("web") {
 				return ctx, cli.Exit("--port requires --web", 2)
 			}
+			if cmd.IsSet("host") && !cmd.Bool("web") {
+				return ctx, cli.Exit("--host requires --web", 2)
+			}
 			return initLogger(ctx, cmd)
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -102,7 +112,8 @@ func rootCommand() *cli.Command {
 			}
 			defer utils.CloseStore(st)
 
-			if err := web.NewServer(st).Run(ctx, fmt.Sprintf(":%d", cmd.Int("port"))); err != nil {
+			addr := net.JoinHostPort(cmd.String("host"), strconv.Itoa(cmd.Int("port")))
+			if err := web.NewServer(st).Run(ctx, addr); err != nil {
 				return utils.Fail(err)
 			}
 			return nil

@@ -16,6 +16,11 @@ specification/implementation - those require judgment or content only a human or
 supply. For those states it explains what's expected and which command reports the outcome, but
 never executes anything itself.
 
+In a fix state (`fix_verification_failure`, `fix_automated_review_findings`,
+`fix_human_review_findings`) the message also describes the gate's auto-fix policy - whether it is
+enabled, its round cap, and whether the fix should run in a subagent - so the caller knows whether
+to fix automatically and how many rounds remain.
+
 ## CLI
 
 ```bash

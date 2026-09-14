@@ -27,6 +27,12 @@ A transition has an optional `guard` (checked against the pre-reduce task), a `r
 (what the event does to the task), and either a fixed destination `to` or ordered `routes` tried
 against the post-reduce task.
 
+Verification failures and implementation-review rejections are bounded by the gate's `AutoFix`
+configuration (`autofix.go`): when a gate has auto-fix enabled and a `MaxRounds` cap, the reducer
+records a `Blockage` once the recorded rounds exceed the cap, and the transition's `isBlocked` route
+sends the task to `StateBlocked` instead of another fix state. Without a cap (disabled, or
+`MaxRounds <= 0`) the loop is unbounded.
+
 `Apply(current, event)` validates `current`, looks the event up (global first, then state-local),
 checks its guard, reduces a `Clone`, resolves the destination, appends the new state to
 `StateHistory`, and validates the result. On any error it returns the zero `Task` alongside the

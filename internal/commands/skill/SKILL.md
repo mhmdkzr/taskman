@@ -81,10 +81,11 @@ and no verification check goes from `implement` straight to `commit`. Taskman in
 after failed verification or a rejected implementation review, looping back through another
 verification attempt; a rejected specification returns to `specify` for revision.
 
-- Verification failures have no retry limit. Fix and report another real verification attempt, or
-  use `escalated` if the dispatched worker gives up.
-- Automated review rejections also have no built-in round limit - keep fixing and re-reviewing, or
-  escalate if it's not converging.
+- Verification failures and implementation-review rejections loop back through a fix state. A gate
+  with an auto-fix cap (`--verification-auto-fix-max-rounds`,
+  `--agent-review-auto-fix-max-rounds`, `--human-review-auto-fix-max-rounds`) blocks the task once
+  the recorded rounds exceed the cap, instead of dispatching another fix. Without a cap the loop is
+  unbounded - keep fixing and re-reporting, or use `escalated` if it is not converging.
 - After automated review approval, create a new conventional commit in the task's worktree and
   report it with `committed`. On human review rejection, fix, verify again, create another new
   commit, and report it; do not amend. Human-review rejection recovery does not repeat automated
@@ -155,7 +156,7 @@ confirmed; do not claim a build or test that did not run.
 |---|---|
 | `create --title <text> --description <text> [--label k=v ...]` | Create a task. Returns its generated id. |
 | `get --id <id>` | Read one task's current state and instruction. |
-| `list` | List every task. |
+| `list` | List tasks. Optional filters `--state <state>` and `--label <k=v>` (repeatable), and pagination `--limit <n>` (default 50; 0 = unlimited) / `--offset <n>`. |
 | `next --id <id>` | Show guidance for what to do next, and the command(s) to report it. |
 | `delete --id <id>` | Permanently delete a task and its event log. Irreversible. |
 | `prune [--dry-run]` | Permanently delete every completed task and its event log. Irreversible. |

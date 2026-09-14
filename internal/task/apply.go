@@ -142,6 +142,15 @@ func recordVerificationFailed(t *Task, event TaskEvent) error {
 		t.Implementation.Verification.Attempts,
 		VerificationResult{Checks: reported.Checks, Output: reported.Output, At: reported.At},
 	)
+	// A verification failure only spends the verification auto-fix budget at
+	// the state that owns that loop (verify and its retry state). A failure
+	// inside a review-driven fix state still loops through verification, but
+	// its own gate's budget is charged when that review rejects.
+	switch t.State() { //nolint:exhaustive // only the verification loop's own states charge its budget.
+	case StateVerify, StateFixVerificationFailure:
+		markAutoFixBudgetExhausted(t, "verification",
+			t.Implementation.Verification.AutoFix, failedVerificationCount(t))
+	}
 	return nil
 }
 
@@ -166,6 +175,8 @@ func recordImplementationReviewAgentRejected(t *Task, event TaskEvent) error {
 		t.Implementation.Review.Agent.Results,
 		AgentReviewResult{Findings: append([]Finding(nil), reported.Findings...), At: reported.At},
 	)
+	markAutoFixBudgetExhausted(t, "automated review",
+		t.Implementation.Review.Agent.AutoFix, rejectedAgentReviewCount(t))
 	return nil
 }
 
@@ -199,6 +210,8 @@ func recordImplementationReviewHumanRejected(t *Task, event TaskEvent) error {
 		t.Implementation.Review.Human.Results,
 		HumanReviewResult{Comment: reported.Reason, At: reported.At},
 	)
+	markAutoFixBudgetExhausted(t, "human review",
+		t.Implementation.Review.Human.AutoFix, rejectedHumanReviewCount(t))
 	return nil
 }
 

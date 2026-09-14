@@ -113,7 +113,10 @@ var workflow = definition{
 				EventImplementationReviewAgentRejected: {
 					guard:  implAgentReviewRequired,
 					reduce: recordImplementationReviewAgentRejected,
-					to:     StateFixAutomatedReviewFindings,
+					routes: []route{
+						{when: isBlocked, to: StateBlocked},
+						{to: StateFixAutomatedReviewFindings},
+					},
 				},
 			},
 		},
@@ -146,7 +149,10 @@ var workflow = definition{
 				EventImplementationReviewHumanRejected: {
 					guard:  implHumanReviewRequired,
 					reduce: recordImplementationReviewHumanRejected,
-					to:     StateFixHumanReviewFindings,
+					routes: []route{
+						{when: isBlocked, to: StateBlocked},
+						{to: StateFixHumanReviewFindings},
+					},
 				},
 			},
 		},
@@ -215,7 +221,10 @@ func verificationTransitions(onFailure TaskState) map[EventKind]transition {
 		},
 		EventVerificationFailed: {
 			reduce: recordVerificationFailed,
-			to:     onFailure,
+			routes: []route{
+				{when: isBlocked, to: StateBlocked},
+				{to: onFailure},
+			},
 		},
 	}
 }
@@ -246,4 +255,10 @@ func verificationRequired(t Task, _ TaskEvent) bool {
 
 func taskIsNotBlocked(t Task, _ TaskEvent) bool {
 	return t.State() != StateBlocked
+}
+
+// isBlocked reports whether a reducer decided this transition is blocked - the
+// escape route that stops a fix loop once its auto-fix budget is exhausted.
+func isBlocked(t Task, _ TaskEvent) bool {
+	return t.Blocked != nil
 }

@@ -45,7 +45,8 @@ taskman --web --db ./tasks.db --port 8080
 ```
 
 `--web` is a long-running server, not a one-shot command: it cannot be combined with a task
-command. 
+command. It binds `127.0.0.1` by default; pass `--host 0.0.0.0` (or another address) to expose it
+more widely.
 
 ## Workflow
 
@@ -55,6 +56,11 @@ The main path is:
 specify → specification_review → implement → verify → automated_review → commit → human_review → merge → completed
 ```
 
+A failed verification or a rejected implementation review loops back through a fix state. Each gate
+can bound that loop with `--*-auto-fix` and `--*-auto-fix-max-rounds`: once the recorded rounds for
+that gate exceed the cap, the task is blocked instead of dispatching another fix. A cap of `0` leaves
+the loop unbounded.
+
 ## Commands
 
 Every command accepts these global flags, in addition to any command-specific ones listed below:
@@ -62,6 +68,7 @@ Every command accepts these global flags, in addition to any command-specific on
 ```text
 --git-dir <path>    repository root taskman reads commits from (default ".")
 --db <path>         SQLite task database (default "./tasks.db")
+--host <address>    address the --web UI binds to (default "127.0.0.1")
 --json              print the JSON envelope, can't be used with --md
 --md                render a Markdown document, can't be used with --json
 --log-level <lvl>   debug, info, warn, or error (default "info")
@@ -171,7 +178,10 @@ taskman get
   --id string  the task id to read
 
 taskman list
-  (no command-specific flags)
+  --state string [--state string]  filter by task state - repeatable
+  --label string [--label string]  filter by label as key=value - repeatable
+  --limit int                      max tasks to return; 0 for unlimited (default 50)
+  --offset int                     skip this many matching tasks before the page starts
 
 taskman next
   --id string  the task id to inspect

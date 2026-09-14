@@ -85,6 +85,41 @@ func (v view) LastCommitHash() string {
 	return commits[len(commits)-1].Hash
 }
 
+// AutoFixNote describes the auto-fix policy governing the current fix state -
+// whether fixing is automatic, how many rounds it may spend, and whether it
+// should run in a subagent - or "" when the current state is not a fix state
+// or its gate has no auto-fix configured.
+func (v view) AutoFixNote() string {
+	if v.Task.Implementation == nil {
+		return ""
+	}
+	var (
+		config task.AutoFix
+		gate   string
+	)
+	switch v.Task.State() {
+	case task.StateFixVerificationFailure:
+		config, gate = v.Task.Implementation.Verification.AutoFix, "verification"
+	case task.StateFixAutomatedReviewFindings:
+		config, gate = v.Task.Implementation.Review.Agent.AutoFix, "the automated review"
+	case task.StateFixHumanReviewFindings:
+		config, gate = v.Task.Implementation.Review.Human.AutoFix, "the human review"
+	default:
+		return ""
+	}
+	if !config.Enabled {
+		return ""
+	}
+	note := "Auto-fix is enabled for " + gate + "."
+	if config.MaxRounds > 0 {
+		note += fmt.Sprintf(" It is capped at %d round(s); exceeding the cap blocks the task.", config.MaxRounds)
+	}
+	if config.UseSubagent {
+		note += " Run the fix in a subagent."
+	}
+	return note
+}
+
 func renderMessage(t task.Task, instruction task.Instruction) (string, error) {
 	var buf bytes.Buffer
 	data := view{Task: t, Reason: reasonFor(t, instruction.State)}

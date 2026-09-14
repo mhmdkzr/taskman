@@ -233,20 +233,76 @@ func TestCLIList(t *testing.T) {
 	runTaskman(t, dir, db, "create", "--description", "one", "--title", "One")
 	runTaskman(t, dir, db, "create", "--description", "two", "--title", "Two")
 
-	out := runTaskman(t, dir, db, "list", "--json")
-	var docs []jsonview.Document
-	if err := json.Unmarshal([]byte(out), &docs); err != nil {
-		t.Fatalf("unmarshal: %v\noutput:\n%s", err, out)
-	}
+	docs := listTasks(t, dir, db)
 	if len(docs) != 2 {
 		t.Fatalf("list = %+v, want 2 tasks", docs)
 	}
 
-	out = runTaskman(t, dir, db, "list")
+	out := runTaskman(t, dir, db, "list")
 	for _, want := range []string{" - One - [specify]", " - Two - [specify]"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("list output missing %q\n---\n%s", want, out)
 		}
+	}
+}
+
+func TestCLIListFiltersAndPagination(t *testing.T) {
+	dir := newTestRepo(t)
+	db := filepath.Join(dir, "tasks.db")
+	runTaskman(t, dir, db, "create", "--description", "one", "--title", "One", "--label", "priority=high")
+	advanced := onlyTaskID(t, dir, db)
+	runTaskman(t, dir, db, "specified", "--id", advanced, "--plan", "p")
+	runTaskman(t, dir, db, "create", "--description", "two", "--title", "Two")
+
+	if docs := listTasks(t, dir, db, "--state", "implement"); len(docs) != 1 || docs[0].Task.ID.String() != advanced {
+		t.Fatalf("list --state implement = %+v, want only %s", docs, advanced)
+	}
+	if docs := listTasks(t, dir, db, "--state", "specify"); len(docs) != 1 {
+		t.Fatalf("list --state specify = %+v, want 1 task", docs)
+	}
+	if docs := listTasks(t, dir, db, "--label", "priority=high"); len(docs) != 1 ||
+		docs[0].Task.ID.String() != advanced {
+		t.Fatalf("list --label priority=high = %+v, want only %s", docs, advanced)
+	}
+
+	out := runTaskman(t, dir, db, "list", "--json", "--limit", "1")
+	var page struct {
+		Tasks  []jsonview.Document `json:"tasks"`
+		Total  int                 `json:"total"`
+		Limit  int                 `json:"limit"`
+		Offset int                 `json:"offset"`
+	}
+	if err := json.Unmarshal([]byte(out), &page); err != nil {
+		t.Fatalf("unmarshal: %v\noutput:\n%s", err, out)
+	}
+	if len(page.Tasks) != 1 || page.Total != 2 || page.Limit != 1 {
+		t.Fatalf("list --limit 1 = %+v, want 1 task of 2 (limit 1)", page)
+	}
+}
+
+func TestCLIListRejectsUnknownState(t *testing.T) {
+	dir := newTestRepo(t)
+	db := filepath.Join(dir, "tasks.db")
+
+	_, err := runTaskmanErr(dir, db, "list", "--state", "bogus")
+	if err == nil {
+		t.Fatal("list --state bogus: want error, got nil")
+	}
+	if got := utils.ExitCode(err); got != 2 {
+		t.Fatalf("list --state bogus: ExitCode = %d, want 2 (malformed input)", got)
+	}
+}
+
+func TestCLIHostRequiresWeb(t *testing.T) {
+	dir := newTestRepo(t)
+	db := filepath.Join(dir, "tasks.db")
+
+	_, err := runTaskmanErr(dir, db, "--host", "0.0.0.0", "list")
+	if err == nil {
+		t.Fatal("--host without --web: want error, got nil")
+	}
+	if got := utils.ExitCode(err); got != 2 {
+		t.Fatalf("--host without --web: ExitCode = %d, want 2 (malformed input)", got)
 	}
 }
 
@@ -264,11 +320,7 @@ func TestCLIDelete(t *testing.T) {
 		t.Fatal("get after delete: want error, got nil")
 	}
 
-	out := runTaskman(t, dir, db, "list", "--json")
-	var docs []jsonview.Document
-	if err := json.Unmarshal([]byte(out), &docs); err != nil {
-		t.Fatalf("unmarshal: %v\noutput:\n%s", err, out)
-	}
+	docs := listTasks(t, dir, db)
 	if len(docs) != 0 {
 		t.Fatalf("list after delete = %+v, want no tasks", docs)
 	}
@@ -295,11 +347,7 @@ func TestCLIPrune(t *testing.T) {
 		t.Fatal("get after prune: want error, got nil")
 	}
 
-	out := runTaskman(t, dir, db, "list", "--json")
-	var docs []jsonview.Document
-	if err := json.Unmarshal([]byte(out), &docs); err != nil {
-		t.Fatalf("unmarshal: %v\noutput:\n%s", err, out)
-	}
+	docs := listTasks(t, dir, db)
 	if len(docs) != 0 {
 		t.Fatalf("list after prune = %+v, want no tasks", docs)
 	}
@@ -377,13 +425,22 @@ func TestCLISkill(t *testing.T) {
 
 func onlyTaskID(t *testing.T, gitDir, dbPath string) string {
 	t.Helper()
-	out := runTaskman(t, gitDir, dbPath, "list", "--json")
-	var docs []jsonview.Document
-	if err := json.Unmarshal([]byte(out), &docs); err != nil {
-		t.Fatalf("unmarshal: %v\noutput:\n%s", err, out)
-	}
+	docs := listTasks(t, gitDir, dbPath)
 	if len(docs) != 1 {
 		t.Fatalf("store has %d tasks, want exactly 1", len(docs))
 	}
 	return docs[0].Task.ID.String()
+}
+
+// listTasks runs `list --json` and returns the page's tasks.
+func listTasks(t *testing.T, gitDir, dbPath string, args ...string) []jsonview.Document {
+	t.Helper()
+	out := runTaskman(t, gitDir, dbPath, append([]string{"list", "--json"}, args...)...)
+	var result struct {
+		Tasks []jsonview.Document `json:"tasks"`
+	}
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatalf("unmarshal: %v\noutput:\n%s", err, out)
+	}
+	return result.Tasks
 }

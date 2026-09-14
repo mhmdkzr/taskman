@@ -75,7 +75,7 @@ func (s *Server) Run(ctx context.Context, addr string) error {
 
 // handleIndex renders the whole page, task list included.
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	tasks, err := list.List(r.Context(), s.store)
+	tasks, _, err := list.List(r.Context(), s.store, list.Request{})
 	if err != nil {
 		slog.Error("list tasks", "error", err)
 		http.Error(w, "list tasks", http.StatusInternalServerError)
@@ -150,7 +150,7 @@ func patchTaskList(sse *datastar.ServerSentEventGenerator, html string) error {
 // renderTaskList reads every task and renders just the list fragment, so it
 // can be compared against the previous render and patched into the page.
 func (s *Server) renderTaskList(ctx context.Context) (string, error) {
-	tasks, err := list.List(ctx, s.store)
+	tasks, _, err := list.List(ctx, s.store, list.Request{})
 	if err != nil {
 		return "", fmt.Errorf("list tasks: %w", err)
 	}

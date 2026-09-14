@@ -42,14 +42,23 @@ Report the results with `verified`.
 {{define "fix_verification_failure"}}Fix the reported verification failure, then re-run verification.
 
 {{.Reason}}
+{{if .AutoFixNote}}
+{{.AutoFixNote}}
+{{end}}
 {{end}}
 {{define "fix_automated_review_findings"}}Fix the automated review's findings, then re-run verification.
 
 {{.Reason}}
+{{if .AutoFixNote}}
+{{.AutoFixNote}}
+{{end}}
 {{end}}
 {{define "fix_human_review_findings"}}Fix the human review's findings, then re-run verification.
 
 {{.Reason}}
+{{if .AutoFixNote}}
+{{.AutoFixNote}}
+{{end}}
 {{end}}
 {{define "automated_review"}}Perform an automated review of this implementation against its specification.
 
