@@ -5,7 +5,7 @@
 
 ## Definition
 
-**Title:** {{if .Definition.Title}}{{.Definition.Title}}{{else}}_(none)_{{end}}
+**Title:** {{.Definition.Title}}
 
 **Description:** {{.Definition.Description}}
 

@@ -42,7 +42,7 @@ func TestFromTaskJustCreated(t *testing.T) {
 
 func TestFromTaskCompleted(t *testing.T) {
 	now := time.Now().UTC()
-	tsk, err := task.NewTask(uuid.NewV7(), task.TaskDefinition{Description: "d"}, now)
+	tsk, err := task.NewTask(uuid.NewV7(), task.TaskDefinition{Title: "t", Description: "d"}, now)
 	if err != nil {
 		t.Fatalf("NewTask() error = %v", err)
 	}
@@ -69,7 +69,7 @@ func TestFromTaskCompleted(t *testing.T) {
 
 func TestFromTaskBlocked(t *testing.T) {
 	now := time.Now().UTC()
-	tsk, err := task.NewTask(uuid.NewV7(), task.TaskDefinition{Description: "d"}, now)
+	tsk, err := task.NewTask(uuid.NewV7(), task.TaskDefinition{Title: "t", Description: "d"}, now)
 	if err != nil {
 		t.Fatalf("NewTask() error = %v", err)
 	}

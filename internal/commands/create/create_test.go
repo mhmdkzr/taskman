@@ -37,9 +37,16 @@ func TestCreate(t *testing.T) {
 	}
 }
 
+func TestCreateRejectsMissingTitle(t *testing.T) {
+	st := openTestStore(t)
+	if _, err := Create(t.Context(), st, Request{Description: "d"}); err == nil {
+		t.Fatal("Create() error = nil, want an error for a missing title")
+	}
+}
+
 func TestCreateRejectsMissingDescription(t *testing.T) {
 	st := openTestStore(t)
-	if _, err := Create(t.Context(), st, Request{}); err == nil {
+	if _, err := Create(t.Context(), st, Request{Title: "t"}); err == nil {
 		t.Fatal("Create() error = nil, want an error for a missing description")
 	}
 }

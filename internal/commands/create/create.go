@@ -13,12 +13,15 @@ import (
 
 // Request is create's input.
 type Request struct {
-	Title       string            `json:"title,omitempty"  jsonschema:"short human-readable title"`
+	Title       string            `json:"title"            jsonschema:"short human-readable title"`
 	Description string            `json:"description"      jsonschema:"what the task should accomplish"`
 	Labels      map[string]string `json:"labels,omitempty" jsonschema:"labels as key/value pairs"`
 }
 
 func (r Request) validate() error {
+	if r.Title == "" {
+		return fmt.Errorf("title is required")
+	}
 	if r.Description == "" {
 		return fmt.Errorf("description is required")
 	}

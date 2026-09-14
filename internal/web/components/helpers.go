@@ -86,23 +86,9 @@ func statusLabel(state task.TaskState) string {
 	}
 }
 
-// taskTitle is a task's one-line heading: its title, or - since the title may
-// be empty where the description is required - a truncated description.
+// taskTitle is a task's one-line heading: its title.
 func taskTitle(t task.Task) string {
-	if t.Definition.Title != "" {
-		return t.Definition.Title
-	}
-	return truncate(t.Definition.Description, 120)
-}
-
-// truncate collapses whitespace and shortens s to at most n bytes, marking a
-// cut with an ellipsis.
-func truncate(s string, n int) string {
-	s = strings.Join(strings.Fields(s), " ")
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "…"
+	return t.Definition.Title
 }
 
 // label is one task label, split out so labels can be rendered in a stable

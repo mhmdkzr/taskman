@@ -101,7 +101,7 @@ func TestTaskListRendersFullDetail(t *testing.T) {
 func TestTaskListRendersBareTask(t *testing.T) {
 	tk := task.Task{
 		ID:           uuid.NewV7(),
-		Definition:   task.TaskDefinition{Description: "just created"},
+		Definition:   task.TaskDefinition{Title: "Bare task", Description: "just created"},
 		StateHistory: []task.StateChange{{State: task.StateSpecify}},
 	}
 
@@ -109,8 +109,10 @@ func TestTaskListRendersBareTask(t *testing.T) {
 	if err := TaskList([]task.Task{tk}).Render(t.Context(), &b); err != nil {
 		t.Fatalf("Render() error = %v", err)
 	}
-	if !strings.Contains(b.String(), "just created") {
-		t.Errorf("rendered output missing description")
+	for _, want := range []string{"Bare task", "just created"} {
+		if !strings.Contains(b.String(), want) {
+			t.Errorf("rendered output missing %q", want)
+		}
 	}
 }
 

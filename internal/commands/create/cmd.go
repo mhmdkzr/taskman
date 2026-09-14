@@ -14,7 +14,7 @@ func Command() *cli.Command {
 		Name:  "create",
 		Usage: "create a new task",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "title", Usage: "short human-readable title"},
+			&cli.StringFlag{Name: "title", Required: true, Usage: "short human-readable title"},
 			&cli.StringFlag{Name: "description", Required: true, Usage: "what the task should accomplish"},
 			&cli.StringSliceFlag{Name: "label", Usage: "a label as key=value - repeatable"},
 		},

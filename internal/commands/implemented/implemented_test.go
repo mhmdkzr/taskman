@@ -28,7 +28,7 @@ func TestImplemented(t *testing.T) {
 	st := openTestStore(t)
 	id := uuid.NewV7()
 	now := time.Now().UTC()
-	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
+	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Title: "t", Description: "d"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 	if _, err := st.Append(
@@ -52,7 +52,7 @@ func TestImplementedRejectsReviewWithoutVerification(t *testing.T) {
 	st := openTestStore(t)
 	id := uuid.NewV7()
 	now := time.Now().UTC()
-	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
+	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Title: "t", Description: "d"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 	if _, err := st.Append(

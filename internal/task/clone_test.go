@@ -10,7 +10,7 @@ func TestCloneIsIndependentOfOriginal(t *testing.T) {
 	now := time.Now().UTC()
 	original := Task{
 		ID:           uuid.NewV7(),
-		Definition:   TaskDefinition{Description: "d", Labels: map[string]string{"k": "v"}},
+		Definition:   TaskDefinition{Title: "t", Description: "d", Labels: map[string]string{"k": "v"}},
 		StateHistory: []StateChange{{State: StateSpecify, At: now}},
 		Specification: &Specification{
 			Plan: "p",
@@ -64,7 +64,7 @@ func TestCloneIsIndependentOfOriginal(t *testing.T) {
 }
 
 func TestCloneHandlesNilOptionalFields(t *testing.T) {
-	original := Task{ID: uuid.NewV7(), Definition: TaskDefinition{Description: "d"}}
+	original := Task{ID: uuid.NewV7(), Definition: TaskDefinition{Title: "t", Description: "d"}}
 	clone := original.Clone()
 	if clone.Specification != nil || clone.Implementation != nil || clone.Blocked != nil || clone.Abandoned != nil {
 		t.Fatal("Clone() populated fields that were nil on the original")

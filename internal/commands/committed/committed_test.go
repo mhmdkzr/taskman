@@ -49,7 +49,7 @@ func TestCommitted(t *testing.T) {
 	st := openTestStore(t)
 	id := uuid.NewV7()
 	now := time.Now().UTC()
-	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
+	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Title: "t", Description: "d"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 	if _, err := st.Append(
@@ -81,7 +81,12 @@ func TestCommitted(t *testing.T) {
 func TestCommittedRejectsBeforeImplementation(t *testing.T) {
 	st := openTestStore(t)
 	id := uuid.NewV7()
-	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, time.Now().UTC()); err != nil {
+	if _, err := st.Create(
+		t.Context(),
+		id,
+		task.TaskDefinition{Title: "t", Description: "d"},
+		time.Now().UTC(),
+	); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 	if _, err := Committed(t.Context(), st, git.NewClient("."), Request{ID: id}); err == nil {

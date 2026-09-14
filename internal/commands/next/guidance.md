@@ -1,6 +1,6 @@
 {{define "specify"}}Draft a specification for this task.
 
-**Title:** {{if .Task.Definition.Title}}{{.Task.Definition.Title}}{{else}}_(none)_{{end}}
+**Title:** {{.Task.Definition.Title}}
 **Description:** {{.Task.Definition.Description}}
 {{if .Task.Definition.Labels}}
 **Labels:**

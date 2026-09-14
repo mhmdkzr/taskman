@@ -9,7 +9,7 @@ import (
 
 func newTask(t *testing.T, at time.Time) Task {
 	t.Helper()
-	tsk, err := NewTask(uuid.NewV7(), TaskDefinition{Description: "do the work"}, at)
+	tsk, err := NewTask(uuid.NewV7(), TaskDefinition{Title: "t", Description: "do the work"}, at)
 	if err != nil {
 		t.Fatalf("NewTask() error = %v", err)
 	}
@@ -368,7 +368,7 @@ func TestApplyRejectsUnknownCurrentState(t *testing.T) {
 	// worth keeping as a safety net against that drift).
 	tsk := Task{
 		ID:           uuid.NewV7(),
-		Definition:   TaskDefinition{Description: "d"},
+		Definition:   TaskDefinition{Title: "t", Description: "d"},
 		StateHistory: []StateChange{{State: TaskState("made_up")}},
 	}
 	if _, err := Apply(tsk, Abandoned{Reason: "x"}); err == nil {

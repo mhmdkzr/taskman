@@ -95,7 +95,7 @@ func TestVerificationValidateRejectsMissingRequiredCheckInAttempt(t *testing.T) 
 func TestValidateRejectsBlockedDataOutsideBlockedState(t *testing.T) {
 	tsk := Task{
 		ID:           uuid.NewV7(),
-		Definition:   TaskDefinition{Description: "d"},
+		Definition:   TaskDefinition{Title: "t", Description: "d"},
 		StateHistory: []StateChange{{State: StateSpecify}},
 		Blocked:      &Blockage{Stage: "s", Reason: "r"},
 	}
@@ -107,7 +107,7 @@ func TestValidateRejectsBlockedDataOutsideBlockedState(t *testing.T) {
 func TestValidateRequiresBlockedDataInBlockedState(t *testing.T) {
 	tsk := Task{
 		ID:           uuid.NewV7(),
-		Definition:   TaskDefinition{Description: "d"},
+		Definition:   TaskDefinition{Title: "t", Description: "d"},
 		StateHistory: []StateChange{{State: StateBlocked}},
 	}
 	if err := tsk.Validate(); err == nil {
@@ -118,7 +118,7 @@ func TestValidateRequiresBlockedDataInBlockedState(t *testing.T) {
 func TestValidateRejectsAbandonedDataOutsideAbandonedState(t *testing.T) {
 	tsk := Task{
 		ID:           uuid.NewV7(),
-		Definition:   TaskDefinition{Description: "d"},
+		Definition:   TaskDefinition{Title: "t", Description: "d"},
 		StateHistory: []StateChange{{State: StateSpecify}},
 		Abandoned:    &Abandonment{Reason: "r"},
 	}
@@ -130,7 +130,7 @@ func TestValidateRejectsAbandonedDataOutsideAbandonedState(t *testing.T) {
 func TestValidateRequiresAbandonedDataInAbandonedState(t *testing.T) {
 	tsk := Task{
 		ID:           uuid.NewV7(),
-		Definition:   TaskDefinition{Description: "d"},
+		Definition:   TaskDefinition{Title: "t", Description: "d"},
 		StateHistory: []StateChange{{State: StateAbandoned}},
 	}
 	if err := tsk.Validate(); err == nil {
@@ -139,27 +139,33 @@ func TestValidateRequiresAbandonedDataInAbandonedState(t *testing.T) {
 }
 
 func TestValidateRejectsEmptyStateHistory(t *testing.T) {
-	tsk := Task{ID: uuid.NewV7(), Definition: TaskDefinition{Description: "d"}}
+	tsk := Task{ID: uuid.NewV7(), Definition: TaskDefinition{Title: "t", Description: "d"}}
 	if err := tsk.Validate(); err == nil {
 		t.Fatal("Validate() error = nil, want an error for empty state history")
 	}
 }
 
 func TestNewTaskRejectsMissingID(t *testing.T) {
-	if _, err := NewTask(uuid.Nil(), TaskDefinition{Description: "d"}, time.Now()); err == nil {
+	if _, err := NewTask(uuid.Nil(), TaskDefinition{Title: "t", Description: "d"}, time.Now()); err == nil {
 		t.Fatal("NewTask() error = nil, want an error for a missing id")
 	}
 }
 
+func TestNewTaskRejectsMissingTitle(t *testing.T) {
+	if _, err := NewTask(uuid.NewV7(), TaskDefinition{Description: "d"}, time.Now()); err == nil {
+		t.Fatal("NewTask() error = nil, want an error for a missing title")
+	}
+}
+
 func TestNewTaskRejectsMissingDescription(t *testing.T) {
-	if _, err := NewTask(uuid.NewV7(), TaskDefinition{}, time.Now()); err == nil {
+	if _, err := NewTask(uuid.NewV7(), TaskDefinition{Title: "t"}, time.Now()); err == nil {
 		t.Fatal("NewTask() error = nil, want an error for a missing description")
 	}
 }
 
 func TestTaskYAMLRoundTrip(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
-	tsk, err := NewTask(uuid.NewV7(), TaskDefinition{Description: "do the work"}, now)
+	tsk, err := NewTask(uuid.NewV7(), TaskDefinition{Title: "t", Description: "do the work"}, now)
 	if err != nil {
 		t.Fatalf("NewTask() error = %v", err)
 	}
@@ -184,7 +190,7 @@ func TestTaskYAMLRoundTrip(t *testing.T) {
 
 func TestTaskJSONRoundTrip(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
-	tsk, err := NewTask(uuid.NewV7(), TaskDefinition{Description: "do the work"}, now)
+	tsk, err := NewTask(uuid.NewV7(), TaskDefinition{Title: "t", Description: "do the work"}, now)
 	if err != nil {
 		t.Fatalf("NewTask() error = %v", err)
 	}

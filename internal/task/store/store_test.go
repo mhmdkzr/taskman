@@ -29,7 +29,7 @@ func TestCreateReadRoundTrip(t *testing.T) {
 	id := uuid.NewV7()
 	now := time.Now().UTC().Truncate(time.Second)
 
-	created, err := s.Create(t.Context(), id, task.TaskDefinition{Description: "do the work"}, now)
+	created, err := s.Create(t.Context(), id, task.TaskDefinition{Title: "t", Description: "do the work"}, now)
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -54,13 +54,13 @@ func TestCreateRejectsDuplicateID(t *testing.T) {
 	id := uuid.NewV7()
 	now := time.Now().UTC()
 
-	if _, err := s.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
+	if _, err := s.Create(t.Context(), id, task.TaskDefinition{Title: "t", Description: "d"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 	if _, err := s.Create(
 		t.Context(),
 		id,
-		task.TaskDefinition{Description: "d"},
+		task.TaskDefinition{Title: "t", Description: "d"},
 		now,
 	); !errors.Is(
 		err,
@@ -82,7 +82,7 @@ func TestAppendAccumulatesEventsAndMatchesDirectApply(t *testing.T) {
 	id := uuid.NewV7()
 	now := time.Now().UTC().Truncate(time.Second)
 
-	current, err := s.Create(t.Context(), id, task.TaskDefinition{Description: "do the work"}, now)
+	current, err := s.Create(t.Context(), id, task.TaskDefinition{Title: "t", Description: "do the work"}, now)
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -129,7 +129,12 @@ func TestAppendRoundTripsEveryEventKind(t *testing.T) {
 	id := uuid.NewV7()
 	now := time.Now().UTC().Truncate(time.Second)
 
-	if _, err := s.Create(t.Context(), id, task.TaskDefinition{Description: "do the work"}, now); err != nil {
+	if _, err := s.Create(
+		t.Context(),
+		id,
+		task.TaskDefinition{Title: "t", Description: "do the work"},
+		now,
+	); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 
@@ -193,7 +198,7 @@ func TestEscalatedAndAbandonedRoundTrip(t *testing.T) {
 	id := uuid.NewV7()
 	now := time.Now().UTC()
 
-	if _, err := s.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
+	if _, err := s.Create(t.Context(), id, task.TaskDefinition{Title: "t", Description: "d"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 	if _, err := s.Append(t.Context(), id, task.Escalated{Stage: "definition", Reason: "stuck", At: now}); err != nil {
@@ -221,7 +226,7 @@ func TestAppendRejectsInvalidEventWithoutPersistingIt(t *testing.T) {
 	id := uuid.NewV7()
 	now := time.Now().UTC()
 
-	if _, err := s.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
+	if _, err := s.Create(t.Context(), id, task.TaskDefinition{Title: "t", Description: "d"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 
@@ -248,10 +253,15 @@ func TestListEnumeratesCreatedTasks(t *testing.T) {
 	now := time.Now().UTC()
 	id1, id2 := uuid.NewV7(), uuid.NewV7()
 
-	if _, err := s.Create(t.Context(), id1, task.TaskDefinition{Description: "d1"}, now); err != nil {
+	if _, err := s.Create(t.Context(), id1, task.TaskDefinition{Title: "t", Description: "d1"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if _, err := s.Create(t.Context(), id2, task.TaskDefinition{Description: "d2"}, now.Add(time.Second)); err != nil {
+	if _, err := s.Create(
+		t.Context(),
+		id2,
+		task.TaskDefinition{Title: "t", Description: "d2"},
+		now.Add(time.Second),
+	); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 
@@ -284,7 +294,7 @@ func TestDeleteRemovesTaskAndEvents(t *testing.T) {
 	id := uuid.NewV7()
 	now := time.Now().UTC().Truncate(time.Second)
 
-	if _, err := s.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
+	if _, err := s.Create(t.Context(), id, task.TaskDefinition{Title: "t", Description: "d"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 	if _, err := s.Append(t.Context(), id, task.Abandoned{Reason: "x", At: now}); err != nil {
@@ -322,7 +332,12 @@ func TestDeleteRemovesTaskWithUnreplayableLog(t *testing.T) {
 	s := openTestStore(t)
 	id := uuid.NewV7()
 
-	if _, err := s.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, time.Now().UTC()); err != nil {
+	if _, err := s.Create(
+		t.Context(),
+		id,
+		task.TaskDefinition{Title: "t", Description: "d"},
+		time.Now().UTC(),
+	); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 	if _, err := s.db.Exec(
@@ -355,7 +370,7 @@ func TestReadRejectsUnknownEventKind(t *testing.T) {
 	id := uuid.NewV7()
 	now := time.Now().UTC()
 
-	if _, err := s.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
+	if _, err := s.Create(t.Context(), id, task.TaskDefinition{Title: "t", Description: "d"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 	_, err := s.db.Exec(

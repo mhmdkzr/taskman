@@ -51,10 +51,7 @@ func Command() *cli.Command {
 				return nil
 			}
 			for _, t := range tasks {
-				line := fmt.Sprintf("%s - [%s]", t.ID, t.State())
-				if title := t.Definition.Title; title != "" {
-					line = fmt.Sprintf("%s - %s - [%s]", t.ID, title, t.State())
-				}
+				line := fmt.Sprintf("%s - %s - [%s]", t.ID, t.Definition.Title, t.State())
 				if _, err := fmt.Fprintln(cmd.Root().Writer, line); err != nil {
 					return utils.Fail(err)
 				}

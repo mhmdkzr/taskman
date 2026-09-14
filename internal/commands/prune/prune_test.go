@@ -30,7 +30,7 @@ func openTestStore(t *testing.T) *store.Store {
 // store's event log.
 func createCompleted(t *testing.T, st *store.Store, id uuid.UUID, now time.Time) {
 	t.Helper()
-	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
+	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Title: "t", Description: "d"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 	events := []task.TaskEvent{
@@ -51,7 +51,7 @@ func createCompleted(t *testing.T, st *store.Store, id uuid.UUID, now time.Time)
 
 func createSpecified(t *testing.T, st *store.Store, id uuid.UUID, now time.Time) {
 	t.Helper()
-	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Description: "d"}, now); err != nil {
+	if _, err := st.Create(t.Context(), id, task.TaskDefinition{Title: "t", Description: "d"}, now); err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
 }

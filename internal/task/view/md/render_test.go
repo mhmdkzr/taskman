@@ -54,22 +54,6 @@ func TestRenderTaskJustCreated(t *testing.T) {
 	}
 }
 
-func TestRenderTaskUntitled(t *testing.T) {
-	now := time.Now().UTC()
-	tsk, err := task.NewTask(uuid.NewV7(), task.TaskDefinition{Description: "do it"}, now)
-	if err != nil {
-		t.Fatalf("NewTask() error = %v", err)
-	}
-
-	out, err := RenderTask(tsk)
-	if err != nil {
-		t.Fatalf("RenderTask() error = %v", err)
-	}
-	if !strings.Contains(out, "_(none)_") {
-		t.Errorf("output should show a placeholder for a missing title\n---\n%s", out)
-	}
-}
-
 func TestRenderTaskFullLifecycleToCompleted(t *testing.T) {
 	now := time.Now().UTC()
 	tsk, err := task.NewTask(uuid.NewV7(), task.TaskDefinition{Title: "Ship it", Description: "do it"}, now)
@@ -167,7 +151,7 @@ func TestRenderTaskFullLifecycleToCompleted(t *testing.T) {
 
 func TestRenderTaskBlocked(t *testing.T) {
 	now := time.Now().UTC()
-	tsk, err := task.NewTask(uuid.NewV7(), task.TaskDefinition{Description: "do it"}, now)
+	tsk, err := task.NewTask(uuid.NewV7(), task.TaskDefinition{Title: "t", Description: "do it"}, now)
 	if err != nil {
 		t.Fatalf("NewTask() error = %v", err)
 	}
@@ -186,7 +170,7 @@ func TestRenderTaskBlocked(t *testing.T) {
 
 func TestRenderTaskAbandoned(t *testing.T) {
 	now := time.Now().UTC()
-	tsk, err := task.NewTask(uuid.NewV7(), task.TaskDefinition{Description: "do it"}, now)
+	tsk, err := task.NewTask(uuid.NewV7(), task.TaskDefinition{Title: "t", Description: "do it"}, now)
 	if err != nil {
 		t.Fatalf("NewTask() error = %v", err)
 	}
@@ -205,7 +189,7 @@ func TestRenderTaskAbandoned(t *testing.T) {
 
 func TestRenderTaskNoReviewOrVerificationRequired(t *testing.T) {
 	now := time.Now().UTC()
-	tsk, err := task.NewTask(uuid.NewV7(), task.TaskDefinition{Description: "do it"}, now)
+	tsk, err := task.NewTask(uuid.NewV7(), task.TaskDefinition{Title: "t", Description: "do it"}, now)
 	if err != nil {
 		t.Fatalf("NewTask() error = %v", err)
 	}

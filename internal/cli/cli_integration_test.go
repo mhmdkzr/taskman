@@ -184,7 +184,7 @@ func TestCLIFullLifecycle(t *testing.T) {
 func TestCLIInvalidTransitionExitsNonZero(t *testing.T) {
 	dir := newTestRepo(t)
 	db := filepath.Join(dir, "tasks.db")
-	runTaskman(t, dir, db, "create", "--description", "x")
+	runTaskman(t, dir, db, "create", "--description", "x", "--title", "Title")
 	id := onlyTaskID(t, dir, db)
 
 	_, err := runTaskmanErr(dir, db, "implemented", "--id", id, "--worktree", "/x", "--branch", "b")
@@ -196,7 +196,7 @@ func TestCLIInvalidTransitionExitsNonZero(t *testing.T) {
 func TestCLIImplementedRejectsReviewWithoutVerification(t *testing.T) {
 	dir := newTestRepo(t)
 	db := filepath.Join(dir, "tasks.db")
-	runTaskman(t, dir, db, "create", "--description", "x")
+	runTaskman(t, dir, db, "create", "--description", "x", "--title", "Title")
 	id := onlyTaskID(t, dir, db)
 	runTaskman(t, dir, db, "specified", "--id", id, "--plan", "p")
 
@@ -354,7 +354,7 @@ func TestCLIListMarkdown(t *testing.T) {
 func TestCLIJSONAndMDConflict(t *testing.T) {
 	dir := newTestRepo(t)
 	db := filepath.Join(dir, "tasks.db")
-	runTaskman(t, dir, db, "create", "--description", "x")
+	runTaskman(t, dir, db, "create", "--description", "x", "--title", "Title")
 	id := onlyTaskID(t, dir, db)
 
 	_, err := runTaskmanErr(dir, db, "get", "--id", id, "--json", "--md")

@@ -11,14 +11,14 @@ a specification with `specified`).
 
 | Field | Flag | Required |
 |---|---|---|
-| `Title` | `--title` | no |
+| `Title` | `--title` | yes |
 | `Description` | `--description` | yes |
 | `Labels` | `--label k=v` (repeatable) | no |
 
 ## CLI
 
 ```bash
-taskman create --description "add per-client rate limiting" --title "Rate limiting" --label priority=high
+taskman create --title "Rate limiting" --description "add per-client rate limiting" --label priority=high
 ```
 
 ## MCP

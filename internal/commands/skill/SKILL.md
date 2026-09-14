@@ -153,7 +153,7 @@ confirmed; do not claim a build or test that did not run.
 
 | Command | Purpose |
 |---|---|
-| `create --description <text> [--title <text>] [--label k=v ...]` | Create a task. Returns its generated id. |
+| `create --title <text> --description <text> [--label k=v ...]` | Create a task. Returns its generated id. |
 | `get --id <id>` | Read one task's current state and instruction. |
 | `list` | List every task. |
 | `next --id <id>` | Show guidance for what to do next, and the command(s) to report it. |

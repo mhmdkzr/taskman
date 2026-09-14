@@ -297,6 +297,9 @@ func NewTask(id uuid.UUID, definition TaskDefinition, at time.Time) (Task, error
 	if id == uuid.Nil() {
 		return Task{}, fmt.Errorf("new task: id is required")
 	}
+	if definition.Title == "" {
+		return Task{}, fmt.Errorf("new task: title is required")
+	}
 	if definition.Description == "" {
 		return Task{}, fmt.Errorf("new task: description is required")
 	}
@@ -323,8 +326,8 @@ func (t Task) State() TaskState {
 
 // Validate checks the task's workflow and data invariants.
 func (t Task) Validate() error {
-	if t.ID == uuid.Nil() || t.Definition.Description == "" {
-		return fmt.Errorf("task identity and definition are required")
+	if t.ID == uuid.Nil() || t.Definition.Title == "" || t.Definition.Description == "" {
+		return fmt.Errorf("task id, title, and description are required")
 	}
 	if len(t.StateHistory) == 0 {
 		return fmt.Errorf("task has no recorded state")
