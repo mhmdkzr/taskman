@@ -1,6 +1,6 @@
 # taskman
 
-Taskman provides a deterministic workflow for coding agents to perform generic pre-defined programming tasks. After a task is defined, the agent can simply call `taskman next <id>` and taskman will simply tell the agent what to do next based on the current state of the task and its configuration. The agent can use taskman as a CLI or MCP server (over stdio). Taskman is a good fit for tasks that are clear, well-defined and don't require direct supervision or interaction with the model, which makes it good for performing them asynchronously.
+Taskman provides a deterministic workflow for coding agents to perform generic pre-defined programming tasks. Every command's output tells the agent what to do next based on the current state of the task and its configuration. The agent can use taskman as a CLI or MCP server (over stdio). Taskman is a good fit for tasks that are clear, well-defined and don't require direct supervision or interaction with the model, which makes it good for performing them asynchronously.
 
 > **Status:** alpha. Expect breaking changes and potential bugs.
 
@@ -32,9 +32,9 @@ taskman create \
 Use taskman and follow its instructions to perform task <id>.
 ```
 
-`taskman next --id <id>` renders that instruction as guidance: a message built from the task's own
-data (its plan, its worktree/branch, a failed check's output, a rejected review's findings) and
-the command(s) that would currently report an outcome. 
+`taskman get --id <id>` - and every command's output - carries that guidance: a message built
+from the task's own data (its plan, its worktree/branch, a failed check's output, a rejected
+review's findings) and the command(s) that would currently report an outcome.
 
 ## Web UI
 
@@ -182,9 +182,6 @@ taskman list
   --label string [--label string]  filter by label as key=value - repeatable
   --limit int                      max tasks to return; 0 for unlimited (default 50)
   --offset int                     skip this many matching tasks before the page starts
-
-taskman next
-  --id string  the task id to inspect
 
 taskman skill
   (no command-specific flags; prints SKILL.md to stdout)

@@ -3,6 +3,13 @@
 **State:** {{.State}}
 **Next:** {{.Instruction.Action}} ({{.Instruction.State}})
 
+{{.Guidance.Message}}
+{{if .Guidance.Commands}}
+Valid commands:
+
+{{range .Guidance.Commands}}- `{{.}}`
+{{end}}{{end}}
+
 ## Definition
 
 **Title:** {{.Definition.Title}}

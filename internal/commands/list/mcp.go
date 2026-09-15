@@ -2,6 +2,7 @@ package list
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -41,7 +42,11 @@ func mcpHandler(st *store.Store) mcp.ToolHandlerFor[Request, Result] {
 		}
 		docs := make([]json.Document, 0, len(tasks))
 		for _, t := range tasks {
-			docs = append(docs, json.FromTask(t))
+			doc, err := json.FromTask(t)
+			if err != nil {
+				return nil, Result{}, fmt.Errorf("render task: %w", err)
+			}
+			docs = append(docs, doc)
 		}
 		return nil, Result{Tasks: docs, Total: total, Limit: req.Limit, Offset: req.Offset}, nil
 	}

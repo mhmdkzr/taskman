@@ -25,7 +25,10 @@ func TestFromTaskJustCreated(t *testing.T) {
 		t.Fatalf("NewTask() error = %v", err)
 	}
 
-	doc := FromTask(tsk)
+	doc, err := FromTask(tsk)
+	if err != nil {
+		t.Fatalf("FromTask() error = %v", err)
+	}
 	if doc.State != task.StateSpecify {
 		t.Fatalf("State = %s, want %s", doc.State, task.StateSpecify)
 	}
@@ -58,7 +61,10 @@ func TestFromTaskCompleted(t *testing.T) {
 	tsk = mustApply(t, tsk, task.CommitRecorded{Commit: task.GitCommit{Hash: "c", At: now}, At: now})
 	tsk = mustApply(t, tsk, task.MergeCompleted{Merge: task.GitMerge{Target: "main", Commit: "c", At: now}, At: now})
 
-	doc := FromTask(tsk)
+	doc, err := FromTask(tsk)
+	if err != nil {
+		t.Fatalf("FromTask() error = %v", err)
+	}
 	if doc.State != task.StateCompleted {
 		t.Fatalf("State = %s, want %s", doc.State, task.StateCompleted)
 	}
@@ -75,7 +81,10 @@ func TestFromTaskBlocked(t *testing.T) {
 	}
 	tsk = mustApply(t, tsk, task.Escalated{Stage: "definition", Reason: "unclear", At: now})
 
-	doc := FromTask(tsk)
+	doc, err := FromTask(tsk)
+	if err != nil {
+		t.Fatalf("FromTask() error = %v", err)
+	}
 	if doc.State != task.StateBlocked {
 		t.Fatalf("State = %s, want %s", doc.State, task.StateBlocked)
 	}
@@ -91,7 +100,11 @@ func TestDocumentJSONShape(t *testing.T) {
 		t.Fatalf("NewTask() error = %v", err)
 	}
 
-	data, err := json.Marshal(FromTask(tsk))
+	doc, err := FromTask(tsk)
+	if err != nil {
+		t.Fatalf("FromTask() error = %v", err)
+	}
+	data, err := json.Marshal(doc)
 	if err != nil {
 		t.Fatalf("json.Marshal() error = %v", err)
 	}

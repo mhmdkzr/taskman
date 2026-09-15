@@ -13,6 +13,7 @@ import (
 
 	"github.com/mhmdkzr/taskman/internal/task"
 	"github.com/mhmdkzr/taskman/internal/task/store"
+	"github.com/mhmdkzr/taskman/internal/task/view/instructions"
 )
 
 var tpl = tmpl.Must(tmpl.New("template.md").Parse(template))
@@ -29,10 +30,22 @@ func Render(ctx context.Context, st *store.Store, taskID uuid.UUID) (string, err
 	return RenderTask(t)
 }
 
+// document is template.md's render target: the task plus the guidance
+// projected from its current position.
+type document struct {
+	task.Task
+
+	Guidance instructions.Instructions
+}
+
 // RenderTask renders an already-loaded task as Markdown.
 func RenderTask(t task.Task) (string, error) {
+	guidance, err := instructions.Project(t)
+	if err != nil {
+		return "", fmt.Errorf("render task %s: %w", t.ID, err)
+	}
 	var buf bytes.Buffer
-	if err := tpl.Execute(&buf, t); err != nil {
+	if err := tpl.Execute(&buf, document{Task: t, Guidance: guidance}); err != nil {
 		return "", fmt.Errorf("render task %s: %w", t.ID, err)
 	}
 	return buf.String(), nil

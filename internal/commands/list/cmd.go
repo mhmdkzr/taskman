@@ -51,7 +51,11 @@ func Command() *cli.Command {
 			if cmd.Bool("json") {
 				docs := make([]jsonview.Document, 0, len(tasks))
 				for _, t := range tasks {
-					docs = append(docs, jsonview.FromTask(t))
+					doc, err := jsonview.FromTask(t)
+					if err != nil {
+						return utils.Fail(err)
+					}
+					docs = append(docs, doc)
 				}
 				return view.PrintJSON(cmd, Result{
 					Tasks:  docs,
@@ -62,7 +66,10 @@ func Command() *cli.Command {
 			}
 			if len(tasks) == 0 {
 				_, err := fmt.Fprintln(cmd.Root().Writer, "no tasks")
-				return utils.Fail(err)
+				if err != nil {
+					return utils.Fail(err)
+				}
+				return nil
 			}
 			for i, t := range tasks {
 				if cmd.Bool("md") {

@@ -1,4 +1,4 @@
-package next
+package instructions
 
 import (
 	"path/filepath"
@@ -35,21 +35,67 @@ func createTask(t *testing.T, st *store.Store) uuid.UUID {
 	return id
 }
 
-func TestNextRejectsNilID(t *testing.T) {
-	st := openTestStore(t)
-	if _, err := Next(t.Context(), st, Request{}); err == nil {
-		t.Fatal("Next() error = nil, want an error for a missing id")
-	}
-}
-
-func TestNextAtSpecifySuggestsSpecified(t *testing.T) {
+func TestProjectAtSpecifyBeforeSpecOmitsFeedback(t *testing.T) {
 	st := openTestStore(t)
 	id := createTask(t, st)
 
-	got, err := Next(t.Context(), st, Request{ID: id})
-	if err != nil {
-		t.Fatalf("Next() error = %v", err)
+	got := readAndProject(t, st, id)
+	if got.State != task.StateSpecify || got.Action != task.InstructionDispatch {
+		t.Fatalf("State/Action = %s/%s", got.State, got.Action)
 	}
+	if strings.Contains(got.Message, "Address this feedback") {
+		t.Fatalf("Message = %q, want no feedback block before any review", got.Message)
+	}
+}
+
+func TestProjectAtSpecifyAfterRejectionAddressesFindings(t *testing.T) {
+	st := openTestStore(t)
+	id := createTask(t, st)
+	now := time.Now().UTC()
+	review := task.ReviewConfiguration{
+		Agent: task.AgentReviewConfiguration{Required: true},
+		Human: task.HumanReviewConfiguration{Required: true},
+	}
+	if _, err := st.Append(t.Context(), id, task.SpecificationSubmitted{
+		Specification: task.Specification{Plan: "p", Review: review}, At: now,
+	}); err != nil {
+		t.Fatalf("Append(SpecificationSubmitted) error = %v", err)
+	}
+	if _, err := st.Append(t.Context(), id, task.SpecificationReviewAgentRejected{
+		Findings: []task.Finding{{Location: "plan", Detail: "no fallback"}}, At: now,
+	}); err != nil {
+		t.Fatalf("Append(SpecificationReviewAgentRejected) error = %v", err)
+	}
+
+	got := readAndProject(t, st, id)
+	if got.State != task.StateSpecify || got.Action != task.InstructionDispatch {
+		t.Fatalf("State/Action = %s/%s", got.State, got.Action)
+	}
+	for _, want := range []string{"Address this feedback", "Automated specification review rejected this plan:", "plan: no fallback"} {
+		if !strings.Contains(got.Message, want) {
+			t.Fatalf("Message = %q, want it to contain %q", got.Message, want)
+		}
+	}
+}
+
+func readAndProject(t *testing.T, st *store.Store, id uuid.UUID) Instructions {
+	t.Helper()
+	task, err := st.Read(t.Context(), id)
+	if err != nil {
+		t.Fatalf("Read() error = %v", err)
+	}
+	got, err := Project(task)
+	if err != nil {
+		t.Fatalf("Project() error = %v", err)
+	}
+	return got
+}
+
+func TestProjectAtSpecifySuggestsSpecified(t *testing.T) {
+	st := openTestStore(t)
+	id := createTask(t, st)
+
+	got := readAndProject(t, st, id)
 	if got.State != task.StateSpecify || got.Action != task.InstructionDispatch {
 		t.Fatalf("State/Action = %s/%s, want %s/%s", got.State, got.Action, task.StateSpecify, task.InstructionDispatch)
 	}
@@ -58,7 +104,7 @@ func TestNextAtSpecifySuggestsSpecified(t *testing.T) {
 	}
 }
 
-func TestNextAtSpecificationReviewListsBothGates(t *testing.T) {
+func TestProjectAtSpecificationReviewListsBothGates(t *testing.T) {
 	st := openTestStore(t)
 	id := createTask(t, st)
 	now := time.Now().UTC()
@@ -72,10 +118,7 @@ func TestNextAtSpecificationReviewListsBothGates(t *testing.T) {
 		t.Fatalf("Append(SpecificationSubmitted) error = %v", err)
 	}
 
-	got, err := Next(t.Context(), st, Request{ID: id})
-	if err != nil {
-		t.Fatalf("Next() error = %v", err)
-	}
+	got := readAndProject(t, st, id)
 	if got.State != task.StateSpecificationReview || got.Action != task.InstructionWait {
 		t.Fatalf("State/Action = %s/%s", got.State, got.Action)
 	}
@@ -84,7 +127,7 @@ func TestNextAtSpecificationReviewListsBothGates(t *testing.T) {
 	}
 }
 
-func TestNextAtVerifyCollapsesPassAndFail(t *testing.T) {
+func TestProjectAtVerifyCollapsesPassAndFail(t *testing.T) {
 	st := openTestStore(t)
 	id := createTask(t, st)
 	now := time.Now().UTC()
@@ -103,10 +146,7 @@ func TestNextAtVerifyCollapsesPassAndFail(t *testing.T) {
 		t.Fatalf("Append(ImplementationCompleted) error = %v", err)
 	}
 
-	got, err := Next(t.Context(), st, Request{ID: id})
-	if err != nil {
-		t.Fatalf("Next() error = %v", err)
-	}
+	got := readAndProject(t, st, id)
 	if got.State != task.StateVerify {
 		t.Fatalf("State = %s, want %s", got.State, task.StateVerify)
 	}
@@ -118,7 +158,7 @@ func TestNextAtVerifyCollapsesPassAndFail(t *testing.T) {
 	}
 }
 
-func TestNextAtFixVerificationFailureExplainsWhy(t *testing.T) {
+func TestProjectAtFixVerificationFailureExplainsWhy(t *testing.T) {
 	st := openTestStore(t)
 	id := createTask(t, st)
 	now := time.Now().UTC()
@@ -142,10 +182,7 @@ func TestNextAtFixVerificationFailureExplainsWhy(t *testing.T) {
 		t.Fatalf("Append(VerificationFailed) error = %v", err)
 	}
 
-	got, err := Next(t.Context(), st, Request{ID: id})
-	if err != nil {
-		t.Fatalf("Next() error = %v", err)
-	}
+	got := readAndProject(t, st, id)
 	if got.State != task.StateFixVerificationFailure {
 		t.Fatalf("State = %s, want %s", got.State, task.StateFixVerificationFailure)
 	}
@@ -154,7 +191,7 @@ func TestNextAtFixVerificationFailureExplainsWhy(t *testing.T) {
 	}
 }
 
-func TestNextAtCompletedHasNoCommands(t *testing.T) {
+func TestProjectAtCompletedHasNoCommands(t *testing.T) {
 	st := openTestStore(t)
 	id := createTask(t, st)
 	now := time.Now().UTC()
@@ -180,10 +217,7 @@ func TestNextAtCompletedHasNoCommands(t *testing.T) {
 		t.Fatalf("Append(MergeCompleted) error = %v", err)
 	}
 
-	got, err := Next(t.Context(), st, Request{ID: id})
-	if err != nil {
-		t.Fatalf("Next() error = %v", err)
-	}
+	got := readAndProject(t, st, id)
 	if got.State != task.StateCompleted || got.Action != task.InstructionDone {
 		t.Fatalf("State/Action = %s/%s", got.State, got.Action)
 	}

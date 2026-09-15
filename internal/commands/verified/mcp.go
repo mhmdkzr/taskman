@@ -2,6 +2,7 @@ package verified
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -28,8 +29,12 @@ func mcpHandler(st *store.Store) mcp.ToolHandlerFor[Request, json.Document] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, req Request) (*mcp.CallToolResult, json.Document, error) {
 		t, err := Verified(ctx, st, req)
 		if err != nil {
-			return nil, json.Document{}, err
+			return nil, json.Document{}, fmt.Errorf("render task: %w", err)
 		}
-		return nil, json.FromTask(t), nil
+		doc, err := json.FromTask(t)
+		if err != nil {
+			return nil, json.Document{}, fmt.Errorf("render task: %w", err)
+		}
+		return nil, doc, nil
 	}
 }
