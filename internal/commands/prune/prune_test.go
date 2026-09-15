@@ -71,7 +71,7 @@ func TestPruneRemovesCompletedTasks(t *testing.T) {
 	if got.DryRun {
 		t.Fatal("Prune().DryRun = true, want false")
 	}
-	if len(got.Pruned) != 1 || !slices.Contains(got.Pruned, completed) {
+	if len(got.Pruned) != 1 || !slices.Contains(got.Pruned, PrunedTask{ID: completed, Title: "t"}) {
 		t.Fatalf("Prune().Pruned = %v, want exactly [%s]", got.Pruned, completed)
 	}
 	if _, err := st.Read(t.Context(), completed); !errors.Is(err, store.ErrTaskNotFound) {
@@ -94,7 +94,7 @@ func TestPruneDryRunKeepsTasks(t *testing.T) {
 	if !got.DryRun {
 		t.Fatal("Prune().DryRun = false, want true")
 	}
-	if len(got.Pruned) != 1 || !slices.Contains(got.Pruned, id) {
+	if len(got.Pruned) != 1 || !slices.Contains(got.Pruned, PrunedTask{ID: id, Title: "t"}) {
 		t.Fatalf("Prune().Pruned = %v, want exactly [%s]", got.Pruned, id)
 	}
 	if _, err := st.Read(t.Context(), id); err != nil {

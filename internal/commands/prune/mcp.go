@@ -17,7 +17,7 @@ func RegisterMCP(server *mcp.Server, st *store.Store) {
 func mcpTool() *mcp.Tool {
 	return &mcp.Tool{
 		Name:         "task_prune",
-		Description:  "Permanently delete every completed task and its event log. With dry-run, report what would be deleted without deleting. Returns the pruned task ids.",
+		Description:  "Permanently delete every completed task and its event log. With dry-run, report what would be deleted without deleting. Returns the pruned task ids and titles.",
 		InputSchema:  utils.SchemaFor[Request](),
 		OutputSchema: utils.SchemaFor[Result](),
 	}

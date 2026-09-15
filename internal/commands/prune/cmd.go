@@ -74,8 +74,8 @@ func renderHuman(cmd *cli.Command, result Result) error {
 	); err != nil {
 		return fmt.Errorf("write output: %w", err)
 	}
-	for _, id := range result.Pruned {
-		if _, err := fmt.Fprintf(cmd.Root().Writer, "  %s\n", id); err != nil {
+	for _, pruned := range result.Pruned {
+		if _, err := fmt.Fprintf(cmd.Root().Writer, "  %s %s\n", pruned.ID, pruned.Title); err != nil {
 			return fmt.Errorf("write output: %w", err)
 		}
 	}
@@ -90,8 +90,8 @@ func renderMarkdown(cmd *cli.Command, result Result) error {
 	if _, err := fmt.Fprintln(cmd.Root().Writer, heading); err != nil {
 		return fmt.Errorf("write output: %w", err)
 	}
-	for _, id := range result.Pruned {
-		if _, err := fmt.Fprintf(cmd.Root().Writer, "- %s\n", id); err != nil {
+	for _, pruned := range result.Pruned {
+		if _, err := fmt.Fprintf(cmd.Root().Writer, "- %s %s\n", pruned.ID, pruned.Title); err != nil {
 			return fmt.Errorf("write output: %w", err)
 		}
 	}

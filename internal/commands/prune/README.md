@@ -7,8 +7,9 @@ whose current state is `completed`. Non-completed tasks - including `abandoned` 
 untouched. A task whose events can no longer be replayed has no knowable state, so it is never
 pruned and the replay error is returned instead.
 
-Deletion is irreversible. The command reports which task ids were pruned (or, with `--dry-run`,
-which *would* be), rendered as JSON (`--json`), Markdown (`--md`), or a plain summary.
+Deletion is irreversible. The command reports which tasks were pruned (or, with `--dry-run`, which
+*would* be) as id-and-title pairs, rendered as JSON (`--json`), Markdown (`--md`), or a plain
+summary.
 
 ## CLI
 
@@ -20,4 +21,4 @@ taskman prune --dry-run
 ## MCP
 
 `task_prune` - takes an optional `dry-run` boolean and returns
-`{"pruned": ["<id>", ...], "dry-run": false}`.
+`{"pruned": [{"id": "<id>", "title": "<title>"}, ...], "dry-run": false}`.
