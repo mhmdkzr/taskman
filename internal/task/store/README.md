@@ -10,8 +10,10 @@ kind, JSON data). The schema is created on `Open`.
 
 ## API
 
-- `Open(path)` - opens (creating if needed) the SQLite database with WAL, a busy timeout, and
-  foreign keys enabled, and ensures the schema exists. `Close` releases it.
+- `Open(ctx, path)` - opens (creating if needed) the SQLite database with WAL, a busy timeout, and
+  foreign keys enabled, and ensures the schema exists. `Close` releases it, logging a close
+  failure at `Error` level before returning it (one-shot commands usually `defer` it, so the
+  error must not be silently dropped).
 - `Create(ctx, id, definition, at)` - inserts a new task seeded at `task.StateSpecify` by
   `task.NewTask`. Returns `ErrTaskAlreadyExists` on a duplicate id.
 - `Read(ctx, id)` - loads the definition, then replays each event through `task.Apply`. Returns

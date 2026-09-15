@@ -32,7 +32,7 @@ func newTestRepo(t *testing.T) string {
 
 func openTestStore(t *testing.T) *store.Store {
 	t.Helper()
-	st, err := store.Open(filepath.Join(t.TempDir(), "tasks.db"))
+	st, err := store.Open(t.Context(), filepath.Join(t.TempDir(), "tasks.db"))
 	if err != nil {
 		t.Fatalf("store.Open() error = %v", err)
 	}

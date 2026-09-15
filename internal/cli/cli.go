@@ -10,12 +10,14 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/urfave/cli/v3"
@@ -37,6 +39,7 @@ import (
 	"github.com/mhmdkzr/taskman/internal/commands/specification"
 	"github.com/mhmdkzr/taskman/internal/commands/specified"
 	"github.com/mhmdkzr/taskman/internal/commands/verified"
+	"github.com/mhmdkzr/taskman/internal/task/store"
 	"github.com/mhmdkzr/taskman/internal/utils"
 	"github.com/mhmdkzr/taskman/internal/web"
 )
@@ -49,9 +52,26 @@ func Run() int {
 
 	if err := rootCommand().Run(ctx, os.Args); err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		return utils.ExitCode(err)
+		return exitCode(err)
 	}
 	return 0
+}
+
+// exitCode maps a command's returned error to a process exit code.
+func exitCode(err error) int {
+	if exitErr, ok := errors.AsType[cli.ExitCoder](err); ok {
+		return exitErr.ExitCode()
+	}
+	// urfave/cli reports an omitted required flag as its unexported
+	// errRequiredFlags, not a cli.ExitCoder, so a missing required input
+	// would otherwise surface as a domain error (exit 1). It is malformed
+	// input, so classify it as exit 2, matching the explicit cli.Exit(..., 2)
+	// checks that back the other required inputs.
+	if err != nil && (strings.HasPrefix(err.Error(), "Required flag ") ||
+		strings.HasPrefix(err.Error(), "Required flags ")) {
+		return 2
+	}
+	return 1
 }
 
 func rootCommand() *cli.Command {
@@ -106,11 +126,15 @@ func rootCommand() *cli.Command {
 			if !cmd.Bool("web") {
 				return cli.ShowRootCommandHelp(cmd)
 			}
-			st, err := utils.StoreFrom(cmd)
+			st, err := store.Open(ctx, cmd.String("db"))
 			if err != nil {
 				return utils.Fail(err)
 			}
-			defer utils.CloseStore(st)
+			defer func() {
+				if err := st.Close(); err != nil {
+					slog.Error("close store", "error", err)
+				}
+			}()
 
 			addr := net.JoinHostPort(cmd.String("host"), strconv.Itoa(cmd.Int("port")))
 			if err := web.NewServer(st).Run(ctx, addr); err != nil {

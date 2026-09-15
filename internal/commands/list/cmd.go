@@ -3,11 +3,14 @@ package list
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/urfave/cli/v3"
 
 	"github.com/mhmdkzr/taskman/internal/task"
-	"github.com/mhmdkzr/taskman/internal/task/view/json"
+	"github.com/mhmdkzr/taskman/internal/task/store"
+	"github.com/mhmdkzr/taskman/internal/task/view"
+	jsonview "github.com/mhmdkzr/taskman/internal/task/view/json"
 	"github.com/mhmdkzr/taskman/internal/utils"
 )
 
@@ -31,22 +34,26 @@ func Command() *cli.Command {
 			if err != nil {
 				return utils.Fail(err)
 			}
-			st, err := utils.StoreFrom(cmd)
+			st, err := store.Open(ctx, cmd.String("db"))
 			if err != nil {
 				return utils.Fail(err)
 			}
-			defer utils.CloseStore(st)
+			defer func() {
+				if err := st.Close(); err != nil {
+					slog.Error("close store", "error", err)
+				}
+			}()
 
 			tasks, total, err := List(ctx, st, req)
 			if err != nil {
 				return utils.Fail(err)
 			}
 			if cmd.Bool("json") {
-				docs := make([]json.Document, 0, len(tasks))
+				docs := make([]jsonview.Document, 0, len(tasks))
 				for _, t := range tasks {
-					docs = append(docs, json.FromTask(t))
+					docs = append(docs, jsonview.FromTask(t))
 				}
-				return utils.PrintJSON(cmd, Result{
+				return view.PrintJSON(cmd, Result{
 					Tasks:  docs,
 					Total:  total,
 					Limit:  req.Limit,
@@ -64,7 +71,7 @@ func Command() *cli.Command {
 							return utils.Fail(err)
 						}
 					}
-					if err := utils.PrintMarkdown(cmd, t); err != nil {
+					if err := view.PrintMarkdown(cmd, t); err != nil {
 						return utils.Fail(err)
 					}
 					continue

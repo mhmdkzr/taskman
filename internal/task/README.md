@@ -8,6 +8,8 @@ its own `At`, supplied by the caller; nothing here reads a clock.
 
 ## Model
 
+- `TaskSummary` (`summary.go`) - the default (non-JSON) CLI summary of a task: a template over
+  `{TaskID, Title, State, Instruction}`, rendered to text by `internal/task/view`.
 - `Task` (`types.go`) - the aggregate. Its current state is derived: `Task.State()` returns the
   last entry of the append-only `StateHistory`, never a separate mutable field.
   `Task.Instruction()` (`instruction.go`) is the pure per-state projection of what should happen

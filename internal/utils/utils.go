@@ -1,78 +1,22 @@
-// Package utils holds the plumbing shared by every taskman CLI command's
-// cmd.go: building a Git client and a store handle from the root flags,
-// parsing repeated flag values, rendering output, and mapping errors to
-// exit codes. It has no dependency on internal/commands or any slice under
-// it, so any of them can import it without a cycle.
+// Package utils holds the plumbing shared by more than one taskman CLI
+// command slice: parsing the --id and repeated flag values, the shared
+// review-gate flag set, MCP JSON Schema inference, and error wrapping. It
+// has no dependency on internal/commands or any slice under it, so any of
+// them can import it without a cycle.
 package utils
 
 import (
-	"embed"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"reflect"
 	"strings"
-	"text/template"
 	"uuid"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/urfave/cli/v3"
 
-	"github.com/mhmdkzr/taskman/internal/git"
 	"github.com/mhmdkzr/taskman/internal/task"
-	"github.com/mhmdkzr/taskman/internal/task/store"
-	jsonview "github.com/mhmdkzr/taskman/internal/task/view/json"
-	mdview "github.com/mhmdkzr/taskman/internal/task/view/md"
 )
-
-//go:embed task_summary.md
-var taskSummaryFile embed.FS
-
-var taskSummaryTmpl = template.Must(template.New("task_summary.md").
-	ParseFS(taskSummaryFile, "task_summary.md"))
-
-// taskSummary is the default (non-JSON) CLI output for any command that
-// returns a Task - the one prompt template genuinely shared by every
-// command slice, so it lives here rather than in any one of them.
-type taskSummary struct {
-	TaskID      string
-	Title       string
-	State       string
-	Instruction string
-}
-
-func (p taskSummary) render() string {
-	var b strings.Builder
-	if err := taskSummaryTmpl.Execute(&b, p); err != nil {
-		panic(fmt.Sprintf("support: render task_summary: %v", err))
-	}
-	return strings.TrimRight(b.String(), "\n")
-}
-
-// GitFrom builds a Git client rooted at the --git-dir root flag.
-func GitFrom(cmd *cli.Command) *git.Client {
-	return git.NewClient(cmd.String("git-dir"))
-}
-
-// StoreFrom opens the task store at the --db root flag. Callers are
-// responsible for closing it.
-func StoreFrom(cmd *cli.Command) (*store.Store, error) {
-	st, err := store.Open(cmd.String("db"))
-	if err != nil {
-		return nil, fmt.Errorf("open store: %w", err)
-	}
-	return st, nil
-}
-
-// CloseStore releases st for a one-shot command. A failure to close the store
-// after the command's result has been produced is not actionable to the
-// caller, so it is logged rather than returned.
-func CloseStore(st *store.Store) {
-	if err := st.Close(); err != nil {
-		slog.Error("close store", "error", err)
-	}
-}
 
 // IDFrom parses the --id flag as a task id.
 func IDFrom(cmd *cli.Command) (uuid.UUID, error) {
@@ -112,22 +56,6 @@ func ParseFindings(pairs []string) ([]task.Finding, error) {
 		findings = append(findings, task.Finding{Location: location, Detail: detail})
 	}
 	return findings, nil
-}
-
-// ParseCheckResult parses a --unit/--integration/--end-to-end/--linters
-// flag's value. An empty value means the check wasn't reported.
-func ParseCheckResult(flag, value string) (task.CheckResult, error) {
-	switch task.CheckResult(value) {
-	case "":
-		return "", nil
-	case task.CheckOK, task.CheckError:
-		return task.CheckResult(value), nil
-	default:
-		return "", cli.Exit(
-			fmt.Sprintf("--%s: value must be %q or %q, got %q", flag, task.CheckOK, task.CheckError, value),
-			2,
-		)
-	}
 }
 
 // ReviewFlags are shared by every command that reports a review gate's
@@ -188,74 +116,10 @@ func SchemaFor[T any]() *jsonschema.Schema {
 	return s
 }
 
-// PrintTask writes t to stdout - the full JSON document behind --json (the
-// task plus its derived state and instruction), the full Markdown document
-// behind --md, a short human-readable summary otherwise. --json and --md are
-// mutually exclusive at the CLI root.
-func PrintTask(cmd *cli.Command, t task.Task) error {
-	switch {
-	case cmd.Bool("json"):
-		return PrintJSON(cmd, jsonview.FromTask(t))
-	case cmd.Bool("md"):
-		return PrintMarkdown(cmd, t)
-	}
-	instruction := t.Instruction()
-	if _, err := fmt.Fprintln(cmd.Root().Writer, taskSummary{
-		TaskID:      t.ID.String(),
-		Title:       t.Definition.Title,
-		State:       t.State().String(),
-		Instruction: fmt.Sprintf("%s (%s)", instruction.Action, instruction.State),
-	}.render()); err != nil {
-		return fmt.Errorf("write output: %w", err)
-	}
-	return nil
-}
-
-// PrintMarkdown writes t to stdout as a Markdown document.
-func PrintMarkdown(cmd *cli.Command, t task.Task) error {
-	doc, err := mdview.RenderTask(t)
-	if err != nil {
-		return fmt.Errorf("render markdown: %w", err)
-	}
-	if _, err := fmt.Fprintln(cmd.Root().Writer, strings.TrimRight(doc, "\n")); err != nil {
-		return fmt.Errorf("write output: %w", err)
-	}
-	return nil
-}
-
-// PrintJSON writes v to stdout as indented JSON.
-func PrintJSON(cmd *cli.Command, v any) error {
-	data, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal json: %w", err)
-	}
-	if _, err := fmt.Fprintln(cmd.Root().Writer, string(data)); err != nil {
-		return fmt.Errorf("write output: %w", err)
-	}
-	return nil
-}
-
-// ExitCode maps a returned error to a process exit code.
-func ExitCode(err error) int {
-	if exitErr, ok := errors.AsType[cli.ExitCoder](err); ok {
-		return exitErr.ExitCode()
-	}
-	// urfave/cli reports an omitted required flag as its unexported
-	// errRequiredFlags, not a cli.ExitCoder, so a missing required input
-	// would otherwise surface as a domain error (exit 1). It is malformed
-	// input, so classify it as exit 2, matching the explicit cli.Exit(..., 2)
-	// checks that back the other required inputs.
-	if err != nil && (strings.HasPrefix(err.Error(), "Required flag ") ||
-		strings.HasPrefix(err.Error(), "Required flags ")) {
-		return 2
-	}
-	return 1
-}
-
 // Fail wraps a domain error into a cli.ExitCoder. Flag-parsing/usage errors
-// (from IDFrom or ParseCheckResult) already carry exit code 2 and are
-// returned unchanged; every other domain error reaching here is a runtime
-// failure, exit code 1.
+// (e.g. from IDFrom or a slice's local flag parsing) already carry exit code
+// 2 and are returned unchanged; every other domain error reaching here is a
+// runtime failure, exit code 1.
 func Fail(err error) error {
 	if exitErr, ok := errors.AsType[cli.ExitCoder](err); ok {
 		return exitErr

@@ -2,9 +2,13 @@ package committed
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/urfave/cli/v3"
 
+	"github.com/mhmdkzr/taskman/internal/git"
+	"github.com/mhmdkzr/taskman/internal/task/store"
+	"github.com/mhmdkzr/taskman/internal/task/view"
 	"github.com/mhmdkzr/taskman/internal/utils"
 )
 
@@ -21,17 +25,21 @@ func Command() *cli.Command {
 			if err != nil {
 				return utils.Fail(err)
 			}
-			st, err := utils.StoreFrom(cmd)
+			st, err := store.Open(ctx, cmd.String("db"))
 			if err != nil {
 				return utils.Fail(err)
 			}
-			defer utils.CloseStore(st)
+			defer func() {
+				if err := st.Close(); err != nil {
+					slog.Error("close store", "error", err)
+				}
+			}()
 
-			t, err := Committed(ctx, st, utils.GitFrom(cmd), Request{ID: id})
+			t, err := Committed(ctx, st, git.NewClient(cmd.String("git-dir")), Request{ID: id})
 			if err != nil {
 				return utils.Fail(err)
 			}
-			return utils.PrintTask(cmd, t)
+			return view.PrintTask(cmd, t)
 		},
 	}
 }

@@ -3,9 +3,12 @@ package prune
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/urfave/cli/v3"
 
+	"github.com/mhmdkzr/taskman/internal/task/store"
+	"github.com/mhmdkzr/taskman/internal/task/view"
 	"github.com/mhmdkzr/taskman/internal/utils"
 )
 
@@ -21,11 +24,15 @@ func Command() *cli.Command {
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			st, err := utils.StoreFrom(cmd)
+			st, err := store.Open(ctx, cmd.String("db"))
 			if err != nil {
 				return utils.Fail(err)
 			}
-			defer utils.CloseStore(st)
+			defer func() {
+				if err := st.Close(); err != nil {
+					slog.Error("close store", "error", err)
+				}
+			}()
 
 			result, err := Prune(ctx, st, Request{DryRun: cmd.Bool("dry-run")})
 			if err != nil {
@@ -36,7 +43,7 @@ func Command() *cli.Command {
 			// three-way output instead of utils.PrintTask.
 			switch {
 			case cmd.Bool("json"):
-				return utils.PrintJSON(cmd, result)
+				return view.PrintJSON(cmd, result)
 			case cmd.Bool("md"):
 				err = renderMarkdown(cmd, result)
 			default:

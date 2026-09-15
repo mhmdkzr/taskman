@@ -49,10 +49,11 @@ call.
 - `internal/task` - the pure functional core: the `Task` aggregate, its append-only
   `StateHistory` (current state is `Task.State()`, its last entry - never a separate mutable
   field), the closed set of `TaskEvent` types, the declarative compiled workflow (`workflow.go`),
-  `Apply`, and `Instruction` (the pure per-state projection of what should happen next). It
-  performs no filesystem, Git, clock, logging, CLI, or MCP operations - every event carries its
-  own `At`, supplied by the caller. `Apply` clones its input before reducing an event, so callers
-  never observe partial mutation.
+  `Apply`, `Instruction` (the pure per-state projection of what should happen next), and
+  `TaskSummary` (`summary.go`, the default CLI prompt template rendered by `internal/task/view`).
+  It performs no filesystem, Git, clock, logging, CLI, or MCP operations - every event carries
+  its own `At`, supplied by the caller. `Apply` clones its input before reducing an event, so
+  callers never observe partial mutation.
 - `internal/task/store` - SQLite-backed, event-sourced persistence (`Store`, opened once via
   `Open`): `Create`, `Read` (replays a task's events through `task.Apply`), `Append` (validates one
   more event via `task.Apply` inside a single transaction before persisting it - a rejected event
@@ -60,10 +61,10 @@ call.
   and its event log by identity, without replaying the log), and `List`.
 - `internal/git` - the imperative Git adapter used by command shells: currently just
   `ReadCommit`, reading a worktree's current commit hash/message.
-- `internal/utils` - CLI-only plumbing shared by every slice's `cmd.go`: building a
-  `*git.Client`/`*store.Store` from root flags, parsing repeated `key=value` flags, rendering
-  output (`--json` envelope, `--md` Markdown document, or human-readable summary), and mapping
-  errors to exit codes.
+ - `internal/utils` - CLI-only plumbing shared by more than one slice: parsing `--id` and
+   repeated `key=value` flags (`IDFrom`, `SplitKV`/`ParseFindings`), the shared review-gate flag
+   set, MCP JSON Schema inference (`SchemaFor`), and error wrapping into exit-code-1 failures
+   (`utils.Fail`). Output rendering lives in `internal/task/view`, not here.
 
 There is no `pkg/`; everything shared lives under `internal/`.
 
@@ -88,15 +89,17 @@ There is no `pkg/`; everything shared lives under `internal/`.
 ## CLI Conventions
 
 - A slice's `cmd.go` `Action` parses flags into the request its domain function expects, opens a
-  `*store.Store` via `utils.StoreFrom` (closed with `defer`), calls the application function,
-  renders success via `internal/utils` (`utils.PrintTask`/`utils.PrintJSON`), and returns errors
-  through `utils.Fail`.
+  `*store.Store` directly via `store.Open(cmd.String("db"))` (closed with `defer st.Close()`,
+  which logs close failures at `Error` level), calls the application function, renders success
+  via `internal/task/view` (`view.PrintTask`/`view.PrintJSON`), and returns errors through
+  `utils.Fail`.
 - Every flag has a `Usage` string written for someone who only has the compiled binary - no
   references to files or paths in this repo. `--id` is always a flag, never a positional
   argument, so the same `Request` struct binds identically for MCP.
-- Slices must not import `internal/cli` (it imports them, so that would cycle) - shared helpers
-  go in `internal/utils`, which depends on `internal/task`, `internal/task/store`, `internal/git`,
-  and `urfave/cli` only.
+- `internal/utils` holds what more than one slice shares (`IDFrom`, `SplitKV`/`ParseFindings`,
+  `ReviewFlags`/`ReviewConfigurationFrom`, `SchemaFor`, `Fail`), and depends on `internal/task`
+  and `urfave/cli` only. Slices must not import `internal/cli` (it imports them, so that
+  would cycle). Helpers used by exactly one slice live in that slice, not in `internal/utils`.
 
 ---
 
@@ -113,8 +116,8 @@ New slices must include a `README.md` file which explains what the slice is, wha
 - Use `errors.Is()` and `errors.AsType[T]()` for error checking and unwrapping.
 - Wrap errors with context using `fmt.Errorf("context: %w", err)` to provide error chains when useful.
 - We almost always should return errors, but if an error is not being explicitly returned, intentionally, the reason should always be explained via a comment and the error **must be logged with `Error` level**. There must be **no silent errors**.
-- CLI slices return errors; the command's `Action` hands them to `utils.Fail`, which maps
-  domain errors to exit codes (see `utils.ExitCode`).
+- CLI slices return errors; the command's `Action` hands them to `utils.Fail`, and
+  `internal/cli` maps the returned error to the process exit code.
 
 ---
 

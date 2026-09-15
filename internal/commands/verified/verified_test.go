@@ -12,7 +12,7 @@ import (
 
 func openTestStore(t *testing.T) *store.Store {
 	t.Helper()
-	st, err := store.Open(filepath.Join(t.TempDir(), "tasks.db"))
+	st, err := store.Open(t.Context(), filepath.Join(t.TempDir(), "tasks.db"))
 	if err != nil {
 		t.Fatalf("store.Open() error = %v", err)
 	}
@@ -78,5 +78,21 @@ func TestVerifiedRejectsNoChecks(t *testing.T) {
 	id := setUpToVerify(t, st)
 	if _, err := Verified(t.Context(), st, Request{ID: id}); err == nil {
 		t.Fatal("Verified() error = nil, want an error for no checks reported")
+	}
+}
+
+func TestParseCheckResult(t *testing.T) {
+	got, err := parseCheckResult("unit", "ok")
+	if err != nil {
+		t.Fatalf("parseCheckResult: %v", err)
+	}
+	if got != task.CheckOK {
+		t.Fatalf("got %q, want %q", got, task.CheckOK)
+	}
+	if got, err := parseCheckResult("unit", ""); err != nil || got != "" {
+		t.Fatalf("empty value: got (%q, %v), want (\"\", nil)", got, err)
+	}
+	if _, err := parseCheckResult("unit", "maybe"); err == nil {
+		t.Fatal("invalid value: want error")
 	}
 }

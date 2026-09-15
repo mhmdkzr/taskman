@@ -1,5 +1,5 @@
 // Package next owns the "next" command: it reads a task and reports what
-// should happen next as actionable guidance - a rendered message plus the
+// should happen next as actionable instructions - a rendered message plus the
 // command(s) that report the outcome - rather than the bare
 // task.Instruction projection get already exposes.
 package next
@@ -18,15 +18,15 @@ import (
 	"github.com/mhmdkzr/taskman/internal/task/store"
 )
 
-//go:embed guidance.md
-var guidanceTemplate string
+//go:embed instructions.md
+var instructionsTemplate string
 
-var tpl = tmpl.Must(tmpl.New("guidance.md").Parse(guidanceTemplate))
+var tpl = tmpl.Must(tmpl.New("instructions.md").Parse(instructionsTemplate))
 
-// Guidance is next's output: the workflow's current instruction for a task,
+// Instructions is next's output: the workflow's current instruction for a task,
 // rendered as a message for whichever caller (human or agent) is meant to
 // act on it, plus the command(s) that would currently report an outcome.
-type Guidance struct {
+type Instructions struct {
 	TaskID   uuid.UUID              `json:"task_id"`
 	State    task.TaskState         `json:"state"`
 	Action   task.InstructionAction `json:"action"`
@@ -47,20 +47,20 @@ func (r Request) validate() error {
 }
 
 // Next reports what should happen next for req's task.
-func Next(ctx context.Context, st *store.Store, req Request) (Guidance, error) {
+func Next(ctx context.Context, st *store.Store, req Request) (Instructions, error) {
 	if err := req.validate(); err != nil {
-		return Guidance{}, fmt.Errorf("next: %w", err)
+		return Instructions{}, fmt.Errorf("next: %w", err)
 	}
 	t, err := st.Read(ctx, req.ID)
 	if err != nil {
-		return Guidance{}, fmt.Errorf("next: %w", err)
+		return Instructions{}, fmt.Errorf("next: %w", err)
 	}
 	instruction := t.Instruction()
 	message, err := renderMessage(t, instruction)
 	if err != nil {
-		return Guidance{}, fmt.Errorf("next: %w", err)
+		return Instructions{}, fmt.Errorf("next: %w", err)
 	}
-	return Guidance{
+	return Instructions{
 		TaskID:   t.ID,
 		State:    instruction.State,
 		Action:   instruction.Action,
@@ -69,7 +69,7 @@ func Next(ctx context.Context, st *store.Store, req Request) (Guidance, error) {
 	}, nil
 }
 
-// view is the data guidance.md's per-state templates render against.
+// view is the data instructions.md's per-state templates render against.
 type view struct {
 	Task   task.Task
 	Reason string
@@ -124,14 +124,14 @@ func renderMessage(t task.Task, instruction task.Instruction) (string, error) {
 	var buf bytes.Buffer
 	data := view{Task: t, Reason: reasonFor(t, instruction.State)}
 	if err := tpl.ExecuteTemplate(&buf, string(instruction.State), data); err != nil {
-		return "", fmt.Errorf("render guidance: %w", err)
+		return "", fmt.Errorf("render instructions: %w", err)
 	}
 	return strings.TrimSpace(buf.String()), nil
 }
 
 // reasonFor explains why a "fix" state was reached - the failure or
 // rejection its dispatched agent needs to address. Every other state's
-// guidance is self-explanatory from the task alone.
+// instructions is self-explanatory from the task alone.
 func reasonFor(t task.Task, state task.TaskState) string {
 	switch state {
 	case task.StateFixVerificationFailure:

@@ -19,15 +19,15 @@ func mcpTool() *mcp.Tool {
 		Name:         "task_next",
 		Description:  "Show what should happen next for a task, and the command(s) that report it.",
 		InputSchema:  utils.SchemaFor[Request](),
-		OutputSchema: utils.SchemaFor[Guidance](),
+		OutputSchema: utils.SchemaFor[Instructions](),
 	}
 }
 
-func mcpHandler(st *store.Store) mcp.ToolHandlerFor[Request, Guidance] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, req Request) (*mcp.CallToolResult, Guidance, error) {
+func mcpHandler(st *store.Store) mcp.ToolHandlerFor[Request, Instructions] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, req Request) (*mcp.CallToolResult, Instructions, error) {
 		guidance, err := Next(ctx, st, req)
 		if err != nil {
-			return nil, Guidance{}, err
+			return nil, Instructions{}, err
 		}
 		return nil, guidance, nil
 	}

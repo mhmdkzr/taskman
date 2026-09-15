@@ -2,12 +2,32 @@ package verified
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 
 	"github.com/urfave/cli/v3"
 
 	"github.com/mhmdkzr/taskman/internal/task"
+	"github.com/mhmdkzr/taskman/internal/task/store"
+	"github.com/mhmdkzr/taskman/internal/task/view"
 	"github.com/mhmdkzr/taskman/internal/utils"
 )
+
+// parseCheckResult parses a --unit/--integration/--end-to-end/--linters
+// flag's value. An empty value means the check wasn't reported.
+func parseCheckResult(flag, value string) (task.CheckResult, error) {
+	switch task.CheckResult(value) {
+	case "":
+		return "", nil
+	case task.CheckOK, task.CheckError:
+		return task.CheckResult(value), nil
+	default:
+		return "", cli.Exit(
+			fmt.Sprintf("--%s: value must be %q or %q, got %q", flag, task.CheckOK, task.CheckError, value),
+			2,
+		)
+	}
+}
 
 // Command returns the "verified" command.
 func Command() *cli.Command {
@@ -37,24 +57,28 @@ func Command() *cli.Command {
 				{"end-to-end", &checks.EndToEnd},
 				{"linters", &checks.Linters},
 			} {
-				result, err := utils.ParseCheckResult(c.flag, cmd.String(c.flag))
+				result, err := parseCheckResult(c.flag, cmd.String(c.flag))
 				if err != nil {
-					return utils.Fail(err)
+					return err
 				}
 				*c.dest = result
 			}
 
-			st, err := utils.StoreFrom(cmd)
+			st, err := store.Open(ctx, cmd.String("db"))
 			if err != nil {
 				return utils.Fail(err)
 			}
-			defer utils.CloseStore(st)
+			defer func() {
+				if err := st.Close(); err != nil {
+					slog.Error("close store", "error", err)
+				}
+			}()
 
 			t, err := Verified(ctx, st, Request{ID: id, Checks: checks, Output: cmd.String("output")})
 			if err != nil {
 				return utils.Fail(err)
 			}
-			return utils.PrintTask(cmd, t)
+			return view.PrintTask(cmd, t)
 		},
 	}
 }

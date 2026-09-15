@@ -3,9 +3,12 @@ package next
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/urfave/cli/v3"
 
+	"github.com/mhmdkzr/taskman/internal/task/store"
+	taskview "github.com/mhmdkzr/taskman/internal/task/view"
 	"github.com/mhmdkzr/taskman/internal/utils"
 )
 
@@ -22,11 +25,15 @@ func Command() *cli.Command {
 			if err != nil {
 				return utils.Fail(err)
 			}
-			st, err := utils.StoreFrom(cmd)
+			st, err := store.Open(ctx, cmd.String("db"))
 			if err != nil {
 				return utils.Fail(err)
 			}
-			defer utils.CloseStore(st)
+			defer func() {
+				if err := st.Close(); err != nil {
+					slog.Error("close store", "error", err)
+				}
+			}()
 
 			guidance, err := Next(ctx, st, Request{ID: id})
 			if err != nil {
@@ -37,9 +44,9 @@ func Command() *cli.Command {
 	}
 }
 
-func printGuidance(cmd *cli.Command, guidance Guidance) error {
+func printGuidance(cmd *cli.Command, guidance Instructions) error {
 	if cmd.Bool("json") {
-		if err := utils.PrintJSON(cmd, guidance); err != nil {
+		if err := taskview.PrintJSON(cmd, guidance); err != nil {
 			return fmt.Errorf("print guidance: %w", err)
 		}
 		return nil

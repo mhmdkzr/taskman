@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/mhmdkzr/taskman/internal/task"
 	jsonview "github.com/mhmdkzr/taskman/internal/task/view/json"
-	"github.com/mhmdkzr/taskman/internal/utils"
 )
 
 func TestMain(m *testing.M) {
@@ -221,7 +221,7 @@ func TestCLIMissingRequiredFlagExitsTwo(t *testing.T) {
 		if err == nil {
 			t.Fatalf("taskman %v: error = nil, want a missing-required-flag error", args)
 		}
-		if got := utils.ExitCode(err); got != 2 {
+		if got := exitCode(err); got != 2 {
 			t.Fatalf("taskman %v: ExitCode = %d, want 2 (malformed input)", args, got)
 		}
 	}
@@ -288,7 +288,7 @@ func TestCLIListRejectsUnknownState(t *testing.T) {
 	if err == nil {
 		t.Fatal("list --state bogus: want error, got nil")
 	}
-	if got := utils.ExitCode(err); got != 2 {
+	if got := exitCode(err); got != 2 {
 		t.Fatalf("list --state bogus: ExitCode = %d, want 2 (malformed input)", got)
 	}
 }
@@ -301,7 +301,7 @@ func TestCLIHostRequiresWeb(t *testing.T) {
 	if err == nil {
 		t.Fatal("--host without --web: want error, got nil")
 	}
-	if got := utils.ExitCode(err); got != 2 {
+	if got := exitCode(err); got != 2 {
 		t.Fatalf("--host without --web: ExitCode = %d, want 2 (malformed input)", got)
 	}
 }
@@ -409,7 +409,7 @@ func TestCLIJSONAndMDConflict(t *testing.T) {
 	if err == nil {
 		t.Fatal("--json with --md: want error, got nil")
 	}
-	if got := utils.ExitCode(err); got != 2 {
+	if got := exitCode(err); got != 2 {
 		t.Fatalf("--json with --md: ExitCode = %d, want 2 (malformed input)", got)
 	}
 }
@@ -443,4 +443,13 @@ func listTasks(t *testing.T, gitDir, dbPath string, args ...string) []jsonview.D
 		t.Fatalf("unmarshal: %v\noutput:\n%s", err, out)
 	}
 	return result.Tasks
+}
+
+func TestExitCodeMapsErrorsToExitCodes(t *testing.T) {
+	if got := exitCode(errors.New("boom")); got != 1 {
+		t.Errorf("domain error exit = %d, want 1", got)
+	}
+	if got := exitCode(cli.Exit("bad flag", 2)); got != 2 {
+		t.Errorf("flag error exit = %d, want 2", got)
+	}
 }

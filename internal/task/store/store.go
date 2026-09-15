@@ -48,7 +48,7 @@ type Store struct {
 
 // Open opens (creating if needed) the SQLite database at path and ensures
 // its schema exists.
-func Open(path string) (*Store, error) {
+func Open(ctx context.Context, path string) (*Store, error) {
 	dsn := path + "?" + url.Values{
 		"_journal_mode": {"WAL"},
 		"_busy_timeout": {"5000"},
@@ -59,7 +59,7 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open store: %w", err)
 	}
-	if _, err := db.ExecContext(context.Background(), schema); err != nil {
+	if _, err := db.ExecContext(ctx, schema); err != nil {
 		//nolint:errcheck // the migrate failure is returned; this close is best-effort cleanup.
 		_ = db.Close()
 		return nil, fmt.Errorf("migrate store: %w", err)
