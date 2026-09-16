@@ -14,6 +14,7 @@ const (
 	EventMergeCompleted          EventKind = "merge_completed"
 	EventEscalated               EventKind = "escalated"
 	EventAbandoned               EventKind = "abandoned"
+	EventUnblocked               EventKind = "unblocked"
 
 	// EventSpecificationReviewAgentApproved is the first of the four review
 	// gates' own event kinds - stage (specification/implementation) x reviewer
@@ -86,6 +87,17 @@ type Abandoned struct {
 	At     time.Time `json:"at"`
 }
 
+// Unblocked resumes a blocked task at the state it occupied immediately
+// before it became blocked. Rounds grants that many additional auto-fix
+// rounds to the gate named by the task's current Blockage.Stage; it is
+// required (> 0) when that stage is one of the auto-fix gates and rejected
+// otherwise (an escalation-caused blockage has no budget to grant against).
+type Unblocked struct {
+	Reason string    `json:"reason"`
+	Rounds int       `json:"rounds,omitempty"`
+	At     time.Time `json:"at"`
+}
+
 type SpecificationReviewAgentApproved struct {
 	Comment string    `json:"comment,omitempty"`
 	At      time.Time `json:"at"`
@@ -134,6 +146,7 @@ func (e CommitRecorded) Kind() EventKind          { return EventCommitRecorded }
 func (e MergeCompleted) Kind() EventKind          { return EventMergeCompleted }
 func (e Escalated) Kind() EventKind               { return EventEscalated }
 func (e Abandoned) Kind() EventKind               { return EventAbandoned }
+func (e Unblocked) Kind() EventKind               { return EventUnblocked }
 func (e SpecificationReviewAgentApproved) Kind() EventKind {
 	return EventSpecificationReviewAgentApproved
 }
@@ -174,6 +187,7 @@ func (e CommitRecorded) OccurredAt() time.Time                    { return e.At 
 func (e MergeCompleted) OccurredAt() time.Time                    { return e.At }
 func (e Escalated) OccurredAt() time.Time                         { return e.At }
 func (e Abandoned) OccurredAt() time.Time                         { return e.At }
+func (e Unblocked) OccurredAt() time.Time                         { return e.At }
 func (e SpecificationReviewAgentApproved) OccurredAt() time.Time  { return e.At }
 func (e SpecificationReviewAgentRejected) OccurredAt() time.Time  { return e.At }
 func (e SpecificationReviewHumanApproved) OccurredAt() time.Time  { return e.At }

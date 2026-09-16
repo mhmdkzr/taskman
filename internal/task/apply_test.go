@@ -182,6 +182,30 @@ func TestApplyEscalationAndAbandonment(t *testing.T) {
 	}
 }
 
+func TestApplyUnblockResumesEscalation(t *testing.T) {
+	now := time.Now().UTC()
+	tsk := newTask(t, now)
+
+	tsk = apply(t, tsk, Escalated{Stage: "definition", Reason: "waiting on input", At: now})
+	requireState(t, tsk, StateBlocked)
+
+	tsk = apply(t, tsk, Unblocked{Reason: "input received", At: now})
+	requireState(t, tsk, StateSpecify)
+	if tsk.Blocked != nil {
+		t.Fatal("Blocked should be cleared once unblocked")
+	}
+}
+
+func TestApplyUnblockRejectsRoundsForEscalation(t *testing.T) {
+	now := time.Now().UTC()
+	tsk := newTask(t, now)
+	tsk = apply(t, tsk, Escalated{Stage: "definition", Reason: "waiting on input", At: now})
+
+	if _, err := Apply(tsk, Unblocked{Reason: "input received", Rounds: 1, At: now}); err == nil {
+		t.Fatal("Apply() error = nil, want an error granting rounds to an escalation blockage")
+	}
+}
+
 func TestApplyRejectsInvalidTransitions(t *testing.T) {
 	now := time.Now().UTC()
 
@@ -254,6 +278,11 @@ func TestApplyRejectsInvalidTransitions(t *testing.T) {
 			name:    "escalate while already blocked",
 			current: blocked,
 			event:   Escalated{Stage: "definition", Reason: "again", At: now},
+		},
+		{
+			name:    "unblock while not blocked",
+			current: newTask(t, now),
+			event:   Unblocked{Reason: "fixed", At: now},
 		},
 	}
 	for _, tc := range tests {
@@ -343,6 +372,11 @@ func TestApplyRejectsInvalidEventPayloads(t *testing.T) {
 			name:    "abandoned without a reason",
 			current: newTask(t, now),
 			event:   Abandoned{Reason: "", At: now},
+		},
+		{
+			name:    "unblocked without a reason",
+			current: apply(t, newTask(t, now), Escalated{Stage: "definition", Reason: "stuck", At: now}),
+			event:   Unblocked{Reason: "", At: now},
 		},
 	}
 	for _, tc := range tests {
@@ -469,6 +503,7 @@ func TestReducersRejectMismatchedEventPayload(t *testing.T) {
 		{"recordMerge", recordMerge, Abandoned{}},
 		{"recordEscalation", recordEscalation, Abandoned{}},
 		{"recordAbandonment", recordAbandonment, Escalated{}},
+		{"recordUnblock", recordUnblock, Escalated{}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

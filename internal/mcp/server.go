@@ -24,6 +24,7 @@ import (
 	specificationreviewhumanapproved "github.com/mhmdkzr/taskman/internal/commands/specification/review/human/approved"
 	specificationreviewhumanrejected "github.com/mhmdkzr/taskman/internal/commands/specification/review/human/rejected"
 	"github.com/mhmdkzr/taskman/internal/commands/specified"
+	"github.com/mhmdkzr/taskman/internal/commands/unblocked"
 	"github.com/mhmdkzr/taskman/internal/commands/verified"
 	"github.com/mhmdkzr/taskman/internal/git"
 	"github.com/mhmdkzr/taskman/internal/task/store"
@@ -57,6 +58,7 @@ func NewServer(st *store.Store, gitClient *git.Client) *mcp.Server {
 	merged.RegisterMCP(server, st, gitClient)
 	escalated.RegisterMCP(server, st)
 	abandoned.RegisterMCP(server, st)
+	unblocked.RegisterMCP(server, st)
 	delete.RegisterMCP(server, st)
 	prune.RegisterMCP(server, st)
 

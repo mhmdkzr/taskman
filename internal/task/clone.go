@@ -24,6 +24,7 @@ func (t Task) Clone() Task {
 		// VerificationResult.Checks is a plain struct (no maps/pointers), so
 		// copying the slice's elements is already a full copy.
 		impl.Verification.Attempts = append([]VerificationResult(nil), t.Implementation.Verification.Attempts...)
+		impl.Verification.Unblocks = append([]Unblock(nil), t.Implementation.Verification.Unblocks...)
 		impl.Review = t.Implementation.Review.clone()
 		out.Implementation = &impl
 	}
@@ -47,6 +48,8 @@ func (r ReviewConfiguration) clone() ReviewConfiguration {
 			out.Agent.Results[i].Findings = append([]Finding(nil), result.Findings...)
 		}
 	}
+	out.Agent.Unblocks = append([]Unblock(nil), r.Agent.Unblocks...)
 	out.Human.Results = append([]HumanReviewResult(nil), r.Human.Results...)
+	out.Human.Unblocks = append([]Unblock(nil), r.Human.Unblocks...)
 	return out
 }

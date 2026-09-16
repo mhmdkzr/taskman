@@ -37,6 +37,7 @@ import (
 	"github.com/mhmdkzr/taskman/internal/commands/skill"
 	"github.com/mhmdkzr/taskman/internal/commands/specification"
 	"github.com/mhmdkzr/taskman/internal/commands/specified"
+	"github.com/mhmdkzr/taskman/internal/commands/unblocked"
 	"github.com/mhmdkzr/taskman/internal/commands/verified"
 	"github.com/mhmdkzr/taskman/internal/task/store"
 	"github.com/mhmdkzr/taskman/internal/utils"
@@ -157,6 +158,7 @@ func commands() []*cli.Command {
 		merged.Command(),
 		escalated.Command(),
 		abandoned.Command(),
+		unblocked.Command(),
 		delete.Command(),
 		get.Command(),
 		list.Command(),

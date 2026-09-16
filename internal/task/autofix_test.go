@@ -36,6 +36,49 @@ func TestAutoFixStopsVerificationAfterMaxRounds(t *testing.T) {
 	}
 }
 
+func TestUnblockGrantsAdditionalVerificationRounds(t *testing.T) {
+	now := time.Now().UTC()
+	tsk := implementedToVerify(t, Implementation{
+		Verification: Verification{
+			Tests:   TestConfiguration{Unit: true},
+			AutoFix: AutoFix{Enabled: true, MaxRounds: 1},
+		},
+	})
+
+	tsk = apply(t, tsk, VerificationFailed{Checks: Checks{Unit: CheckError}, At: now})
+	requireState(t, tsk, StateFixVerificationFailure)
+	tsk = apply(t, tsk, VerificationFailed{Checks: Checks{Unit: CheckError}, At: now})
+	requireState(t, tsk, StateBlocked)
+
+	// Granting 2 more rounds raises the effective budget from 1 to 3: the
+	// task resumes where it left off, survives one more failure (3rd,
+	// within budget), then re-blocks once that raised budget is spent too.
+	tsk = apply(t, tsk, Unblocked{Reason: "granting more rounds", Rounds: 2, At: now})
+	requireState(t, tsk, StateFixVerificationFailure)
+
+	tsk = apply(t, tsk, VerificationFailed{Checks: Checks{Unit: CheckError}, At: now})
+	requireState(t, tsk, StateFixVerificationFailure)
+	tsk = apply(t, tsk, VerificationFailed{Checks: Checks{Unit: CheckError}, At: now})
+	requireState(t, tsk, StateBlocked)
+}
+
+func TestUnblockRejectsZeroRoundsForBudgetBlockage(t *testing.T) {
+	now := time.Now().UTC()
+	tsk := implementedToVerify(t, Implementation{
+		Verification: Verification{
+			Tests:   TestConfiguration{Unit: true},
+			AutoFix: AutoFix{Enabled: true, MaxRounds: 1},
+		},
+	})
+	tsk = apply(t, tsk, VerificationFailed{Checks: Checks{Unit: CheckError}, At: now})
+	tsk = apply(t, tsk, VerificationFailed{Checks: Checks{Unit: CheckError}, At: now})
+	requireState(t, tsk, StateBlocked)
+
+	if _, err := Apply(tsk, Unblocked{Reason: "resuming", At: now}); err == nil {
+		t.Fatal("Apply() error = nil, want an error resuming a budget block without a round grant")
+	}
+}
+
 func TestAutoFixWithUnlimitedRoundsNeverBlocks(t *testing.T) {
 	now := time.Now().UTC()
 	tsk := implementedToVerify(t, Implementation{

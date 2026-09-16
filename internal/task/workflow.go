@@ -1,5 +1,7 @@
 package task
 
+import "fmt"
+
 // workflow is the single compiled source of truth for both Apply's
 // transitions and Instruction's per-state projection.
 var workflow = definition{
@@ -189,6 +191,12 @@ var workflow = definition{
 				State:  StateBlocked,
 				Action: InstructionWait,
 			},
+			on: map[EventKind]transition{
+				EventUnblocked: {
+					reduce:  recordUnblock,
+					resolve: resumeToPriorState,
+				},
+			},
 		},
 		StateCompleted: {
 			instruction: Instruction{
@@ -261,4 +269,18 @@ func taskIsNotBlocked(t Task, _ TaskEvent) bool {
 // escape route that stops a fix loop once its auto-fix budget is exhausted.
 func isBlocked(t Task, _ TaskEvent) bool {
 	return t.Blocked != nil
+}
+
+// resumeToPriorState resolves an Unblocked event's destination as the state
+// the task occupied immediately before it became blocked: the StateHistory
+// entry preceding the current (Blocked) one. Blocked is only ever entered
+// from exactly one place at a time - escalation guards against re-blocking
+// an already-blocked task, and the auto-fix routes only fire from active fix
+// states, never from StateBlocked itself - so that preceding entry is always
+// the correct resume point.
+func resumeToPriorState(next Task, _ TaskEvent) (TaskState, error) {
+	if len(next.StateHistory) < 2 {
+		return "", fmt.Errorf("resume: %w: no prior state to resume to", errMissingTaskData)
+	}
+	return next.StateHistory[len(next.StateHistory)-2].State, nil
 }

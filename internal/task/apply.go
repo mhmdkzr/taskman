@@ -148,8 +148,8 @@ func recordVerificationFailed(t *Task, event TaskEvent) error {
 	// its own gate's budget is charged when that review rejects.
 	switch t.State() { //nolint:exhaustive // only the verification loop's own states charge its budget.
 	case StateVerify, StateFixVerificationFailure:
-		markAutoFixBudgetExhausted(t, "verification",
-			t.Implementation.Verification.AutoFix, failedVerificationCount(t))
+		markAutoFixBudgetExhausted(t, StageVerification,
+			t.Implementation.Verification.AutoFix, t.Implementation.Verification.Unblocks, failedVerificationCount(t))
 	}
 	return nil
 }
@@ -175,8 +175,8 @@ func recordImplementationReviewAgentRejected(t *Task, event TaskEvent) error {
 		t.Implementation.Review.Agent.Results,
 		AgentReviewResult{Findings: append([]Finding(nil), reported.Findings...), At: reported.At},
 	)
-	markAutoFixBudgetExhausted(t, "automated review",
-		t.Implementation.Review.Agent.AutoFix, rejectedAgentReviewCount(t))
+	markAutoFixBudgetExhausted(t, StageAutomatedReview,
+		t.Implementation.Review.Agent.AutoFix, t.Implementation.Review.Agent.Unblocks, rejectedAgentReviewCount(t))
 	return nil
 }
 
@@ -210,8 +210,8 @@ func recordImplementationReviewHumanRejected(t *Task, event TaskEvent) error {
 		t.Implementation.Review.Human.Results,
 		HumanReviewResult{Comment: reported.Reason, At: reported.At},
 	)
-	markAutoFixBudgetExhausted(t, "human review",
-		t.Implementation.Review.Human.AutoFix, rejectedHumanReviewCount(t))
+	markAutoFixBudgetExhausted(t, StageHumanReview,
+		t.Implementation.Review.Human.AutoFix, t.Implementation.Review.Human.Unblocks, rejectedHumanReviewCount(t))
 	return nil
 }
 
@@ -246,5 +246,45 @@ func recordAbandonment(t *Task, event TaskEvent) error {
 	}
 	t.Blocked = nil
 	t.Abandoned = &Abandonment{Reason: reported.Reason, At: reported.At}
+	return nil
+}
+
+// recordUnblock clears t's Blockage and, for a budget-exhaustion blockage,
+// grants Rounds additional auto-fix rounds to the gate named by
+// t.Blocked.Stage. Rounds must be positive for a budget-exhaustion blockage
+// (a zero grant would just resume and immediately re-block on the next
+// failure) and must be absent for an escalation-caused blockage, which has
+// no budget to grant against.
+func recordUnblock(t *Task, event TaskEvent) error {
+	reported, ok := event.(Unblocked)
+	if !ok || reported.Reason == "" {
+		return errInvalidEventPayload
+	}
+	switch t.Blocked.Stage {
+	case StageVerification:
+		if reported.Rounds <= 0 {
+			return fmt.Errorf("record unblock: rounds must be greater than zero to resume a verification budget block")
+		}
+		t.Implementation.Verification.Unblocks = append(t.Implementation.Verification.Unblocks,
+			Unblock{Rounds: reported.Rounds, Reason: reported.Reason, At: reported.At})
+	case StageAutomatedReview:
+		if reported.Rounds <= 0 {
+			return fmt.Errorf("record unblock: rounds must be greater than zero to resume an automated review " +
+				"budget block")
+		}
+		t.Implementation.Review.Agent.Unblocks = append(t.Implementation.Review.Agent.Unblocks,
+			Unblock{Rounds: reported.Rounds, Reason: reported.Reason, At: reported.At})
+	case StageHumanReview:
+		if reported.Rounds <= 0 {
+			return fmt.Errorf("record unblock: rounds must be greater than zero to resume a human review budget block")
+		}
+		t.Implementation.Review.Human.Unblocks = append(t.Implementation.Review.Human.Unblocks,
+			Unblock{Rounds: reported.Rounds, Reason: reported.Reason, At: reported.At})
+	default:
+		if reported.Rounds != 0 {
+			return fmt.Errorf("record unblock: rounds are not applicable to an escalation-caused blockage")
+		}
+	}
+	t.Blocked = nil
 	return nil
 }

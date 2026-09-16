@@ -36,6 +36,7 @@ var commandNames = map[task.EventKind]string{
 		"[--comment <text>]",
 	task.EventImplementationReviewHumanRejected: "implementation review human rejected --id %s --reason <text>",
 	task.EventMergeCompleted:                    "merged --id %s --target <branch>",
+	task.EventUnblocked:                         "unblocked --id %s --reason <text> [--rounds <n>]",
 }
 
 // CommandsFor lists every command that would currently be accepted for t,

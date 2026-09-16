@@ -105,6 +105,10 @@ verification attempt; a rejected specification returns to `specify` for revision
 - `abandoned` ends a task unsuccessfully from any non-terminal state, with a free-text reason
   (there is no separate "kind" of failure to pick from - infeasible, no-longer-needed, superseded,
   etc. are all just what you write in `--reason`).
+- `unblocked` resumes a blocked task at whatever state it occupied right before it blocked. For a
+  budget-exhaustion blockage, `--rounds` must grant more auto-fix rounds to the exhausted gate
+  (required, `> 0` - resuming without one just re-blocks on the next failure); for an
+  `escalated` blockage `--rounds` must be omitted, since there is no budget to grant.
 
 ## Git safety
 
@@ -145,6 +149,7 @@ clean them up yourself (Taskman does not): `git worktree remove <worktree-path>`
 | `merged --id <id> --target <branch>` | Read and record a merge already performed into `target`. |
 | `escalated --id <id> --stage <text> --reason <text>` | Block the task after dispatched work gives up. |
 | `abandoned --id <id> --reason <text>` | End the task unsuccessfully; a human-authorized decision. |
+| `unblocked --id <id> --reason <text> [--rounds <n>]` | Resume a blocked task, granting more auto-fix rounds for a budget-exhaustion blockage. |
 
 Verification checks are declared at `implemented`; a task that declares none skips `verify`
 entirely (but any review gate forces at least one check). When `verify` is reached, report every

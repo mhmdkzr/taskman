@@ -58,6 +58,8 @@ func decodeEvent(kind task.EventKind, data []byte) (task.TaskEvent, error) {
 		return decodeAs[task.Escalated](data)
 	case task.EventAbandoned:
 		return decodeAs[task.Abandoned](data)
+	case task.EventUnblocked:
+		return decodeAs[task.Unblocked](data)
 	default:
 		return nil, fmt.Errorf("%w: unknown event kind %q", errCorruptLog, kind)
 	}

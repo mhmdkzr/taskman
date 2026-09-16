@@ -100,6 +100,7 @@ type Verification struct {
 	Linters  bool                 `json:"linters,omitempty"  yaml:"linters,omitempty"`
 	AutoFix  AutoFix              `json:"auto-fix"           yaml:"auto-fix"`
 	Attempts []VerificationResult `json:"attempts,omitempty" yaml:"attempts,omitempty"`
+	Unblocks []Unblock            `json:"unblocks,omitempty" yaml:"unblocks,omitempty"`
 }
 
 // validate enforces the implementation's configuration invariants. The key
@@ -127,7 +128,7 @@ func (v Verification) required() bool {
 
 func (v Verification) validate() error {
 	if !v.required() {
-		if v.AutoFix != (AutoFix{}) || len(v.Attempts) > 0 {
+		if v.AutoFix != (AutoFix{}) || len(v.Attempts) > 0 || len(v.Unblocks) > 0 {
 			return fmt.Errorf("verification is not required but has configuration or attempts")
 		}
 		return nil
@@ -222,13 +223,14 @@ type AgentReviewConfiguration struct {
 	UseSubagent bool                `json:"use-subagent,omitempty" yaml:"use-subagent,omitempty"`
 	AutoFix     AutoFix             `json:"auto-fix"               yaml:"auto-fix"`
 	Results     []AgentReviewResult `json:"results,omitempty"      yaml:"results,omitempty"`
+	Unblocks    []Unblock           `json:"unblocks,omitempty"     yaml:"unblocks,omitempty"`
 }
 
 func (a AgentReviewConfiguration) validate() error {
 	if a.Required {
 		return nil
 	}
-	if a.UseSubagent || a.AutoFix != (AutoFix{}) || len(a.Results) > 0 {
+	if a.UseSubagent || a.AutoFix != (AutoFix{}) || len(a.Results) > 0 || len(a.Unblocks) > 0 {
 		return fmt.Errorf("not required but has configuration or results")
 	}
 	return nil
@@ -237,16 +239,17 @@ func (a AgentReviewConfiguration) validate() error {
 // HumanReviewConfiguration is the gate for one human-review stage. See
 // AgentReviewConfiguration for the meaning of Required.
 type HumanReviewConfiguration struct {
-	Required bool                `json:"required"          yaml:"required"`
-	AutoFix  AutoFix             `json:"auto-fix"          yaml:"auto-fix"`
-	Results  []HumanReviewResult `json:"results,omitempty" yaml:"results,omitempty"`
+	Required bool                `json:"required"           yaml:"required"`
+	AutoFix  AutoFix             `json:"auto-fix"           yaml:"auto-fix"`
+	Results  []HumanReviewResult `json:"results,omitempty"  yaml:"results,omitempty"`
+	Unblocks []Unblock           `json:"unblocks,omitempty" yaml:"unblocks,omitempty"`
 }
 
 func (h HumanReviewConfiguration) validate() error {
 	if h.Required {
 		return nil
 	}
-	if h.AutoFix != (AutoFix{}) || len(h.Results) > 0 {
+	if h.AutoFix != (AutoFix{}) || len(h.Results) > 0 || len(h.Unblocks) > 0 {
 		return fmt.Errorf("not required but has configuration or results")
 	}
 	return nil
@@ -290,6 +293,18 @@ type AutoFix struct {
 	Enabled     bool `json:"enabled"                yaml:"enabled"`
 	MaxRounds   int  `json:"max-rounds,omitempty"   yaml:"max-rounds,omitempty"`
 	UseSubagent bool `json:"use-subagent,omitempty" yaml:"use-subagent,omitempty"`
+}
+
+// Unblock is one grant of additional auto-fix rounds recorded against a
+// gate's budget after it blocked the task. It never mutates AutoFix's own
+// MaxRounds; the gate's effective budget is MaxRounds plus the sum of
+// granted Rounds (see effectiveMaxRounds in autofix.go) - consistent with
+// every other outcome here being derived by replaying appended history
+// rather than stored as mutable state.
+type Unblock struct {
+	Rounds int       `json:"rounds" yaml:"rounds"`
+	Reason string    `json:"reason" yaml:"reason"`
+	At     time.Time `json:"at"     yaml:"at"`
 }
 
 // NewTask constructs a task in the initial specify state.

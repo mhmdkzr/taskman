@@ -193,6 +193,30 @@ func TestCLIInvalidTransitionExitsNonZero(t *testing.T) {
 	}
 }
 
+func TestCLIEscalateAndUnblock(t *testing.T) {
+	dir := newTestRepo(t)
+	db := filepath.Join(dir, "tasks.db")
+	runTaskman(t, dir, db, "create", "--description", "x", "--title", "Title")
+	id := onlyTaskID(t, dir, db)
+
+	runTaskman(t, dir, db, "escalated", "--id", id, "--stage", "definition", "--reason", "waiting on input")
+	blocked := getTaskJSON(t, dir, db, id)
+	if blocked.State() != task.StateBlocked {
+		t.Fatalf("state after escalated = %v, want blocked", blocked.State())
+	}
+
+	runTaskman(t, dir, db, "unblocked", "--id", id, "--reason", "input received")
+	resumed := getTaskJSON(t, dir, db, id)
+	if resumed.State() != task.StateSpecify {
+		t.Fatalf("state after unblocked = %v, want specify", resumed.State())
+	}
+
+	_, err := runTaskmanErr(dir, db, "unblocked", "--id", id, "--reason", "not blocked anymore")
+	if err == nil {
+		t.Fatal("unblocked while not blocked: want error, got nil")
+	}
+}
+
 func TestCLIImplementedRejectsReviewWithoutVerification(t *testing.T) {
 	dir := newTestRepo(t)
 	db := filepath.Join(dir, "tasks.db")
@@ -215,6 +239,7 @@ func TestCLIMissingRequiredFlagExitsTwo(t *testing.T) {
 		{"create", "--title", "no description"},
 		{"merged", "--id", "01a094c6-313c-7bce-91b9-29287b30bf3e"},
 		{"escalated", "--id", "01a094c6-313c-7bce-91b9-29287b30bf3e", "--stage", "s"},
+		{"unblocked", "--id", "01a094c6-313c-7bce-91b9-29287b30bf3e"},
 		{"delete"},
 	} {
 		_, err := runTaskmanErr(dir, db, args...)

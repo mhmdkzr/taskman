@@ -59,7 +59,8 @@ specify → specification_review → implement → verify → automated_review �
 A failed verification or a rejected implementation review loops back through a fix state. Each gate
 can bound that loop with `--*-auto-fix` and `--*-auto-fix-max-rounds`: once the recorded rounds for
 that gate exceed the cap, the task is blocked instead of dispatching another fix. A cap of `0` leaves
-the loop unbounded.
+the loop unbounded. `unblocked` resumes a blocked task - a budget-exhaustion blockage requires
+granting more rounds via `--rounds`; an `escalated` blockage requires none.
 
 ## Commands
 
@@ -170,6 +171,12 @@ taskman escalated
 taskman abandoned
   --id string      the task being abandoned
   --reason string  why the task is being abandoned
+
+taskman unblocked
+  --id string      the task being unblocked
+  --reason string  why the task is being unblocked
+  --rounds int     additional auto-fix rounds granted; required for a budget-exhaustion
+                   blockage, must be omitted for an escalation
 
 taskman delete
   --id string  the task id to delete
