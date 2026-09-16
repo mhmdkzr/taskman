@@ -16,6 +16,9 @@ its own `At`, supplied by the caller; nothing here reads a clock.
   next - `{state, action}` with an action of `dispatch`, `run`, `wait`, or `done`.
 - `TaskEvent` (`events.go`) - the closed set of facts that may progress a task. Each event type
   reports its own `Kind()`; the four review gates are distinct types per stage x reviewer.
+  `DecodeEvent` (`decode.go`) is the single place mapping each `EventKind` back to its concrete
+  type, so a caller storing events as `(kind, json)` pairs (`internal/task/store`) doesn't keep a
+  second switch of its own that could drift from `Kind()`.
 - `NewTask` / `Task.Validate` (`types.go`) - construction and invariant checking. `Task.Clone`
   (`clone.go`) is the deep copy `Apply` uses so callers never observe partial mutation.
 

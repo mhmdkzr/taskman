@@ -27,6 +27,9 @@ kind, JSON data). The schema is created on `Open`.
   `ErrTaskNotFound` when the id is unknown.
 - `List(ctx)` - every task id, ordered by creation time.
 
-Event encoding/decoding (`record.go`) is a `kind`-keyed switch over the concrete `task.TaskEvent`
-types; an unknown kind surfaces as a corrupt-log error. `errors.go` holds the exported sentinels
-(`ErrTaskNotFound`, `ErrTaskAlreadyExists`) and the internal corrupt-log error.
+Event decoding (`record.go`) delegates to `task.DecodeEvent`, the one place mapping each
+`EventKind` to its concrete `task.TaskEvent` type - this package keeps no `kind`-keyed switch of
+its own to drift out of sync with it. `task.ErrUnknownEventKind` becomes this package's own
+corrupt-log error; any other decode failure (a malformed payload for an otherwise-known kind)
+bubbles up as-is. `errors.go` holds the exported sentinels (`ErrTaskNotFound`,
+`ErrTaskAlreadyExists`) and the internal corrupt-log error.
