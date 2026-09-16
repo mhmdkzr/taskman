@@ -175,6 +175,30 @@ templ Page(tasks []task.Task) {
 				.detail-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 28px; max-width: 720px; }
 				.detail-facts + .detail-facts { margin-top: 20px; }
 
+			.copyable-id { display: flex; align-items: center; gap: 8px; }
+			.copyable-id .val {
+				max-width: 100%;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
+				color: var(--text-dim);
+				font-size: 12.5px;
+				font-family: "JetBrains Mono", monospace;
+			}
+			.copy-btn {
+				flex: none;
+				display: inline-flex;
+				align-items: center;
+				padding: 2px;
+				margin: -2px;
+				background: none;
+				border: none;
+				color: var(--text-faint);
+				cursor: pointer;
+			}
+			.copy-btn:hover, .copy-btn:focus-visible { color: var(--accent); }
+			.copy-btn:active { transform: scale(0.9); }
+
 				/* ---------- result rows (reviews, verification) ---------- */
 
 				.result-panels { display: flex; flex-direction: column; gap: 8px; }

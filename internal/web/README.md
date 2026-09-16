@@ -31,9 +31,9 @@ selector can never drift from the rendered markup.
 
 The list groups tasks into collapsible sections - Needs attention, Waiting on review, In progress,
 and Done - so a busy category can be folded away; sections start expanded. Each task card shows a
-one-line summary (title, state pill, labels, transition count) and expands to its description and
-specification plan (rendered from Markdown via goldmark), recorded workflow configuration, Git
-facts, blockage/abandonment, verification attempts, review results, and its full state history.
+one-line summary (title, state pill, labels, transition count) and expands to its task ID (with a
+copy-to-clipboard button), its description and specification plan (rendered from Markdown via
+goldmark), recorded workflow configuration, Git facts, blockage/abandonment, verification attempts, review results, and its full state history.
 
 Section and card disclosure state lives in datastar signals declared with `__ifmissing`, not native
 `<details open>` or client-only CSS classes: the list patches itself on the ambient poll, and a

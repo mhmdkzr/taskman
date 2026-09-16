@@ -56,6 +56,7 @@ templ taskCard(t task.Task) {
 		</button>
 		<div class="task-card-detail" data-class:open={ taskOpenExpr(taskID) }>
 			<div class="task-card-detail-inner">
+				@copyableID(taskID)
 				<div>
 					<div class="section-label">Description</div>
 					<div class="spec-block md-content">@renderMarkdown(t.Definition.Description)</div>
@@ -89,6 +90,24 @@ templ taskCard(t task.Task) {
 				}
 				@stateHistory(t)
 			</div>
+		</div>
+	</div>
+}
+
+// copyableID renders a task's ID with a copy button next to it. It lives in
+// the card detail because the collapsed summary is itself a <button>, which
+// can't contain the copy button without invalid HTML nesting.
+templ copyableID(id string) {
+	<div>
+		<div class="section-label">Task ID</div>
+		<div class="copyable-id">
+			<span class="val">{ id }</span>
+			<button type="button" class="copy-btn" data-on:click={ copyAction(id) } aria-label="Copy task ID" title="Copy task ID">
+				<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+					<rect x="9" y="9" width="13" height="13" rx="2" ry="4"></rect>
+					<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+				</svg>
+			</button>
 		</div>
 	</div>
 }

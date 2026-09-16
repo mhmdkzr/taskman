@@ -135,6 +135,13 @@ func taskMeta(t task.Task) string {
 	return meta
 }
 
+// copyAction is the datastar expression for a copy button: it writes the
+// given literal value (a task id - safe to embed as a single-quoted string,
+// since a UUID contains no quote characters) to the clipboard.
+func copyAction(value string) string {
+	return "navigator.clipboard.writeText('" + value + "')"
+}
+
 // reviewSummary renders a review configuration as "none", or the required
 // reviewers ("agent", "human", or both).
 func reviewSummary(cfg task.ReviewConfiguration) string {

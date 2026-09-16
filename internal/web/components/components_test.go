@@ -76,6 +76,10 @@ func TestTaskListRendersFullDetail(t *testing.T) {
 		"Ship the feature",
 		"Completed",
 		"<h1", // markdown description heading
+		"Task ID",
+		tk.ID.String(),
+		`navigator.clipboard.writeText(&#39;` + tk.ID.String() + `&#39;)`,
+		"<h1", // markdown description heading
 		"Specification plan",
 		"feat/x",            // branch
 		"/tmp/wt",           // worktree
@@ -109,7 +113,7 @@ func TestTaskListRendersBareTask(t *testing.T) {
 	if err := TaskList([]task.Task{tk}).Render(t.Context(), &b); err != nil {
 		t.Fatalf("Render() error = %v", err)
 	}
-	for _, want := range []string{"Bare task", "just created"} {
+	for _, want := range []string{"Bare task", "just created", "Task ID", tk.ID.String(), "Copy task ID"} {
 		if !strings.Contains(b.String(), want) {
 			t.Errorf("rendered output missing %q", want)
 		}
