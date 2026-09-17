@@ -50,17 +50,37 @@ more widely.
 
 ## Workflow
 
-The main path is:
+`create` starts a task in `specify`. `specified` chooses which specification review gates apply and
+`implemented` chooses the verification checks and implementation review gates, so most tasks skip the
+optional steps below.
 
-```text
-specify → specification_review → implement → verify → automated_review → commit → human_review → merge → completed
+```mermaid
+flowchart TD
+    specify -->|"review required"| specification_review
+    specification_review -->|approved| implement
+    specification_review -.->|rejected| specify
+    specify -.->|no review| implement
+    implement -->|"check declared"| verify
+    implement -.->|none declared| commit
+    verify -->|"pass, agent review"| automated_review
+    verify -.->|pass| commit
+    verify -.->|fail| fix_verification_failure
+    fix_verification_failure --> verify
+    automated_review -->|approved| commit
+    automated_review -.->|rejected| fix_automated_review_findings
+    fix_automated_review_findings --> verify
+    commit -->|"human review"| human_review
+    commit -.->|none| merge
+    human_review -->|approved| merge
+    human_review -.->|rejected| fix_human_review_findings
+    fix_human_review_findings --> verify
+    merge --> completed
 ```
 
-A failed verification or a rejected implementation review loops back through a fix state. Each gate
-can bound that loop with `--*-auto-fix` and `--*-auto-fix-max-rounds`: once the recorded rounds for
-that gate exceed the cap, the task is blocked instead of dispatching another fix. A cap of `0` leaves
-the loop unbounded. `unblocked` resumes a blocked task - a budget-exhaustion blockage requires
-granting more rounds via `--rounds`; an `escalated` blockage requires none.
+The three implementation gates - verification, automated review, and human review - route to `blocked`
+instead of looping again once their auto-fix cap is exceeded (`--*-auto-fix`, `--*-auto-fix-max-rounds`);
+`unblocked` resumes the task, granting more rounds with `--rounds`. `escalated` blocks any non-terminal
+task, `abandoned` ends it, and `completed`/`abandoned` are terminal.
 
 ## Commands
 
