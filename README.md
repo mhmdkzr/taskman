@@ -51,30 +51,29 @@ more widely.
 ## Workflow
 
 `create` starts a task in `specify`. `specified` chooses which specification review gates apply and
-`implemented` chooses the verification checks and implementation review gates, so most tasks skip the
-optional steps below.
+`implemented` chooses the verification checks and implementation review gates; the dashed steps below
+are optional, and a task skips any that aren't required, while a failure or rejection loops back
+instead of advancing.
 
 ```mermaid
 flowchart TD
-    specify -->|"review required"| specification_review
+    specify --> specification_review
     specification_review -->|approved| implement
     specification_review -.->|rejected| specify
-    specify -.->|no review| implement
-    implement -->|"check declared"| verify
-    implement -.->|none declared| commit
-    verify -->|"pass, agent review"| automated_review
-    verify -.->|pass| commit
+    implement --> verify
+    verify -->|pass| automated_review
     verify -.->|fail| fix_verification_failure
-    fix_verification_failure --> verify
+    fix_verification_failure -->|fixed| verify
     automated_review -->|approved| commit
     automated_review -.->|rejected| fix_automated_review_findings
-    fix_automated_review_findings --> verify
-    commit -->|"human review"| human_review
-    commit -.->|none| merge
+    fix_automated_review_findings -->|fixed| verify
+    commit --> human_review
     human_review -->|approved| merge
     human_review -.->|rejected| fix_human_review_findings
-    fix_human_review_findings --> verify
+    fix_human_review_findings -->|fixed| verify
     merge --> completed
+    classDef optional stroke-dasharray: 5 4
+    class specification_review,verify,automated_review,human_review optional
 ```
 
 The three implementation gates - verification, automated review, and human review - route to `blocked`
