@@ -288,3 +288,30 @@ func recordUnblock(t *Task, event TaskEvent) error {
 	t.Blocked = nil
 	return nil
 }
+
+// recordLabelsUpdated sets reported.Set's keys in t's labels and deletes
+// reported.Remove's keys, in that order. At least one of the two must be
+// non-empty - a call that changes nothing is refused rather than silently
+// accepted.
+func recordLabelsUpdated(t *Task, event TaskEvent) error {
+	reported, ok := event.(LabelsUpdated)
+	if !ok {
+		return errInvalidEventPayload
+	}
+	if len(reported.Set) == 0 && len(reported.Remove) == 0 {
+		return fmt.Errorf("record labels updated: at least one label to set or remove is required")
+	}
+	if len(reported.Set) > 0 && t.Definition.Labels == nil {
+		t.Definition.Labels = make(map[string]string, len(reported.Set))
+	}
+	for k, v := range reported.Set {
+		t.Definition.Labels[k] = v
+	}
+	for _, k := range reported.Remove {
+		delete(t.Definition.Labels, k)
+	}
+	if len(t.Definition.Labels) == 0 {
+		t.Definition.Labels = nil
+	}
+	return nil
+}

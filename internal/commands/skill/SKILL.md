@@ -50,6 +50,71 @@ to honor the surrounding environment's approval rules for creating Git state, co
 or abandoning. A human may explicitly direct you to invoke a human-decision command, but never
 choose that decision yourself.
 
+## Creating a task: the intake interview
+
+`create` and `specified` between them capture every substantive fact taskman ever records about
+a task: title, description, labels, the specification plan, and every review/verification gate.
+(Labels are the one field editable later too, via `label add`/`label remove` - see "Management
+commands" - but still get them right at intake rather than leaning on that as a fallback.)
+Taskman performs no judgment about any of these - they must come from an explicit human decision,
+never from the agent guessing, inferring from a vague ask, or picking a convenient default and
+moving on. Treat filling them in as a short conversation with the human, not a form to fill out
+of your own initiative: respond to what they actually said, offer to draft things for them
+(a title, a plan grounded in the real code) and let them approve or edit, but never finalize a
+substantive field they haven't explicitly approved or written themselves.
+
+Mix plain chat with a structured-choice prompt (e.g. `AskUserQuestion`, where the environment
+provides one), chosen per question: use a structured choice when there's a real, bounded decision
+(yes/no gates, which of a known set of labels applies, which verification checks apply); ask in
+plain chat when it's open text with nothing to choose between (the description body, the plan
+narrative). Don't force open text through a choice UI just for consistency, and don't invent
+placeholder options for a question that has none. Batch independent structured questions together
+rather than one at a time.
+
+1. **Description before title.** Ask what the task is about before asking for a title - a name is
+   easier to pick once the substance exists. From the description, draft two or three candidate
+   titles yourself (short, imperative) and offer them for approval alongside an open option; don't
+   settle on a title the user hasn't picked or written.
+2. **Labels.** Don't invent a label taxonomy. If the project has one (check its own docs/CLAUDE.md
+   for conventions - e.g. a module or component list, task-type or priority conventions), offer
+   those as real options; otherwise ask the user directly what labels, if any, they want. Skip a
+   key entirely rather than force a value that doesn't apply.
+3. **The specification plan.** Ask for it, or offer to draft one by reading the relevant code
+   yourself and proposing something concrete (real paths, real existing patterns) for approval -
+   either way, the user must actually see and approve the final text, not just the intent behind
+   it.
+4. **Every review/auto-fix gate, in full.** As covered above, each gate is three independent
+   settings - don't stop at asking for a round cap. For each applicable gate ask, in order:
+   (a) is it required, and (for an agent-run gate) should it run in a subagent; (b) should
+   rejections/failures be auto-fixed automatically at all, as its own explicit yes/no; (c) only if
+   (b) is yes, the round cap and whether the fixing itself runs in a subagent. This applies to the
+   specification's agent-review and human-review gates (recorded now, by `specified`) and, if the
+   conversation is deciding implementation-time policy up front, to verification's auto-fix and
+   the implementation's agent-review and human-review gates too (recorded later, only when
+   `implemented` is actually called - note the intent now in the plan text or labels so whoever
+   runs `implemented` doesn't have to re-derive it, since taskman itself won't recall a decision
+   that wasn't yet recorded).
+5. **Verification checks and worktree/branch, if deciding implementation policy up front.**
+   Suggest checks (`unit`/`integration`/`end-to-end`/`linters`) based on what the project's own
+   testing conventions say about the kind of code being touched, and let the user confirm or edit
+   - don't lock in a suggestion unconfirmed. A gate with any review requires at least one check;
+   resolve that conflict with the user before moving on if it comes up. Similarly, `--worktree`/
+   `--branch` only exist on `implemented`, not on `create`/`specified` - there's nothing to set
+   yet, but it's worth asking now whether implementation should happen in a fresh worktree/branch
+   or the current one, and noting the answer for later.
+6. **Draft, then approve, then create.** Compile everything into one concrete draft - title,
+   description, labels, the full plan text, and the exact state of every gate (required?
+   subagent? auto-fix enabled? cap? auto-fix subagent?) - and show it before touching taskman.
+   Loop on feedback until approved; call no taskman command during that loop.
+7. **Create, specify, report, stop.** Once approved: `create` (recording the returned id), then
+   `specified` with every flag the user actually chose - not just `--agent-review`/
+   `--human-review` with a bare round-cap number, since a cap without its matching `-auto-fix`
+   flag does nothing (see above). Report the new task's id, title, and current
+   state/instruction back to the user, then **stop** - do not dispatch the specification review,
+   do not proceed to `implemented`, and do not start implementation work. Handing back the id is
+   the end of this interview; anything past it is a separate action the human asks for
+   explicitly, through the ordinary driver loop above.
+
 ## Preserve these invariants
 
 - Never open or edit the SQLite database file directly, even for inspection. Use `get`, `list`,
@@ -82,11 +147,17 @@ and no verification check goes from `implement` straight to `commit`. Taskman in
 after failed verification or a rejected implementation review, looping back through another
 verification attempt; a rejected specification returns to `specify` for revision.
 
-- Verification failures and implementation-review rejections loop back through a fix state. A gate
-  with an auto-fix cap (`--verification-auto-fix-max-rounds`,
-  `--agent-review-auto-fix-max-rounds`, `--human-review-auto-fix-max-rounds`) blocks the task once
-  the recorded rounds exceed the cap, instead of dispatching another fix. Without a cap the loop is
-  unbounded - keep fixing and re-reporting, or use `escalated` if it is not converging.
+- Verification failures and implementation-review rejections loop back through a fix state. Each
+  of the three auto-fix-capable gates (verification, agent-review, human-review) is **three
+  independent settings**, not one: `--{verification,agent-review,human-review}-auto-fix` is what
+  actually turns on unattended automatic fixing; `--*-auto-fix-max-rounds` is the round cap, which
+  is silently inert unless the matching `-auto-fix` flag is also set (a task with a cap but
+  `auto-fix.enabled: false` in its JSON will loop unbounded, not stop at the cap - always pass
+  both together); and `--*-auto-fix-use-subagent` decides whether the fixing runs in a subagent
+  or the current session. A gate with auto-fix enabled and a cap blocks the task once the
+  recorded rounds exceed it, instead of dispatching another fix. Without a cap (or without
+  auto-fix enabled at all) the loop is unbounded - keep fixing and re-reporting, or use
+  `escalated` if it is not converging.
 - After automated review approval, create a new conventional commit in the task's worktree and
   report it with `committed`. On human review rejection, fix, verify again, create another new
   commit, and report it; do not amend. Human-review rejection recovery does not repeat automated
@@ -134,12 +205,12 @@ clean them up yourself (Taskman does not): `git worktree remove <worktree-path>`
 
 | Command | Meaning |
 |---|---|
-| `specified --id <id> --plan <text> [--agent-review] [--agent-review-use-subagent] [--human-review] [--agent-review-auto-fix ...] [--human-review-auto-fix ...]` | Record the drafted specification and which of its review gates are required. |
+| `specified --id <id> --plan <text> [--agent-review] [--agent-review-use-subagent] [--agent-review-auto-fix] [--agent-review-auto-fix-max-rounds <n>] [--agent-review-auto-fix-use-subagent] [--human-review] [--human-review-auto-fix] [--human-review-auto-fix-max-rounds <n>] [--human-review-auto-fix-use-subagent]` | Record the drafted specification and which of its review gates are required. |
 | `specification review agent approved --id <id> [--comment <text>]` | Record an independent agent reviewer's approval of the specification. |
 | `specification review agent rejected --id <id> --finding <location>=<detail> ...` | Record the agent reviewer's findings against the specification. |
 | `specification review human approved --id <id> [--comment <text>]` | Record human approval of the specification. |
 | `specification review human rejected --id <id> --reason <text>` | Record human rejection of the specification, for revision. |
-| `implemented --id <id> --worktree <path> --branch <name> [--unit] [--integration] [--end-to-end] [--linters] [--verification-auto-fix ...] [--agent-review] [--agent-review-use-subagent] [--human-review] [--agent-review-auto-fix ...] [--human-review-auto-fix ...]` | Record that an implementation attempt is ready, which verification checks it requires, and which of its review gates are required. |
+| `implemented --id <id> --worktree <path> --branch <name> [--unit] [--integration] [--end-to-end] [--linters] [--verification-auto-fix] [--verification-auto-fix-max-rounds <n>] [--verification-auto-fix-use-subagent] [--agent-review] [--agent-review-use-subagent] [--agent-review-auto-fix] [--agent-review-auto-fix-max-rounds <n>] [--agent-review-auto-fix-use-subagent] [--human-review] [--human-review-auto-fix] [--human-review-auto-fix-max-rounds <n>] [--human-review-auto-fix-use-subagent]` | Record that an implementation attempt is ready, which verification checks it requires, and which of its review gates are required. |
 | `verified --id <id> [--unit ok\|error] [--integration ok\|error] [--end-to-end ok\|error] [--linters ok\|error] [--output <text>]` | Record one verification attempt. Report every required check; whether it counts as a pass or a fail is derived from whether any reported check is `error` - you never say "passed" or "failed" directly. |
 | `implementation review agent approved --id <id> [--comment <text>]` | Record an independent agent reviewer's approval of the implementation. |
 | `implementation review agent rejected --id <id> --finding <location>=<detail> ...` | Record the agent reviewer's findings against the implementation. |
@@ -163,8 +234,16 @@ confirmed; do not claim a build or test that did not run.
 | `create --title <text> --description <text> [--label k=v ...]` | Create a task. Returns its generated id. |
 | `get --id <id>` | Read one task's current state, instruction, guidance, and the commands that can report its next outcome. |
 | `list` | List tasks. Optional filters `--state <state>` and `--label <k=v>` (repeatable), and pagination `--limit <n>` (default 50; 0 = unlimited) / `--offset <n>`. |
+| `label add --id <id> --label k=v [...]` | Set or overwrite one or more labels. |
+| `label remove --id <id> --key k [...]` | Delete one or more labels; a key that isn't present is not an error. |
 | `delete --id <id>` | Permanently delete a task and its event log. Irreversible. |
 | `prune [--dry-run]` | Permanently delete every completed task and its event log. Irreversible. |
+
+`label add`/`label remove` are the one pair of commands here that go through the same event log
+and `Apply` as every reporting command above, but as a global, state-preserving transition: they
+work from any non-terminal state and never change `state`/`instruction`, since labels are plain
+metadata rather than part of the workflow. They still can't touch a `completed` or `abandoned`
+task, same as everything else.
 
 `delete` and `prune` are the management commands that destroy data. `delete --id` removes one
 task and its entire event log from any state; `prune` removes every task in the `completed` state

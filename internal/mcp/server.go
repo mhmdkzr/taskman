@@ -16,6 +16,8 @@ import (
 	implementationreviewhumanapproved "github.com/mhmdkzr/taskman/internal/commands/implementation/review/human/approved"
 	implementationreviewhumanrejected "github.com/mhmdkzr/taskman/internal/commands/implementation/review/human/rejected"
 	"github.com/mhmdkzr/taskman/internal/commands/implemented"
+	labeladd "github.com/mhmdkzr/taskman/internal/commands/label/add"
+	labelremove "github.com/mhmdkzr/taskman/internal/commands/label/remove"
 	"github.com/mhmdkzr/taskman/internal/commands/list"
 	"github.com/mhmdkzr/taskman/internal/commands/merged"
 	"github.com/mhmdkzr/taskman/internal/commands/prune"
@@ -59,6 +61,8 @@ func NewServer(st *store.Store, gitClient *git.Client) *mcp.Server {
 	escalated.RegisterMCP(server, st)
 	abandoned.RegisterMCP(server, st)
 	unblocked.RegisterMCP(server, st)
+	labeladd.RegisterMCP(server, st)
+	labelremove.RegisterMCP(server, st)
 	delete.RegisterMCP(server, st)
 	prune.RegisterMCP(server, st)
 

@@ -16,6 +16,10 @@ var workflow = definition{
 			to:     StateAbandoned,
 			reduce: recordAbandonment,
 		},
+		EventLabelsUpdated: {
+			resolve: stayInCurrentState,
+			reduce:  recordLabelsUpdated,
+		},
 	},
 	states: map[TaskState]stateDefinition{
 		StateSpecify: {
@@ -263,6 +267,15 @@ func verificationRequired(t Task, _ TaskEvent) bool {
 
 func taskIsNotBlocked(t Task, _ TaskEvent) bool {
 	return t.State() != StateBlocked
+}
+
+// stayInCurrentState resolves a global, state-preserving event's destination
+// to whatever state next was already in before this transition - next.State()
+// still reads that state because reduce only touches Definition.Labels, never
+// StateHistory. Used by EventLabelsUpdated, which is pure metadata and has no
+// effect on workflow position.
+func stayInCurrentState(next Task, _ TaskEvent) (TaskState, error) {
+	return next.State(), nil
 }
 
 // isBlocked reports whether a reducer decided this transition is blocked - the

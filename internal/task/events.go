@@ -29,6 +29,11 @@ const (
 	EventImplementationReviewAgentRejected EventKind = "implementation_review_agent_rejected"
 	EventImplementationReviewHumanApproved EventKind = "implementation_review_human_approved"
 	EventImplementationReviewHumanRejected EventKind = "implementation_review_human_rejected"
+
+	// EventLabelsUpdated is registered in workflow.global: labels are plain
+	// metadata, not part of the workflow, so it applies from any non-terminal
+	// state without changing which state a task is in.
+	EventLabelsUpdated EventKind = "labels_updated"
 )
 
 // TaskEvent is the closed set of facts that may progress a task's state.
@@ -138,6 +143,16 @@ type ImplementationReviewHumanRejected struct {
 	At     time.Time `json:"at"`
 }
 
+// LabelsUpdated sets/overwrites Set's keys in Definition.Labels and deletes
+// Remove's keys. At least one of Set or Remove must be non-empty. A key
+// present in both is set then immediately removed, in that order, so Remove
+// wins - callers should avoid the overlap rather than rely on it.
+type LabelsUpdated struct {
+	Set    map[string]string `json:"set,omitempty"`
+	Remove []string          `json:"remove,omitempty"`
+	At     time.Time         `json:"at"`
+}
+
 func (e SpecificationSubmitted) Kind() EventKind  { return EventSpecificationSubmitted }
 func (e ImplementationCompleted) Kind() EventKind { return EventImplementationCompleted }
 func (e VerificationPassed) Kind() EventKind      { return EventVerificationPassed }
@@ -179,6 +194,8 @@ func (e ImplementationReviewHumanRejected) Kind() EventKind {
 	return EventImplementationReviewHumanRejected
 }
 
+func (e LabelsUpdated) Kind() EventKind { return EventLabelsUpdated }
+
 func (e SpecificationSubmitted) OccurredAt() time.Time            { return e.At }
 func (e ImplementationCompleted) OccurredAt() time.Time           { return e.At }
 func (e VerificationPassed) OccurredAt() time.Time                { return e.At }
@@ -196,3 +213,4 @@ func (e ImplementationReviewAgentApproved) OccurredAt() time.Time { return e.At 
 func (e ImplementationReviewAgentRejected) OccurredAt() time.Time { return e.At }
 func (e ImplementationReviewHumanApproved) OccurredAt() time.Time { return e.At }
 func (e ImplementationReviewHumanRejected) OccurredAt() time.Time { return e.At }
+func (e LabelsUpdated) OccurredAt() time.Time                     { return e.At }

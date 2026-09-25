@@ -1,0 +1,40 @@
+package remove
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/mhmdkzr/taskman/internal/task/store"
+	"github.com/mhmdkzr/taskman/internal/task/view/json"
+	"github.com/mhmdkzr/taskman/internal/utils"
+)
+
+// RegisterMCP adds the "task_label_remove" tool to server.
+func RegisterMCP(server *mcp.Server, st *store.Store) {
+	mcp.AddTool(server, mcpTool(), mcpHandler(st))
+}
+
+func mcpTool() *mcp.Tool {
+	return &mcp.Tool{
+		Name:         "task_label_remove",
+		Description:  "Delete one or more of a task's labels.",
+		InputSchema:  utils.SchemaFor[Request](),
+		OutputSchema: utils.SchemaFor[json.Document](),
+	}
+}
+
+func mcpHandler(st *store.Store) mcp.ToolHandlerFor[Request, json.Document] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, req Request) (*mcp.CallToolResult, json.Document, error) {
+		t, err := Remove(ctx, st, req)
+		if err != nil {
+			return nil, json.Document{}, fmt.Errorf("render task: %w", err)
+		}
+		doc, err := json.FromTask(t)
+		if err != nil {
+			return nil, json.Document{}, fmt.Errorf("render task: %w", err)
+		}
+		return nil, doc, nil
+	}
+}

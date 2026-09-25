@@ -54,6 +54,7 @@ func TestEventDecodersCoverEveryKind(t *testing.T) {
 		ImplementationReviewAgentRejected{}.Kind(),
 		ImplementationReviewHumanApproved{}.Kind(),
 		ImplementationReviewHumanRejected{}.Kind(),
+		LabelsUpdated{}.Kind(),
 	}
 	if len(kinds) != len(eventDecoders) {
 		t.Fatalf("len(eventDecoders) = %d, want %d (one per known EventKind)", len(eventDecoders), len(kinds))

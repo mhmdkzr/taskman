@@ -1,0 +1,49 @@
+package add
+
+import (
+	"context"
+	"log/slog"
+
+	"github.com/urfave/cli/v3"
+
+	"github.com/mhmdkzr/taskman/internal/task/store"
+	"github.com/mhmdkzr/taskman/internal/task/view"
+	"github.com/mhmdkzr/taskman/internal/utils"
+)
+
+// Command returns the "label add" command.
+func Command() *cli.Command {
+	return &cli.Command{
+		Name:  "add",
+		Usage: "set or overwrite one or more of a task's labels",
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "id", Required: true, Usage: "the task whose labels are being set"},
+			&cli.StringSliceFlag{Name: "label", Required: true, Usage: "a label as key=value - repeatable"},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			id, err := utils.IDFrom(cmd)
+			if err != nil {
+				return utils.Fail(err)
+			}
+			labels, err := utils.SplitKV(cmd.StringSlice("label"))
+			if err != nil {
+				return cli.Exit(err, 2)
+			}
+			st, err := store.Open(ctx, cmd.String("db"))
+			if err != nil {
+				return utils.Fail(err)
+			}
+			defer func() {
+				if err := st.Close(); err != nil {
+					slog.Error("close store", "error", err)
+				}
+			}()
+
+			t, err := Add(ctx, st, Request{ID: id, Labels: labels})
+			if err != nil {
+				return utils.Fail(err)
+			}
+			return view.PrintTask(cmd, t)
+		},
+	}
+}

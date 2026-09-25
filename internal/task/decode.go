@@ -36,6 +36,7 @@ var eventDecoders = map[EventKind]func([]byte) (TaskEvent, error){
 	EventImplementationReviewAgentRejected: decodeAs[ImplementationReviewAgentRejected],
 	EventImplementationReviewHumanApproved: decodeAs[ImplementationReviewHumanApproved],
 	EventImplementationReviewHumanRejected: decodeAs[ImplementationReviewHumanRejected],
+	EventLabelsUpdated:                     decodeAs[LabelsUpdated],
 }
 
 // DecodeEvent decodes data into the concrete TaskEvent matching kind, per

@@ -5,7 +5,8 @@
 // Every command is mounted directly on the root - there is no intermediate
 // "task" grouping command, except for the two review-gate groupings
 // (specification, implementation), each of which mounts its own
-// review/{agent,human}/{approved,rejected} tree.
+// review/{agent,human}/{approved,rejected} tree, and the label grouping
+// (label), which mounts add/remove.
 package cli
 
 import (
@@ -30,6 +31,7 @@ import (
 	"github.com/mhmdkzr/taskman/internal/commands/get"
 	"github.com/mhmdkzr/taskman/internal/commands/implementation"
 	"github.com/mhmdkzr/taskman/internal/commands/implemented"
+	"github.com/mhmdkzr/taskman/internal/commands/label"
 	"github.com/mhmdkzr/taskman/internal/commands/list"
 	"github.com/mhmdkzr/taskman/internal/commands/mcp"
 	"github.com/mhmdkzr/taskman/internal/commands/merged"
@@ -159,6 +161,7 @@ func commands() []*cli.Command {
 		escalated.Command(),
 		abandoned.Command(),
 		unblocked.Command(),
+		label.Command(),
 		delete.Command(),
 		get.Command(),
 		list.Command(),

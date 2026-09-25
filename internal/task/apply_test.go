@@ -182,6 +182,45 @@ func TestApplyEscalationAndAbandonment(t *testing.T) {
 	}
 }
 
+func TestApplyLabelsUpdatedDoesNotChangeState(t *testing.T) {
+	now := time.Now().UTC()
+	tsk := newTask(t, now)
+
+	tsk = apply(t, tsk, LabelsUpdated{Set: map[string]string{"priority": "high"}, At: now})
+	requireState(t, tsk, StateSpecify)
+	if tsk.Definition.Labels["priority"] != "high" {
+		t.Fatalf("labels = %v, want priority=high", tsk.Definition.Labels)
+	}
+
+	tsk = apply(t, tsk, SpecificationSubmitted{Specification: Specification{Plan: "plan"}, At: now})
+	requireState(t, tsk, StateImplement)
+
+	tsk = apply(t, tsk, LabelsUpdated{Remove: []string{"priority"}, At: now})
+	requireState(t, tsk, StateImplement)
+	if _, ok := tsk.Definition.Labels["priority"]; ok {
+		t.Fatalf("labels = %v, want priority removed", tsk.Definition.Labels)
+	}
+}
+
+func TestApplyLabelsUpdatedRejectedOnTerminalTask(t *testing.T) {
+	now := time.Now().UTC()
+	tsk := newTask(t, now)
+	tsk = apply(t, tsk, Abandoned{Reason: "no longer needed", At: now})
+
+	if _, err := Apply(tsk, LabelsUpdated{Set: map[string]string{"priority": "high"}, At: now}); err == nil {
+		t.Fatal("Apply() error = nil, want an error labeling a terminal task")
+	}
+}
+
+func TestApplyLabelsUpdatedRejectsEmptyPayload(t *testing.T) {
+	now := time.Now().UTC()
+	tsk := newTask(t, now)
+
+	if _, err := Apply(tsk, LabelsUpdated{At: now}); err == nil {
+		t.Fatal("Apply() error = nil, want an error for no set/remove")
+	}
+}
+
 func TestApplyUnblockResumesEscalation(t *testing.T) {
 	now := time.Now().UTC()
 	tsk := newTask(t, now)
