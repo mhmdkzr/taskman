@@ -18,13 +18,16 @@ func Command() *cli.Command {
 		Name:  "merged",
 		Usage: "record the task's merge into its target branch",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "id", Required: true, Usage: "the task that was merged"},
-			&cli.StringFlag{Name: "target", Required: true, Usage: "the branch it was merged into"},
+			&cli.StringFlag{Name: "id", Usage: "the task that was merged"},
+			&cli.StringFlag{Name: "target", Usage: "the branch it was merged into"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			id, err := utils.IDFrom(cmd)
 			if err != nil {
 				return utils.Fail(err)
+			}
+			if err := utils.RequireFlags(cmd, "target"); err != nil {
+				return err
 			}
 			st, err := store.Open(ctx, cmd.String("db"))
 			if err != nil {

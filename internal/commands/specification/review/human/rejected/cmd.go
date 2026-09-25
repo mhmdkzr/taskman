@@ -18,16 +18,18 @@ func Command() *cli.Command {
 		Usage: "report a task's specification's human review as rejected",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:     "id",
-				Required: true,
-				Usage:    "the task whose specification's human review was rejected",
+				Name:  "id",
+				Usage: "the task whose specification's human review was rejected",
 			},
-			&cli.StringFlag{Name: "reason", Required: true, Usage: "why the specification's human review was rejected"},
+			&cli.StringFlag{Name: "reason", Usage: "why the specification's human review was rejected"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			id, err := utils.IDFrom(cmd)
 			if err != nil {
 				return utils.Fail(err)
+			}
+			if err := utils.RequireFlags(cmd, "reason"); err != nil {
+				return err
 			}
 			st, err := store.Open(ctx, cmd.String("db"))
 			if err != nil {

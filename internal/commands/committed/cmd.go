@@ -18,7 +18,7 @@ func Command() *cli.Command {
 		Name:  "committed",
 		Usage: "record the task's implementation worktree's current commit",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "id", Required: true, Usage: "the task whose commit was recorded"},
+			&cli.StringFlag{Name: "id", Usage: "the task whose commit was recorded"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			id, err := utils.IDFrom(cmd)

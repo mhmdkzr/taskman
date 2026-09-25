@@ -17,14 +17,17 @@ func Command() *cli.Command {
 		Name:  "escalated",
 		Usage: "block a task pending outside intervention",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "id", Required: true, Usage: "the task being escalated"},
-			&cli.StringFlag{Name: "stage", Required: true, Usage: "the stage the task is stuck at"},
-			&cli.StringFlag{Name: "reason", Required: true, Usage: "why the task is stuck"},
+			&cli.StringFlag{Name: "id", Usage: "the task being escalated"},
+			&cli.StringFlag{Name: "stage", Usage: "the stage the task is stuck at"},
+			&cli.StringFlag{Name: "reason", Usage: "why the task is stuck"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			id, err := utils.IDFrom(cmd)
 			if err != nil {
 				return utils.Fail(err)
+			}
+			if err := utils.RequireFlags(cmd, "stage", "reason"); err != nil {
+				return err
 			}
 			st, err := store.Open(ctx, cmd.String("db"))
 			if err != nil {

@@ -17,11 +17,14 @@ func Command() *cli.Command {
 		Name:  "create",
 		Usage: "create a new task",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "title", Required: true, Usage: "short human-readable title"},
-			&cli.StringFlag{Name: "description", Required: true, Usage: "what the task should accomplish"},
+			&cli.StringFlag{Name: "title", Usage: "short human-readable title"},
+			&cli.StringFlag{Name: "description", Usage: "what the task should accomplish"},
 			&cli.StringSliceFlag{Name: "label", Usage: "a label as key=value - repeatable"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
+			if err := utils.RequireFlags(cmd, "title", "description"); err != nil {
+				return err
+			}
 			labels, err := utils.SplitKV(cmd.StringSlice("label"))
 			if err != nil {
 				return cli.Exit(err, 2)

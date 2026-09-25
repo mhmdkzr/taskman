@@ -17,7 +17,7 @@ func Command() *cli.Command {
 		Name:  "get",
 		Usage: "show a task's current state and instruction",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "id", Required: true, Usage: "the task id to read"},
+			&cli.StringFlag{Name: "id", Usage: "the task id to read"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			id, err := utils.IDFrom(cmd)

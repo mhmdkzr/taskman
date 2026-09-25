@@ -17,13 +17,16 @@ func Command() *cli.Command {
 		Name:  "remove",
 		Usage: "delete one or more of a task's labels",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "id", Required: true, Usage: "the task whose labels are being removed"},
-			&cli.StringSliceFlag{Name: "key", Required: true, Usage: "a label key to delete - repeatable"},
+			&cli.StringFlag{Name: "id", Usage: "the task whose labels are being removed"},
+			&cli.StringSliceFlag{Name: "key", Usage: "a label key to delete - repeatable"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			id, err := utils.IDFrom(cmd)
 			if err != nil {
 				return utils.Fail(err)
+			}
+			if err := utils.RequireFlags(cmd, "key"); err != nil {
+				return err
 			}
 			st, err := store.Open(ctx, cmd.String("db"))
 			if err != nil {

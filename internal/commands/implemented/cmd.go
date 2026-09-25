@@ -16,9 +16,9 @@ import (
 func Command() *cli.Command {
 	flags := make([]cli.Flag, 0, 10+len(utils.ReviewFlags()))
 	flags = append(flags,
-		&cli.StringFlag{Name: "id", Required: true, Usage: "the task that was implemented"},
-		&cli.StringFlag{Name: "worktree", Required: true, Usage: "the worktree the implementation was done in"},
-		&cli.StringFlag{Name: "branch", Required: true, Usage: "the branch the implementation was done on"},
+		&cli.StringFlag{Name: "id", Usage: "the task that was implemented"},
+		&cli.StringFlag{Name: "worktree", Usage: "the worktree the implementation was done in"},
+		&cli.StringFlag{Name: "branch", Usage: "the branch the implementation was done on"},
 		&cli.BoolFlag{Name: "unit", Usage: "require unit tests"},
 		&cli.BoolFlag{Name: "integration", Usage: "require integration tests"},
 		&cli.BoolFlag{Name: "end-to-end", Usage: "require end-to-end tests"},
@@ -37,6 +37,9 @@ func Command() *cli.Command {
 			id, err := utils.IDFrom(cmd)
 			if err != nil {
 				return utils.Fail(err)
+			}
+			if err := utils.RequireFlags(cmd, "worktree", "branch"); err != nil {
+				return err
 			}
 			st, err := store.Open(ctx, cmd.String("db"))
 			if err != nil {

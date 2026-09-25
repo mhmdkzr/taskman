@@ -241,6 +241,8 @@ func TestCLIMissingRequiredFlagExitsTwo(t *testing.T) {
 		{"escalated", "--id", "01a094c6-313c-7bce-91b9-29287b30bf3e", "--stage", "s"},
 		{"unblocked", "--id", "01a094c6-313c-7bce-91b9-29287b30bf3e"},
 		{"delete"},
+		{"label", "add", "--id", "01a094c6-313c-7bce-91b9-29287b30bf3e"},
+		{"label", "remove", "--id", "01a094c6-313c-7bce-91b9-29287b30bf3e"},
 	} {
 		_, err := runTaskmanErr(dir, db, args...)
 		if err == nil {

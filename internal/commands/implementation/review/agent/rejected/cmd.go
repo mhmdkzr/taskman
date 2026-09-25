@@ -18,16 +18,18 @@ func Command() *cli.Command {
 		Usage: "report a task's implementation's automated review as rejected",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:     "id",
-				Required: true,
-				Usage:    "the task whose implementation's automated review was rejected",
+				Name:  "id",
+				Usage: "the task whose implementation's automated review was rejected",
 			},
-			&cli.StringSliceFlag{Name: "finding", Required: true, Usage: "a finding as location=detail - repeatable"},
+			&cli.StringSliceFlag{Name: "finding", Usage: "a finding as location=detail - repeatable"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			id, err := utils.IDFrom(cmd)
 			if err != nil {
 				return utils.Fail(err)
+			}
+			if err := utils.RequireFlags(cmd, "finding"); err != nil {
+				return err
 			}
 			findings, err := utils.ParseFindings(cmd.StringSlice("finding"))
 			if err != nil {

@@ -18,7 +18,6 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
 	"syscall"
 
 	"github.com/urfave/cli/v3"
@@ -59,19 +58,16 @@ func Run() int {
 	return 0
 }
 
-// exitCode maps a command's returned error to a process exit code.
+// exitCode maps a command's returned error to a process exit code. No
+// command flag is declared Required: true (see utils.RequireFlags) - that
+// urfave/cli mechanism fails with an unexported error type implementing
+// neither cli.ExitCoder nor any exported interface, so nothing here could
+// ever classify it without matching its message text. Every malformed-input
+// error is instead produced explicitly as a cli.Exit(..., 2), same as any
+// other command-level validation, so ExitCoder is the only case this needs.
 func exitCode(err error) int {
 	if exitErr, ok := errors.AsType[cli.ExitCoder](err); ok {
 		return exitErr.ExitCode()
-	}
-	// urfave/cli reports an omitted required flag as its unexported
-	// errRequiredFlags, not a cli.ExitCoder, so a missing required input
-	// would otherwise surface as a domain error (exit 1). It is malformed
-	// input, so classify it as exit 2, matching the explicit cli.Exit(..., 2)
-	// checks that back the other required inputs.
-	if err != nil && (strings.HasPrefix(err.Error(), "Required flag ") ||
-		strings.HasPrefix(err.Error(), "Required flags ")) {
-		return 2
 	}
 	return 1
 }

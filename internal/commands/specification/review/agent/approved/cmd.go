@@ -18,9 +18,8 @@ func Command() *cli.Command {
 		Usage: "report a task's specification's automated review as approved",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:     "id",
-				Required: true,
-				Usage:    "the task whose specification's automated review was approved",
+				Name:  "id",
+				Usage: "the task whose specification's automated review was approved",
 			},
 			&cli.StringFlag{Name: "comment", Usage: "an optional approval comment"},
 		},

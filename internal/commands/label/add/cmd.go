@@ -17,13 +17,16 @@ func Command() *cli.Command {
 		Name:  "add",
 		Usage: "set or overwrite one or more of a task's labels",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "id", Required: true, Usage: "the task whose labels are being set"},
-			&cli.StringSliceFlag{Name: "label", Required: true, Usage: "a label as key=value - repeatable"},
+			&cli.StringFlag{Name: "id", Usage: "the task whose labels are being set"},
+			&cli.StringSliceFlag{Name: "label", Usage: "a label as key=value - repeatable"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			id, err := utils.IDFrom(cmd)
 			if err != nil {
 				return utils.Fail(err)
+			}
+			if err := utils.RequireFlags(cmd, "label"); err != nil {
+				return err
 			}
 			labels, err := utils.SplitKV(cmd.StringSlice("label"))
 			if err != nil {

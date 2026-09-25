@@ -18,7 +18,7 @@ func Command() *cli.Command {
 		Name:  "delete",
 		Usage: "permanently delete a task and its event log",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "id", Required: true, Usage: "the task id to delete"},
+			&cli.StringFlag{Name: "id", Usage: "the task id to delete"},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			id, err := utils.IDFrom(cmd)

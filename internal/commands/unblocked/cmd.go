@@ -17,8 +17,8 @@ func Command() *cli.Command {
 		Name:  "unblocked",
 		Usage: "resume a blocked task, optionally granting more auto-fix rounds",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "id", Required: true, Usage: "the task being unblocked"},
-			&cli.StringFlag{Name: "reason", Required: true, Usage: "why the task is being unblocked"},
+			&cli.StringFlag{Name: "id", Usage: "the task being unblocked"},
+			&cli.StringFlag{Name: "reason", Usage: "why the task is being unblocked"},
 			&cli.IntFlag{Name: "rounds", Usage: "additional auto-fix rounds granted; required for a " +
 				"budget-exhaustion blockage, must be omitted for an escalation"},
 		},
@@ -26,6 +26,9 @@ func Command() *cli.Command {
 			id, err := utils.IDFrom(cmd)
 			if err != nil {
 				return utils.Fail(err)
+			}
+			if err := utils.RequireFlags(cmd, "reason"); err != nil {
+				return err
 			}
 			st, err := store.Open(ctx, cmd.String("db"))
 			if err != nil {

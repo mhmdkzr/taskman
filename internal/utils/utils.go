@@ -31,6 +31,36 @@ func IDFrom(cmd *cli.Command) (uuid.UUID, error) {
 	return id, nil
 }
 
+// RequireFlags returns a cli.Exit error (exit code 2) naming every flag in
+// names that cmd did not receive, or nil if all were set. Every command
+// calls this itself instead of declaring its flags Required: true: urfave/
+// cli's own required-flag check fails with an unexported error type
+// (errRequiredFlags) that implements neither cli.ExitCoder nor any exported
+// interface, so nothing downstream can distinguish it from a domain error
+// via errors.Is/As - only a string match on its message ever could. Calling
+// RequireFlags explicitly keeps every malformed-input error a cli.Exit,
+// consistent with IDFrom above, with no message-matching required anywhere.
+func RequireFlags(cmd *cli.Command, names ...string) error {
+	var missing []string
+	for _, name := range names {
+		if !cmd.IsSet(name) {
+			missing = append(missing, name)
+		}
+	}
+	switch len(missing) {
+	case 0:
+		return nil
+	case 1:
+		return cli.Exit(fmt.Sprintf("--%s is required", missing[0]), 2)
+	default:
+		flags := make([]string, len(missing))
+		for i, name := range missing {
+			flags[i] = "--" + name
+		}
+		return cli.Exit(fmt.Sprintf("%s are required", strings.Join(flags, ", ")), 2)
+	}
+}
+
 // SplitKV parses "key=value" pairs (e.g. --label priority=high). value may
 // itself contain "=" - only the first separator counts.
 func SplitKV(pairs []string) (map[string]string, error) {

@@ -35,7 +35,7 @@ func Command() *cli.Command {
 		Name:  "verified",
 		Usage: "report one verification attempt",
 		Flags: []cli.Flag{
-			&cli.StringFlag{Name: "id", Required: true, Usage: "the task whose verification was reported"},
+			&cli.StringFlag{Name: "id", Usage: "the task whose verification was reported"},
 			&cli.StringFlag{Name: "unit", Usage: "the unit test check's result: ok or error"},
 			&cli.StringFlag{Name: "integration", Usage: "the integration test check's result: ok or error"},
 			&cli.StringFlag{Name: "end-to-end", Usage: "the end-to-end test check's result: ok or error"},
