@@ -85,17 +85,17 @@ func fixStdout(cmd *cli.Command, w *bytes.Buffer) {
 	}
 }
 
-// createWorktree creates a git worktree at worktreesDir/name on a new
-// branch task/name, and returns its path.
-func createWorktree(t *testing.T, gitDir, worktreesDir, name string) string {
+// createWorktree creates a git worktree at worktree on a new branch named
+// branch. The path and branch name are decided by the caller - now that
+// they're declared up front at `specified` time, the worktree itself is
+// created to match afterward, not derived here.
+func createWorktree(t *testing.T, gitDir, worktree, branch string) {
 	t.Helper()
-	worktree := filepath.Join(worktreesDir, name)
-	cmd := exec.Command("git", "worktree", "add", worktree, "-b", "task/"+name)
+	cmd := exec.Command("git", "worktree", "add", worktree, "-b", branch)
 	cmd.Dir = gitDir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git worktree add: %v: %s", err, out)
 	}
-	return worktree
 }
 
 func gitCommit(t *testing.T, worktree, message string) {
@@ -150,8 +150,12 @@ func TestCLIFullLifecycle(t *testing.T) {
 		t.Fatalf("get output = %q, want it to mention the specify state", got)
 	}
 
+	worktree := filepath.Join(worktreesDir, id)
+	branch := "task/" + id
 	runTaskman(t, dir, db, "specified", "--id", id, "--plan", "Update the README",
-		"--agent-review", "--human-review")
+		"--agent-review", "--human-review",
+		"--unit", "--impl-human-review",
+		"--use-worktree", "--worktree", worktree, "--branch", branch)
 	got := runTaskman(t, dir, db, "get", "--id", id, "--json")
 	if !strings.Contains(got, "specification review agent approved") {
 		t.Fatalf("get output = %q, want it to list the agent-review command", got)
@@ -159,16 +163,15 @@ func TestCLIFullLifecycle(t *testing.T) {
 	runTaskman(t, dir, db, "specification", "review", "agent", "approved", "--id", id, "--comment", "ok")
 	runTaskman(t, dir, db, "specification", "review", "human", "approved", "--id", id, "--comment", "approved")
 
-	worktree := createWorktree(t, dir, worktreesDir, id)
-	runTaskman(t, dir, db, "implemented", "--id", id, "--worktree", worktree, "--branch", "task/"+id,
-		"--unit", "--human-review")
+	createWorktree(t, dir, worktree, branch)
+	runTaskman(t, dir, db, "implemented", "--id", id)
 	runTaskman(t, dir, db, "verified", "--id", id, "--unit", "ok")
 
 	gitCommit(t, worktree, "docs: update readme")
 	runTaskman(t, dir, db, "committed", "--id", id)
 	runTaskman(t, dir, db, "implementation", "review", "human", "approved", "--id", id, "--comment", "lgtm")
 
-	mergeInto(t, dir, "task/"+id)
+	mergeInto(t, dir, branch)
 	runTaskman(t, dir, db, "merged", "--id", id, "--target", "main")
 
 	final := getTaskJSON(t, dir, db, id)
@@ -187,7 +190,7 @@ func TestCLIInvalidTransitionExitsNonZero(t *testing.T) {
 	runTaskman(t, dir, db, "create", "--description", "x", "--title", "Title")
 	id := onlyTaskID(t, dir, db)
 
-	_, err := runTaskmanErr(dir, db, "implemented", "--id", id, "--worktree", "/x", "--branch", "b")
+	_, err := runTaskmanErr(dir, db, "implemented", "--id", id)
 	if err == nil {
 		t.Fatal("implement before specify: want error, got nil")
 	}
@@ -217,16 +220,30 @@ func TestCLIEscalateAndUnblock(t *testing.T) {
 	}
 }
 
-func TestCLIImplementedRejectsReviewWithoutVerification(t *testing.T) {
+func TestCLISpecifiedRejectsImplementationReviewWithoutVerification(t *testing.T) {
 	dir := newTestRepo(t)
 	db := filepath.Join(dir, "tasks.db")
 	runTaskman(t, dir, db, "create", "--description", "x", "--title", "Title")
 	id := onlyTaskID(t, dir, db)
+
+	_, err := runTaskmanErr(dir, db, "specified", "--id", id, "--plan", "p", "--impl-agent-review")
+	if err == nil {
+		t.Fatal("specified with impl-agent-review but no verification: want error, got nil")
+	}
+}
+
+func TestCLIImplementedRejectsUnspecifiedPolicy(t *testing.T) {
+	dir := newTestRepo(t)
+	db := filepath.Join(dir, "tasks.db")
+	runTaskman(t, dir, db, "create", "--description", "x", "--title", "Title")
+	id := onlyTaskID(t, dir, db)
+	// A specification with none of the new policy fields set simulates a
+	// task specified before implementation policy moved to `specified`.
 	runTaskman(t, dir, db, "specified", "--id", id, "--plan", "p")
 
-	_, err := runTaskmanErr(dir, db, "implemented", "--id", id, "--worktree", "/x", "--branch", "b", "--agent-review")
+	_, err := runTaskmanErr(dir, db, "implemented", "--id", id)
 	if err == nil {
-		t.Fatal("implemented with agent review but no verification: want error, got nil")
+		t.Fatal("implemented with no policy recorded on the specification: want error, got nil")
 	}
 }
 
@@ -387,12 +404,15 @@ func completeTask(t *testing.T, dir, db string) string {
 	runTaskman(t, dir, db, "create", "--description", "x", "--title", "Title")
 	id := onlyTaskID(t, dir, db)
 
-	runTaskman(t, dir, db, "specified", "--id", id, "--plan", "p")
-	worktree := createWorktree(t, dir, t.TempDir(), id)
-	runTaskman(t, dir, db, "implemented", "--id", id, "--worktree", worktree, "--branch", "task/"+id)
+	worktree := filepath.Join(t.TempDir(), id)
+	branch := "task/" + id
+	runTaskman(t, dir, db, "specified", "--id", id, "--plan", "p",
+		"--use-worktree", "--worktree", worktree, "--branch", branch)
+	createWorktree(t, dir, worktree, branch)
+	runTaskman(t, dir, db, "implemented", "--id", id)
 	gitCommit(t, worktree, "feat: work")
 	runTaskman(t, dir, db, "committed", "--id", id)
-	mergeInto(t, dir, "task/"+id)
+	mergeInto(t, dir, branch)
 	runTaskman(t, dir, db, "merged", "--id", id, "--target", "main")
 	return id
 }

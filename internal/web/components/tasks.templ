@@ -112,8 +112,11 @@ templ copyableID(id string) {
 	</div>
 }
 
-// taskConfiguration renders the recorded workflow configuration - which review
-// gates and verification checks the task was set up with.
+// taskConfiguration renders the workflow configuration - which review gates
+// and verification checks the task was set up with. Impl review and
+// Verification are fixed at `specified` time now, on Specification, and only
+// copied onto Implementation once `implemented` runs - so before that, this
+// renders the planned policy from Specification instead of showing nothing.
 templ taskConfiguration(t task.Task) {
 	if t.Specification != nil || t.Implementation != nil {
 		<div>
@@ -134,14 +137,39 @@ templ taskConfiguration(t task.Task) {
 						<span class="name">Verification</span>
 						<span class="val">{ verificationSummary(t.Implementation.Verification) }</span>
 					</div>
+				} else if t.Specification != nil {
+					<div class="detail-cell">
+						<span class="name">Impl review (planned)</span>
+						<span class="val">{ reviewSummary(t.Specification.ImplementationReview) }</span>
+					</div>
+					<div class="detail-cell">
+						<span class="name">Verification (planned)</span>
+						<span class="val">{ verificationSummary(t.Specification.Verification) }</span>
+					</div>
 				}
 			</div>
 		</div>
 	}
 }
 
-// taskGitFacts renders the implementation's Git facts, if any were recorded.
+// taskGitFacts renders the implementation's Git facts, if any were recorded,
+// or - before an implementation exists - the worktree/branch already planned
+// on Specification, if one was declared at `specified` time.
 templ taskGitFacts(t task.Task) {
+	if t.Implementation == nil && t.Specification != nil && t.Specification.Worktree.UseWorktree {
+		<div>
+			<div class="detail-facts">
+				<div class="detail-cell">
+					<span class="name">Planned branch</span>
+					<span class="val">{ t.Specification.Worktree.Branch }</span>
+				</div>
+				<div class="detail-cell">
+					<span class="name">Planned worktree</span>
+					<span class="val">{ t.Specification.Worktree.Worktree }</span>
+				</div>
+			</div>
+		</div>
+	}
 	if t.Implementation != nil && gitHasFacts(t.Implementation.Git) {
 		{{ git := t.Implementation.Git }}
 		<div>

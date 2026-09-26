@@ -120,6 +120,51 @@ func TestTaskListRendersBareTask(t *testing.T) {
 	}
 }
 
+func TestTaskListRendersPlannedPolicyBeforeImplementation(t *testing.T) {
+	tk := task.Task{
+		ID:           uuid.NewV7(),
+		Definition:   task.TaskDefinition{Title: "Specified but not implemented"},
+		StateHistory: []task.StateChange{{State: task.StateImplement}},
+		Specification: &task.Specification{
+			Plan: "1. do it",
+			Verification: task.Verification{
+				Tests:   task.TestConfiguration{Unit: true},
+				Linters: true,
+			},
+			ImplementationReview: task.ReviewConfiguration{
+				Agent: task.AgentReviewConfiguration{Required: true},
+			},
+			Worktree: task.WorktreePolicy{
+				UseWorktree: true,
+				Worktree:    ".worktrees/example",
+				Branch:      "fix/example",
+			},
+		},
+	}
+
+	var b strings.Builder
+	if err := TaskList([]task.Task{tk}).Render(t.Context(), &b); err != nil {
+		t.Fatalf("Render() error = %v", err)
+	}
+	html := b.String()
+
+	for _, want := range []string{
+		"Impl review (planned)",
+		"Verification (planned)",
+		"Planned branch",
+		"fix/example",
+		"Planned worktree",
+		".worktrees/example",
+	} {
+		if !strings.Contains(html, want) {
+			t.Errorf("rendered output missing %q", want)
+		}
+	}
+	if strings.Contains(html, `<span class="name">Impl review</span>`) {
+		t.Error("rendered output shows the (unplanned) Impl review label before implementation exists")
+	}
+}
+
 func TestGroupTasksOrdersAttentionFirst(t *testing.T) {
 	mk := func(state task.TaskState) task.Task {
 		return task.Task{ID: uuid.NewV7(), StateHistory: []task.StateChange{{State: state}}}

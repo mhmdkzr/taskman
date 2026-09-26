@@ -23,7 +23,9 @@ Human review is required.{{end}}
 
 **Plan:**
 {{.Task.Specification.Plan}}
-
+{{if .Task.Specification.Worktree.UseWorktree}}
+**Use a fresh worktree:** {{.Task.Specification.Worktree.Worktree}} on branch {{.Task.Specification.Worktree.Branch}}
+{{end}}
 Report completion with `implemented`.
 {{end}}
 {{define "verify"}}Run this implementation's required checks.

@@ -31,6 +31,16 @@ func IDFrom(cmd *cli.Command) (uuid.UUID, error) {
 	return id, nil
 }
 
+// RequireFlagsIf calls RequireFlags only when cond is true - for flags that
+// are required together only conditional on another flag (e.g. --worktree/
+// --branch are required together only when --use-worktree is set).
+func RequireFlagsIf(cmd *cli.Command, cond bool, names ...string) error {
+	if !cond {
+		return nil
+	}
+	return RequireFlags(cmd, names...)
+}
+
 // RequireFlags returns a cli.Exit error (exit code 2) naming every flag in
 // names that cmd did not receive, or nil if all were set. Every command
 // calls this itself instead of declaring its flags Required: true: urfave/
@@ -89,41 +99,49 @@ func ParseFindings(pairs []string) ([]task.Finding, error) {
 }
 
 // ReviewFlags are shared by every command that reports a review gate's
-// configuration (specified, implemented): whether an agent/human review is
-// required, and each one's auto-fix policy.
-func ReviewFlags() []cli.Flag {
+// configuration (specified, for both the specification-review gate and,
+// prefixed, the implementation-review gate): whether an agent/human review
+// is required, and each one's auto-fix policy. prefix distinguishes multiple
+// review gates declared on the same command (e.g. "" for the spec-review
+// gate and "impl-" for the implementation-review gate, both set at
+// `specified` time) - empty prefix reproduces the original flag names.
+func ReviewFlags(prefix string) []cli.Flag {
 	return []cli.Flag{
-		&cli.BoolFlag{Name: "agent-review", Usage: "require an automated review"},
-		&cli.BoolFlag{Name: "agent-review-use-subagent", Usage: "run the automated review in a subagent"},
-		&cli.BoolFlag{Name: "agent-review-auto-fix", Usage: "automatically fix automated review findings"},
-		&cli.IntFlag{Name: "agent-review-auto-fix-max-rounds", Usage: "max automated-review auto-fix rounds"},
-		&cli.BoolFlag{Name: "agent-review-auto-fix-use-subagent", Usage: "run automated-review auto-fix in a subagent"},
-		&cli.BoolFlag{Name: "human-review", Usage: "require a human review"},
-		&cli.BoolFlag{Name: "human-review-auto-fix", Usage: "automatically fix human review findings"},
-		&cli.IntFlag{Name: "human-review-auto-fix-max-rounds", Usage: "max human-review auto-fix rounds"},
-		&cli.BoolFlag{Name: "human-review-auto-fix-use-subagent", Usage: "run human-review auto-fix in a subagent"},
+		&cli.BoolFlag{Name: prefix + "agent-review", Usage: "require an automated review"},
+		&cli.BoolFlag{Name: prefix + "agent-review-use-subagent", Usage: "run the automated review in a subagent"},
+		&cli.BoolFlag{Name: prefix + "agent-review-auto-fix", Usage: "automatically fix automated review findings"},
+		&cli.IntFlag{Name: prefix + "agent-review-auto-fix-max-rounds", Usage: "max automated-review auto-fix rounds"},
+		&cli.BoolFlag{
+			Name: prefix + "agent-review-auto-fix-use-subagent", Usage: "run automated-review auto-fix in a subagent",
+		},
+		&cli.BoolFlag{Name: prefix + "human-review", Usage: "require a human review"},
+		&cli.BoolFlag{Name: prefix + "human-review-auto-fix", Usage: "automatically fix human review findings"},
+		&cli.IntFlag{Name: prefix + "human-review-auto-fix-max-rounds", Usage: "max human-review auto-fix rounds"},
+		&cli.BoolFlag{
+			Name: prefix + "human-review-auto-fix-use-subagent", Usage: "run human-review auto-fix in a subagent",
+		},
 	}
 }
 
-// ReviewConfigurationFrom builds a task.ReviewConfiguration from the flags
-// ReviewFlags declares.
-func ReviewConfigurationFrom(cmd *cli.Command) task.ReviewConfiguration {
+// ReviewConfigurationFrom builds a task.ReviewConfiguration from the flags a
+// matching ReviewFlags(prefix) call declared.
+func ReviewConfigurationFrom(cmd *cli.Command, prefix string) task.ReviewConfiguration {
 	return task.ReviewConfiguration{
 		Agent: task.AgentReviewConfiguration{
-			Required:    cmd.Bool("agent-review"),
-			UseSubagent: cmd.Bool("agent-review-use-subagent"),
+			Required:    cmd.Bool(prefix + "agent-review"),
+			UseSubagent: cmd.Bool(prefix + "agent-review-use-subagent"),
 			AutoFix: task.AutoFix{
-				Enabled:     cmd.Bool("agent-review-auto-fix"),
-				MaxRounds:   cmd.Int("agent-review-auto-fix-max-rounds"),
-				UseSubagent: cmd.Bool("agent-review-auto-fix-use-subagent"),
+				Enabled:     cmd.Bool(prefix + "agent-review-auto-fix"),
+				MaxRounds:   cmd.Int(prefix + "agent-review-auto-fix-max-rounds"),
+				UseSubagent: cmd.Bool(prefix + "agent-review-auto-fix-use-subagent"),
 			},
 		},
 		Human: task.HumanReviewConfiguration{
-			Required: cmd.Bool("human-review"),
+			Required: cmd.Bool(prefix + "human-review"),
 			AutoFix: task.AutoFix{
-				Enabled:     cmd.Bool("human-review-auto-fix"),
-				MaxRounds:   cmd.Int("human-review-auto-fix-max-rounds"),
-				UseSubagent: cmd.Bool("human-review-auto-fix-use-subagent"),
+				Enabled:     cmd.Bool(prefix + "human-review-auto-fix"),
+				MaxRounds:   cmd.Int(prefix + "human-review-auto-fix-max-rounds"),
+				UseSubagent: cmd.Bool(prefix + "human-review-auto-fix-use-subagent"),
 			},
 		},
 	}

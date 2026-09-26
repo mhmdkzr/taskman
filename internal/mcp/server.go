@@ -50,7 +50,7 @@ func NewServer(st *store.Store, gitClient *git.Client) *mcp.Server {
 	specificationreviewagentrejected.RegisterMCP(server, st)
 	specificationreviewhumanapproved.RegisterMCP(server, st)
 	specificationreviewhumanrejected.RegisterMCP(server, st)
-	implemented.RegisterMCP(server, st)
+	implemented.RegisterMCP(server, st, gitClient)
 	verified.RegisterMCP(server, st)
 	implementationreviewagentapproved.RegisterMCP(server, st)
 	implementationreviewagentrejected.RegisterMCP(server, st)

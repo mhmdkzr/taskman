@@ -63,6 +63,36 @@ type TaskDefinition struct {
 type Specification struct {
 	Plan   string              `json:"plan"   yaml:"plan"`
 	Review ReviewConfiguration `json:"review" yaml:"review"`
+
+	// Verification, ImplementationReview, and Worktree are the requirement/
+	// policy decisions that used to be set at Implementation time. They are
+	// additive fields (all omitempty, zero-value on every event stored before
+	// this policy moved here) so historical event replay is unaffected: an old
+	// Specification simply decodes with all three at their zero value, which
+	// trivially satisfies validate() below.
+	Verification         Verification        `json:"verification,omitzero"          yaml:"verification,omitempty"`
+	ImplementationReview ReviewConfiguration `json:"implementation-review,omitzero" yaml:"implementation-review,omitempty"`
+	Worktree             WorktreePolicy      `json:"worktree,omitzero"              yaml:"worktree,omitempty"`
+}
+
+// validate enforces Specification's own configuration invariants, mirroring
+// Implementation.validate(): a review gate requires at least one verification
+// check, since a rejected review always loops back through a verification
+// attempt (see Implementation.validate()'s comment for the full reasoning).
+func (s Specification) validate() error {
+	if err := s.Verification.validate(); err != nil {
+		return fmt.Errorf("verification: %w", err)
+	}
+	if reviewRequired(s.ImplementationReview) && !s.Verification.required() {
+		return fmt.Errorf("implementation review gates require at least one verification check")
+	}
+	if err := s.ImplementationReview.validate(); err != nil {
+		return fmt.Errorf("implementation-review: %w", err)
+	}
+	if err := s.Worktree.validate(); err != nil {
+		return fmt.Errorf("worktree: %w", err)
+	}
+	return nil
 }
 
 type Implementation struct {
@@ -289,6 +319,30 @@ type Abandonment struct {
 	At     time.Time `json:"at"     yaml:"at"`
 }
 
+// WorktreePolicy is the specification-time decision of whether this task's
+// implementation happens in a fresh worktree, and if so, where. UseWorktree
+// is the sole decider, mirroring AgentReviewConfiguration.Required: when
+// false, Worktree/Branch must stay empty - there is no separate way to say
+// "no worktree" versus "not yet decided".
+type WorktreePolicy struct {
+	UseWorktree bool   `json:"use-worktree"       yaml:"use-worktree"`
+	Worktree    string `json:"worktree,omitempty" yaml:"worktree,omitempty"`
+	Branch      string `json:"branch,omitempty"   yaml:"branch,omitempty"`
+}
+
+func (w WorktreePolicy) validate() error {
+	if w.UseWorktree {
+		if w.Worktree == "" || w.Branch == "" {
+			return fmt.Errorf("use-worktree requires worktree and branch")
+		}
+		return nil
+	}
+	if w.Worktree != "" || w.Branch != "" {
+		return fmt.Errorf("worktree/branch set but use-worktree is false")
+	}
+	return nil
+}
+
 type AutoFix struct {
 	Enabled     bool `json:"enabled"                yaml:"enabled"`
 	MaxRounds   int  `json:"max-rounds,omitempty"   yaml:"max-rounds,omitempty"`
@@ -393,6 +447,9 @@ func (t Task) Validate() error {
 	if t.Specification != nil {
 		if err := t.Specification.Review.validate(); err != nil {
 			return fmt.Errorf("specification review: %w", err)
+		}
+		if err := t.Specification.validate(); err != nil {
+			return fmt.Errorf("specification: %w", err)
 		}
 	}
 	if t.Implementation != nil {

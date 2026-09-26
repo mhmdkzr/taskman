@@ -13,7 +13,9 @@ import (
 // reconstructable from the task alone (a plan, check results, a commit
 // target, ...), so placeholders stand in for those.
 var commandNames = map[task.EventKind]string{
-	task.EventSpecificationSubmitted: "specified --id %s --plan <plan text> [--agent-review] [--human-review]",
+	task.EventSpecificationSubmitted: "specified --id %s --plan <plan text> " +
+		"[--agent-review] [--human-review] [--unit] [--integration] [--end-to-end] [--linters] " +
+		"[--impl-agent-review] [--impl-human-review] [--use-worktree --worktree <path> --branch <name>]",
 	task.EventSpecificationReviewAgentApproved: "specification review agent approved --id %s " +
 		"[--comment <text>]",
 	task.EventSpecificationReviewAgentRejected: "specification review agent rejected --id %s " +
@@ -21,8 +23,7 @@ var commandNames = map[task.EventKind]string{
 	task.EventSpecificationReviewHumanApproved: "specification review human approved --id %s " +
 		"[--comment <text>]",
 	task.EventSpecificationReviewHumanRejected: "specification review human rejected --id %s --reason <text>",
-	task.EventImplementationCompleted: "implemented --id %s --worktree <path> --branch <name> " +
-		"[--unit] [--integration] [--end-to-end] [--linters] [--agent-review] [--human-review]",
+	task.EventImplementationCompleted:          "implemented --id %s",
 	task.EventVerificationPassed: "verified --id %s --unit <ok|error> --integration <ok|error> " +
 		"--end-to-end <ok|error> --linters <ok|error> [--output <text>]",
 	task.EventVerificationFailed: "verified --id %s --unit <ok|error> --integration <ok|error> " +

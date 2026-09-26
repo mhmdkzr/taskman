@@ -187,6 +187,50 @@ func TestRenderTaskAbandoned(t *testing.T) {
 	}
 }
 
+func TestRenderTaskShowsPlannedPolicyBeforeImplementation(t *testing.T) {
+	now := time.Now().UTC()
+	tsk, err := task.NewTask(uuid.NewV7(), task.TaskDefinition{Title: "t", Description: "do it"}, now)
+	if err != nil {
+		t.Fatalf("NewTask() error = %v", err)
+	}
+	tsk = mustApply(t, tsk, task.SpecificationSubmitted{
+		Specification: task.Specification{
+			Plan: "p",
+			Verification: task.Verification{
+				Tests:   task.TestConfiguration{Unit: true},
+				Linters: true,
+			},
+			ImplementationReview: task.ReviewConfiguration{
+				Agent: task.AgentReviewConfiguration{Required: true},
+			},
+			Worktree: task.WorktreePolicy{UseWorktree: true, Worktree: ".worktrees/example", Branch: "fix/example"},
+		},
+		At: now,
+	})
+
+	out, err := RenderTask(tsk)
+	if err != nil {
+		t.Fatalf("RenderTask() error = %v", err)
+	}
+	for _, want := range []string{
+		"### Verification (planned)",
+		"- unit tests required",
+		"- linters required",
+		"### Implementation review (planned)",
+		"Automated review required.",
+		"### Worktree (planned)",
+		".worktrees/example",
+		"fix/example",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q\n---\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "\n## Implementation\n") {
+		t.Errorf("output should not have an Implementation section before implemented is reported\n---\n%s", out)
+	}
+}
+
 func TestRenderTaskNoReviewOrVerificationRequired(t *testing.T) {
 	now := time.Now().UTC()
 	tsk, err := task.NewTask(uuid.NewV7(), task.TaskDefinition{Title: "t", Description: "do it"}, now)

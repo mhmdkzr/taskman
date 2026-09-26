@@ -87,25 +87,24 @@ rather than one at a time.
    settings - don't stop at asking for a round cap. For each applicable gate ask, in order:
    (a) is it required, and (for an agent-run gate) should it run in a subagent; (b) should
    rejections/failures be auto-fixed automatically at all, as its own explicit yes/no; (c) only if
-   (b) is yes, the round cap and whether the fixing itself runs in a subagent. This applies to the
-   specification's agent-review and human-review gates (recorded now, by `specified`) and, if the
-   conversation is deciding implementation-time policy up front, to verification's auto-fix and
-   the implementation's agent-review and human-review gates too (recorded later, only when
-   `implemented` is actually called - note the intent now in the plan text or labels so whoever
-   runs `implemented` doesn't have to re-derive it, since taskman itself won't recall a decision
-   that wasn't yet recorded).
-5. **Verification checks and worktree/branch, if deciding implementation policy up front.**
-   Suggest checks (`unit`/`integration`/`end-to-end`/`linters`) based on what the project's own
-   testing conventions say about the kind of code being touched, and let the user confirm or edit
-   - don't lock in a suggestion unconfirmed. A gate with any review requires at least one check;
-   resolve that conflict with the user before moving on if it comes up. Similarly, `--worktree`/
-   `--branch` only exist on `implemented`, not on `create`/`specified` - there's nothing to set
-   yet, but it's worth asking now whether implementation should happen in a fresh worktree/branch
-   or the current one, and noting the answer for later.
+   (b) is yes, the round cap and whether the fixing itself runs in a subagent. This applies to
+   *all four* review gates `specified` now declares in one call: the specification's own
+   agent-review/human-review (`--agent-review`/`--human-review`), and the eventual
+   implementation's agent-review/human-review (`--impl-agent-review`/`--impl-human-review`).
+5. **Verification checks and worktree/branch.** Suggest checks (`unit`/`integration`/`end-to-end`/
+   `linters`) based on what the project's own testing conventions say about the kind of code being
+   touched, and let the user confirm or edit - don't lock in a suggestion unconfirmed. A gate with
+   any review requires at least one check; resolve that conflict with the user before moving on if
+   it comes up. Also ask now whether implementation should happen in a fresh worktree/branch or the
+   current checkout: `--use-worktree` (plus `--worktree <path>`/`--branch <name>`, required
+   together with it) is set on `specified`, not `implemented` - deciding it here means `implemented`
+   later needs no location re-entered; it copies it forward automatically (auto-detecting the
+   current repository's worktree/branch instead, if `--use-worktree` was never set).
 6. **Draft, then approve, then create.** Compile everything into one concrete draft - title,
    description, labels, the full plan text, and the exact state of every gate (required?
-   subagent? auto-fix enabled? cap? auto-fix subagent?) - and show it before touching taskman.
-   Loop on feedback until approved; call no taskman command during that loop.
+   subagent? auto-fix enabled? cap? auto-fix subagent?), every verification check, and the
+   worktree decision - and show it before touching taskman. Loop on feedback until approved; call
+   no taskman command during that loop.
 7. **Create, specify, report, stop.** Once approved: `create` (recording the returned id), then
    `specified` with every flag the user actually chose - not just `--agent-review`/
    `--human-review` with a bare round-cap number, since a cap without its matching `-auto-fix`
@@ -119,15 +118,18 @@ rather than one at a time.
 
 - Never open or edit the SQLite database file directly, even for inspection. Use `get`, `list`,
   and the reporting commands. The schema is private to Taskman.
-- Taskman does not create or manage Git worktrees or branches. Create the worktree and branch
-  yourself (however your environment normally does that), do the work there, then report both
-  once via `implemented --worktree <path> --branch <name>`. `committed` then reads the current
-  commit from that recorded worktree - do not pass a worktree path again. `merged` is different:
-  it reads the resulting commit from the `--target` branch in the `--git-dir` repository, not from
-  the task's worktree.
-- Report facts only after they are true. `implemented` means an implementation attempt exists in
-  the reported worktree; `verified` describes checks actually run; `committed` reads a commit that
-  already exists there; `merged` records a merge that has already happened.
+- Taskman does not create or manage Git worktrees or branches. The worktree path and branch name
+  are decided once, up front, at `specified --use-worktree --worktree <path> --branch <name>`
+  (or the decision to use none at all); create the worktree and branch yourself at that exact
+  location (however your environment normally does that), do the work there, then just call
+  `implemented --id <id>` - no location to pass, it was already declared. `committed` then reads
+  the current commit from that recorded worktree - do not pass a worktree path again. `merged` is
+  different: it reads the resulting commit from the `--target` branch in the `--git-dir`
+  repository, not from the task's worktree.
+- Report facts only after they are true. `implemented` means an implementation attempt matching
+  the declared policy now exists (in the declared worktree, if one was declared); `verified`
+  describes checks actually run; `committed` reads a commit that already exists there; `merged`
+  records a merge that has already happened.
 - When Taskman calls for an automated review (`agent` in either review gate), use a separate
   reviewer - not the implementer or fix agent - with clean context containing the specification,
   acceptance criteria, and diff or commit. Do not supply the implementer's reasoning. If an
@@ -163,12 +165,13 @@ verification attempt; a rejected specification returns to `specify` for revision
   commit, and report it; do not amend. Human-review rejection recovery does not repeat automated
   review.
 - Every review gate - specification agent/human, implementation agent/human - is independently
-  optional per task, chosen via its `--agent-review`/`--human-review` flags. Specification gates
-  are (re)configured each time `specified` is called, so a task sent back to `specify` by a
-  rejection can change them; a resubmission replaces the specification wholesale and clears prior
-  review results. Implementation gates are fixed by the single `implemented` call, and a gate that
-  is not required is refused by its `approved`/`rejected` commands. Any task with a review gate
-  must also declare at least one verification check.
+  optional per task, all four chosen at `specified` time (`--agent-review`/`--human-review` for
+  the specification, `--impl-agent-review`/`--impl-human-review` for the eventual implementation),
+  and a gate that is not required is refused by its `approved`/`rejected` commands. Every gate is
+  (re)configured each time `specified` is called, so a task sent back to `specify` by a rejection
+  can change any of them; a resubmission replaces the specification wholesale and clears prior
+  review results. Any task with an implementation review gate must also declare at least one
+  verification check.
 - A task always proceeds through `commit` -> (human review, if required) -> `merge` to
   `completed` - there is no shortcut that skips merge.
 - `escalated` blocks a non-blocked task and records where and why work stopped. It is for a
@@ -205,12 +208,12 @@ clean them up yourself (Taskman does not): `git worktree remove <worktree-path>`
 
 | Command | Meaning |
 |---|---|
-| `specified --id <id> --plan <text> [--agent-review] [--agent-review-use-subagent] [--agent-review-auto-fix] [--agent-review-auto-fix-max-rounds <n>] [--agent-review-auto-fix-use-subagent] [--human-review] [--human-review-auto-fix] [--human-review-auto-fix-max-rounds <n>] [--human-review-auto-fix-use-subagent]` | Record the drafted specification and which of its review gates are required. |
+| `specified --id <id> --plan <text> [--agent-review ...] [--human-review ...] [--unit] [--integration] [--end-to-end] [--linters] [--verification-auto-fix] [--verification-auto-fix-max-rounds <n>] [--verification-auto-fix-use-subagent] [--impl-agent-review ...] [--impl-human-review ...] [--use-worktree --worktree <path> --branch <name>]` | Record the drafted specification, which of its own review gates are required, and every requirement for the eventual implementation: verification checks, implementation review gates, and worktree/branch policy. (`...` stands for each gate's own `-use-subagent`/`-auto-fix`/`-auto-fix-max-rounds`/`-auto-fix-use-subagent` flags.) |
 | `specification review agent approved --id <id> [--comment <text>]` | Record an independent agent reviewer's approval of the specification. |
 | `specification review agent rejected --id <id> --finding <location>=<detail> ...` | Record the agent reviewer's findings against the specification. |
 | `specification review human approved --id <id> [--comment <text>]` | Record human approval of the specification. |
 | `specification review human rejected --id <id> --reason <text>` | Record human rejection of the specification, for revision. |
-| `implemented --id <id> --worktree <path> --branch <name> [--unit] [--integration] [--end-to-end] [--linters] [--verification-auto-fix] [--verification-auto-fix-max-rounds <n>] [--verification-auto-fix-use-subagent] [--agent-review] [--agent-review-use-subagent] [--agent-review-auto-fix] [--agent-review-auto-fix-max-rounds <n>] [--agent-review-auto-fix-use-subagent] [--human-review] [--human-review-auto-fix] [--human-review-auto-fix-max-rounds <n>] [--human-review-auto-fix-use-subagent]` | Record that an implementation attempt is ready, which verification checks it requires, and which of its review gates are required. |
+| `implemented --id <id>` | Record that an implementation attempt is ready. Verification checks, review gates, and worktree/branch are copied forward from the specification automatically - nothing else to pass. |
 | `verified --id <id> [--unit ok\|error] [--integration ok\|error] [--end-to-end ok\|error] [--linters ok\|error] [--output <text>]` | Record one verification attempt. Report every required check; whether it counts as a pass or a fail is derived from whether any reported check is `error` - you never say "passed" or "failed" directly. |
 | `implementation review agent approved --id <id> [--comment <text>]` | Record an independent agent reviewer's approval of the implementation. |
 | `implementation review agent rejected --id <id> --finding <location>=<detail> ...` | Record the agent reviewer's findings against the implementation. |
@@ -222,7 +225,7 @@ clean them up yourself (Taskman does not): `git worktree remove <worktree-path>`
 | `abandoned --id <id> --reason <text>` | End the task unsuccessfully; a human-authorized decision. |
 | `unblocked --id <id> --reason <text> [--rounds <n>]` | Resume a blocked task, granting more auto-fix rounds for a budget-exhaustion blockage. |
 
-Verification checks are declared at `implemented`; a task that declares none skips `verify`
+Verification checks are declared at `specified`; a task that declares none skips `verify`
 entirely (but any review gate forces at least one check). When `verify` is reached, report every
 required check - `verified` refuses an attempt that reports none. Report what was actually
 confirmed; do not claim a build or test that did not run.

@@ -5,8 +5,14 @@ CLI-only plumbing shared by more than one command slice's `cmd.go`. It has no de
 
 - `IDFrom` - parse the `--id` flag as a task id.
 - `SplitKV` / `ParseFindings` - parse repeated `key=value` flags and review findings.
-- `ReviewFlags` / `ReviewConfigurationFrom` - the shared `--agent-review` / `--human-review` flag
-  set and its mapping to `task.ReviewConfiguration`, used by `specified` and `implemented`.
+- `ReviewFlags(prefix)` / `ReviewConfigurationFrom(cmd, prefix)` - the shared `--agent-review` /
+  `--human-review` flag set (every flag name prefixed by `prefix`) and its mapping to
+  `task.ReviewConfiguration`. `specified` calls this twice - once with `""` for the
+  specification-review gate, once with `"impl-"` for the implementation-review gate - now that both
+  are declared at specify time.
+- `RequireFlagsIf` - like `RequireFlags`, but only enforced when a condition holds; used by
+  `specified` for `--worktree`/`--branch`, which are required together only when `--use-worktree`
+  is set.
 - `Fail` - wrap domain errors into `cli.ExitCoder` errors (1 for domain failures, 2 for malformed
   input); the process exit code is mapped by `internal/cli`.
 - `SchemaFor` - JSON Schema inference for a slice's `Request`/output type, with `uuid.UUID`

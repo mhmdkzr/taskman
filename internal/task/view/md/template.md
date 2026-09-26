@@ -41,6 +41,27 @@ Valid commands:
 {{if .Review.Human.Required}}Required.
 {{template "autofix" .Review.Human.AutoFix}}{{template "humanresults" .Review.Human.Results}}{{else}}Not required.
 {{end}}
+{{if not $.Implementation}}
+Verification checks, implementation review gates, and worktree/branch are fixed here and copied
+forward automatically once `implemented` is reported - shown below as planned.
+
+### Verification (planned)
+
+{{template "verificationChecks" .Verification}}
+{{template "autofix" .Verification.AutoFix}}
+### Implementation review (planned)
+
+{{if .ImplementationReview.Agent.Required}}Automated review required.
+{{template "autofix" .ImplementationReview.Agent.AutoFix}}
+{{end}}{{if .ImplementationReview.Human.Required}}Human review required.
+{{template "autofix" .ImplementationReview.Human.AutoFix}}
+{{end}}{{if not .ImplementationReview.Agent.Required}}{{if not .ImplementationReview.Human.Required}}Not required.
+{{end}}{{end}}
+{{if .Worktree.UseWorktree}}### Worktree (planned)
+
+**Worktree:** {{.Worktree.Worktree}}
+**Branch:** {{.Worktree.Branch}}
+{{end}}{{end}}
 {{end}}
 {{with .Implementation}}
 ## Implementation
@@ -56,12 +77,7 @@ Valid commands:
 
 {{end}}### Verification
 
-{{if .Verification.Tests.Unit}}- unit tests required
-{{end}}{{if .Verification.Tests.Integration}}- integration tests required
-{{end}}{{if .Verification.Tests.EndToEnd}}- end-to-end tests required
-{{end}}{{if .Verification.Linters}}- linters required
-{{end}}{{if not .Verification.Tests.Unit}}{{if not .Verification.Tests.Integration}}{{if not .Verification.Tests.EndToEnd}}{{if not .Verification.Linters}}- not required
-{{end}}{{end}}{{end}}{{end}}
+{{template "verificationChecks" .Verification}}
 {{template "autofix" .Verification.AutoFix}}{{if .Verification.Attempts}}
 **Attempts:**
 
@@ -93,6 +109,12 @@ Valid commands:
 {{end}}
 {{define "autofix"}}{{if .Enabled}}Auto-fix enabled{{if .MaxRounds}}, max {{.MaxRounds}} round(s){{end}}{{if .UseSubagent}}, using a subagent{{end}}.
 {{end}}{{end}}
+{{define "verificationChecks"}}{{if .Tests.Unit}}- unit tests required
+{{end}}{{if .Tests.Integration}}- integration tests required
+{{end}}{{if .Tests.EndToEnd}}- end-to-end tests required
+{{end}}{{if .Linters}}- linters required
+{{end}}{{if not .Tests.Unit}}{{if not .Tests.Integration}}{{if not .Tests.EndToEnd}}{{if not .Linters}}- not required
+{{end}}{{end}}{{end}}{{end}}{{end}}
 {{define "checks"}}{{if .Unit}}  - unit: {{.Unit}}
 {{end}}{{if .Integration}}  - integration: {{.Integration}}
 {{end}}{{if .EndToEnd}}  - end-to-end: {{.EndToEnd}}

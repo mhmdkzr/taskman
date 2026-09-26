@@ -50,11 +50,6 @@ more widely.
 
 ## Workflow
 
-`create` starts a task in `specify`. `specified` chooses which specification review gates apply and
-`implemented` chooses the verification checks and implementation review gates; the dashed steps below
-are optional, and a task skips any that aren't required, while a failure or rejection loops back
-instead of advancing.
-
 ```mermaid
 flowchart TD
     specify --> specification_review
@@ -102,17 +97,36 @@ taskman create
   --label string [--label string]    a label as key=value - repeatable
 
 taskman specified
-  --id string                             the task whose specification was submitted
-  --plan string                           the specification's plan
-  --agent-review                          require an automated review
-  --agent-review-use-subagent              run the automated review in a subagent
-  --agent-review-auto-fix                  automatically fix automated review findings
-  --agent-review-auto-fix-max-rounds int   max automated-review auto-fix rounds (default 0)
-  --agent-review-auto-fix-use-subagent     run automated-review auto-fix in a subagent
-  --human-review                          require a human review
-  --human-review-auto-fix                  automatically fix human review findings
-  --human-review-auto-fix-max-rounds int   max human-review auto-fix rounds (default 0)
-  --human-review-auto-fix-use-subagent     run human-review auto-fix in a subagent
+  --id string                                  the task whose specification was submitted
+  --plan string                                the specification's plan
+  --agent-review                               require a specification automated review
+  --agent-review-use-subagent                  run the automated review in a subagent
+  --agent-review-auto-fix                      automatically fix automated review findings
+  --agent-review-auto-fix-max-rounds int       max automated-review auto-fix rounds (default 0)
+  --agent-review-auto-fix-use-subagent         run automated-review auto-fix in a subagent
+  --human-review                               require a specification human review
+  --human-review-auto-fix                      automatically fix human review findings
+  --human-review-auto-fix-max-rounds int       max human-review auto-fix rounds (default 0)
+  --human-review-auto-fix-use-subagent         run human-review auto-fix in a subagent
+  --unit                                       require unit tests of the implementation
+  --integration                                require integration tests of the implementation
+  --end-to-end                                 require end-to-end tests of the implementation
+  --linters                                    require linters on the implementation
+  --verification-auto-fix                      automatically fix verification failures
+  --verification-auto-fix-max-rounds int       max verification auto-fix rounds (default 0)
+  --verification-auto-fix-use-subagent         run verification auto-fix in a subagent
+  --impl-agent-review                          require an implementation automated review
+  --impl-agent-review-use-subagent             run the automated review in a subagent
+  --impl-agent-review-auto-fix                 automatically fix automated review findings
+  --impl-agent-review-auto-fix-max-rounds int  max automated-review auto-fix rounds (default 0)
+  --impl-agent-review-auto-fix-use-subagent    run automated-review auto-fix in a subagent
+  --impl-human-review                          require an implementation human review
+  --impl-human-review-auto-fix                 automatically fix human review findings
+  --impl-human-review-auto-fix-max-rounds int  max human-review auto-fix rounds (default 0)
+  --impl-human-review-auto-fix-use-subagent    run human-review auto-fix in a subagent
+  --use-worktree                               implement this task in a fresh worktree
+  --worktree string                            the worktree path to use, if --use-worktree
+  --branch string                              the branch name to use, if --use-worktree
 
 taskman specification review agent approved
   --id string       the task whose specification's automated review was approved
@@ -131,25 +145,7 @@ taskman specification review human rejected
   --reason string  why the specification's human review was rejected
 
 taskman implemented
-  --id string                             the task that was implemented
-  --worktree string                       the worktree the implementation was done in
-  --branch string                         the branch the implementation was done on
-  --unit                                  require unit tests
-  --integration                           require integration tests
-  --end-to-end                            require end-to-end tests
-  --linters                               require linters
-  --verification-auto-fix                 automatically fix verification failures
-  --verification-auto-fix-max-rounds int  max verification auto-fix rounds (default 0)
-  --verification-auto-fix-use-subagent    run verification auto-fix in a subagent
-  --agent-review                          require an automated review
-  --agent-review-use-subagent             run the automated review in a subagent
-  --agent-review-auto-fix                 automatically fix automated review findings
-  --agent-review-auto-fix-max-rounds int  max automated-review auto-fix rounds (default 0)
-  --agent-review-auto-fix-use-subagent    run automated-review auto-fix in a subagent
-  --human-review                          require a human review
-  --human-review-auto-fix                 automatically fix human review findings
-  --human-review-auto-fix-max-rounds int  max human-review auto-fix rounds (default 0)
-  --human-review-auto-fix-use-subagent    run human-review auto-fix in a subagent
+  --id string  the task that was implemented
 
 taskman implementation review agent approved
   --id string       the task whose implementation's automated review was approved

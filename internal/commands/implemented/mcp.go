@@ -6,14 +6,15 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/mhmdkzr/taskman/internal/git"
 	"github.com/mhmdkzr/taskman/internal/task/store"
 	"github.com/mhmdkzr/taskman/internal/task/view/json"
 	"github.com/mhmdkzr/taskman/internal/utils"
 )
 
 // RegisterMCP adds the "task_implemented" tool to server.
-func RegisterMCP(server *mcp.Server, st *store.Store) {
-	mcp.AddTool(server, mcpTool(), mcpHandler(st))
+func RegisterMCP(server *mcp.Server, st *store.Store, gitClient *git.Client) {
+	mcp.AddTool(server, mcpTool(), mcpHandler(st, gitClient))
 }
 
 func mcpTool() *mcp.Tool {
@@ -25,9 +26,9 @@ func mcpTool() *mcp.Tool {
 	}
 }
 
-func mcpHandler(st *store.Store) mcp.ToolHandlerFor[Request, json.Document] {
+func mcpHandler(st *store.Store, gitClient *git.Client) mcp.ToolHandlerFor[Request, json.Document] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, req Request) (*mcp.CallToolResult, json.Document, error) {
-		t, err := Implemented(ctx, st, req)
+		t, err := Implemented(ctx, st, gitClient, req)
 		if err != nil {
 			return nil, json.Document{}, fmt.Errorf("render task: %w", err)
 		}

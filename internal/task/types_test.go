@@ -65,6 +65,57 @@ func TestImplementationValidateAcceptsReviewWithVerification(t *testing.T) {
 	}
 }
 
+func TestSpecificationValidateRejectsImplementationReviewWithoutVerification(t *testing.T) {
+	spec := Specification{
+		Plan:                 "p",
+		ImplementationReview: ReviewConfiguration{Agent: AgentReviewConfiguration{Required: true}},
+	}
+	if err := spec.validate(); err == nil {
+		t.Fatal("validate() error = nil, want an error for an implementation review gate without verification")
+	}
+}
+
+func TestSpecificationValidateAcceptsImplementationReviewWithVerification(t *testing.T) {
+	spec := Specification{
+		Plan:         "p",
+		Verification: Verification{Tests: TestConfiguration{Unit: true}},
+		ImplementationReview: ReviewConfiguration{
+			Agent: AgentReviewConfiguration{Required: true},
+			Human: HumanReviewConfiguration{Required: true},
+		},
+	}
+	if err := spec.validate(); err != nil {
+		t.Fatalf("validate() error = %v, want nil with verification configured", err)
+	}
+}
+
+func TestWorktreePolicyValidateRejectsWorktreeWithoutUse(t *testing.T) {
+	p := WorktreePolicy{Worktree: "/wt", Branch: "b"}
+	if err := p.validate(); err == nil {
+		t.Fatal("validate() error = nil, want an error for worktree/branch set without use-worktree")
+	}
+}
+
+func TestWorktreePolicyValidateRejectsUseWithoutWorktree(t *testing.T) {
+	p := WorktreePolicy{UseWorktree: true}
+	if err := p.validate(); err == nil {
+		t.Fatal("validate() error = nil, want an error for use-worktree without worktree/branch")
+	}
+}
+
+func TestWorktreePolicyValidateAcceptsUseWithWorktreeAndBranch(t *testing.T) {
+	p := WorktreePolicy{UseWorktree: true, Worktree: "/wt", Branch: "b"}
+	if err := p.validate(); err != nil {
+		t.Fatalf("validate() error = %v, want nil", err)
+	}
+}
+
+func TestWorktreePolicyValidateAcceptsZeroValue(t *testing.T) {
+	if err := (WorktreePolicy{}).validate(); err != nil {
+		t.Fatalf("validate() error = %v, want nil for the zero value", err)
+	}
+}
+
 func TestVerificationValidateRejectsConfigWhenNotRequired(t *testing.T) {
 	v := Verification{AutoFix: AutoFix{Enabled: true}}
 	if err := v.validate(); err == nil {

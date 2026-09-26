@@ -52,6 +52,22 @@ func (g *Client) ReadBranchCommit(ctx context.Context, ref string) (task.GitComm
 	return g.ReadCommit(ctx, g.dir, ref)
 }
 
+// CurrentWorktreeAndBranch reads the client's own repository root's current
+// worktree path and checked-out branch. It's used when a task's
+// specification declared no fresh worktree, so implemented has to discover
+// where the implementation actually happened instead of being told.
+func (g *Client) CurrentWorktreeAndBranch(ctx context.Context) (string, string, error) {
+	worktree, err := g.run(ctx, g.dir, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return "", "", err
+	}
+	branch, err := g.run(ctx, g.dir, "rev-parse", "--abbrev-ref", "HEAD")
+	if err != nil {
+		return "", "", err
+	}
+	return strings.TrimSpace(worktree), strings.TrimSpace(branch), nil
+}
+
 func (g *Client) run(ctx context.Context, dir string, args ...string) (string, error) {
 	//nolint:gosec // taskman invokes Git with its own validated operation arguments.
 	cmd := exec.CommandContext(ctx, "git", args...)

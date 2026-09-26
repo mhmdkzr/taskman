@@ -84,6 +84,23 @@ func TestGitClientReadBranchCommit(t *testing.T) {
 	}
 }
 
+func TestGitClientCurrentWorktreeAndBranch(t *testing.T) {
+	dir := newTestRepo(t)
+	git := NewClient(dir)
+	ctx := context.Background()
+
+	worktree, branch, err := git.CurrentWorktreeAndBranch(ctx)
+	if err != nil {
+		t.Fatalf("current worktree and branch: %v", err)
+	}
+	if branch != "main" {
+		t.Errorf("branch = %q, want %q", branch, "main")
+	}
+	if worktree == "" {
+		t.Error("worktree is empty")
+	}
+}
+
 func TestGitClientReadBranchCommitRejectsUnknownBranch(t *testing.T) {
 	dir := newTestRepo(t)
 	git := NewClient(dir)
