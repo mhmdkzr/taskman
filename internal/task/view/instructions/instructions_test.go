@@ -122,8 +122,11 @@ func TestProjectAtSpecificationReviewListsBothGates(t *testing.T) {
 	if got.State != task.StateSpecificationReview || got.Action != task.InstructionWait {
 		t.Fatalf("State/Action = %s/%s", got.State, got.Action)
 	}
-	if len(got.Commands) != 4 {
-		t.Fatalf("Commands = %v, want 4 (agent+human, approve+reject)", got.Commands)
+	if len(got.Commands) != 5 {
+		t.Fatalf("Commands = %v, want 5 (amend + agent+human, approve+reject)", got.Commands)
+	}
+	if !strings.HasPrefix(got.Commands[0], "specification amend --id ") {
+		t.Fatalf("Commands = %v, want the first to be a specification amend command", got.Commands)
 	}
 }
 

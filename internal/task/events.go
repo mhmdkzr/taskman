@@ -7,6 +7,7 @@ type EventKind string
 
 const (
 	EventSpecificationSubmitted  EventKind = "specification_submitted"
+	EventSpecificationAmended    EventKind = "specification_amended"
 	EventImplementationCompleted EventKind = "implementation_completed"
 	EventVerificationPassed      EventKind = "verification_passed"
 	EventVerificationFailed      EventKind = "verification_failed"
@@ -46,6 +47,18 @@ type TaskEvent interface {
 }
 
 type SpecificationSubmitted struct {
+	Specification Specification `json:"specification"`
+	At            time.Time     `json:"at"`
+}
+
+// SpecificationAmended revises a specification that was already submitted,
+// while the implementation is still unrecorded. It is accepted only from
+// specification_review and implement. The specification is replaced
+// wholesale, except that recorded specification-review results/unblocks
+// survive an amendment that leaves the review inputs (plan and review
+// configuration) untouched - so an implementation-policy-only tweak does not
+// force the review to run again.
+type SpecificationAmended struct {
 	Specification Specification `json:"specification"`
 	At            time.Time     `json:"at"`
 }
@@ -154,6 +167,7 @@ type LabelsUpdated struct {
 }
 
 func (e SpecificationSubmitted) Kind() EventKind  { return EventSpecificationSubmitted }
+func (e SpecificationAmended) Kind() EventKind    { return EventSpecificationAmended }
 func (e ImplementationCompleted) Kind() EventKind { return EventImplementationCompleted }
 func (e VerificationPassed) Kind() EventKind      { return EventVerificationPassed }
 func (e VerificationFailed) Kind() EventKind      { return EventVerificationFailed }
@@ -197,6 +211,7 @@ func (e ImplementationReviewHumanRejected) Kind() EventKind {
 func (e LabelsUpdated) Kind() EventKind { return EventLabelsUpdated }
 
 func (e SpecificationSubmitted) OccurredAt() time.Time            { return e.At }
+func (e SpecificationAmended) OccurredAt() time.Time              { return e.At }
 func (e ImplementationCompleted) OccurredAt() time.Time           { return e.At }
 func (e VerificationPassed) OccurredAt() time.Time                { return e.At }
 func (e VerificationFailed) OccurredAt() time.Time                { return e.At }

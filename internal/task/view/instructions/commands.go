@@ -16,6 +16,8 @@ var commandNames = map[task.EventKind]string{
 	task.EventSpecificationSubmitted: "specified --id %s --plan <plan text> " +
 		"[--agent-review] [--human-review] [--unit] [--integration] [--end-to-end] [--linters] " +
 		"[--impl-agent-review] [--impl-human-review] [--use-worktree --worktree <path> --branch <name>]",
+	task.EventSpecificationAmended: "specification amend --id %s " +
+		"[--plan <plan text>] [--agent-review ...] [--unit] [--integration] [--end-to-end] [--linters] ...",
 	task.EventSpecificationReviewAgentApproved: "specification review agent approved --id %s " +
 		"[--comment <text>]",
 	task.EventSpecificationReviewAgentRejected: "specification review agent rejected --id %s " +

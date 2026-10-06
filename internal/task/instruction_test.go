@@ -57,10 +57,11 @@ func TestValidEventsReflectsGuards(t *testing.T) {
 	spec.Review.Agent.Required = true
 	agentOnly.Specification = &spec
 	if got := agentOnly.ValidEvents(); !slices.Equal(got, []EventKind{
+		EventSpecificationAmended,
 		EventSpecificationReviewAgentApproved,
 		EventSpecificationReviewAgentRejected,
 	}) {
-		t.Fatalf("ValidEvents() = %v, want only agent events", got)
+		t.Fatalf("ValidEvents() = %v, want amendment plus agent events", got)
 	}
 
 	both := base
@@ -69,6 +70,7 @@ func TestValidEventsReflectsGuards(t *testing.T) {
 	spec.Review.Human.Required = true
 	both.Specification = &spec
 	want := []EventKind{
+		EventSpecificationAmended,
 		EventSpecificationReviewAgentApproved,
 		EventSpecificationReviewAgentRejected,
 		EventSpecificationReviewHumanApproved,

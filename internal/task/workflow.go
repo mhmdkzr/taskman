@@ -66,6 +66,10 @@ var workflow = definition{
 					reduce: recordSpecificationReviewAgentRejected,
 					to:     StateSpecify,
 				},
+				EventSpecificationAmended: {
+					reduce:  recordSpecificationAmended,
+					resolve: resolveAmendedSpecification,
+				},
 			},
 		},
 		StateImplement: {
@@ -81,6 +85,10 @@ var workflow = definition{
 						{when: implAgentReviewRequired, to: StateAutomatedReview},
 						{to: StateCommit},
 					},
+				},
+				EventSpecificationAmended: {
+					reduce:  recordSpecificationAmended,
+					resolve: resolveAmendedSpecification,
 				},
 			},
 		},
@@ -274,7 +282,7 @@ func taskIsNotBlocked(t Task, _ TaskEvent) bool {
 // still reads that state because reduce only touches Definition.Labels, never
 // StateHistory. Used by EventLabelsUpdated, which is pure metadata and has no
 // effect on workflow position.
-func stayInCurrentState(next Task, _ TaskEvent) (TaskState, error) {
+func stayInCurrentState(_, next Task, _ TaskEvent) (TaskState, error) {
 	return next.State(), nil
 }
 
@@ -291,9 +299,30 @@ func isBlocked(t Task, _ TaskEvent) bool {
 // an already-blocked task, and the auto-fix routes only fire from active fix
 // states, never from StateBlocked itself - so that preceding entry is always
 // the correct resume point.
-func resumeToPriorState(next Task, _ TaskEvent) (TaskState, error) {
+func resumeToPriorState(_, next Task, _ TaskEvent) (TaskState, error) {
 	if len(next.StateHistory) < 2 {
 		return "", fmt.Errorf("resume: %w: no prior state to resume to", errMissingTaskData)
 	}
 	return next.StateHistory[len(next.StateHistory)-2].State, nil
+}
+
+// resolveAmendedSpecification re-derives the destination after a
+// SpecificationAmended event. When the amendment leaves the specification
+// review's inputs untouched, the task stays put: only implementation policy
+// changed, and the recorded review outcome still stands. When the inputs
+// changed, a still-required specification review must run again, so the task
+// returns to specification_review - even from implement - and otherwise
+// advances to implement.
+func resolveAmendedSpecification(current, next Task, event TaskEvent) (TaskState, error) {
+	amended, ok := event.(SpecificationAmended)
+	if !ok {
+		return "", errInvalidEventPayload
+	}
+	if current.Specification != nil && !specReviewInputsChanged(*current.Specification, amended.Specification) {
+		return next.State(), nil
+	}
+	if specReviewRequired(next, event) {
+		return StateSpecificationReview, nil
+	}
+	return StateImplement, nil
 }

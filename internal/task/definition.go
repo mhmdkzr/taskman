@@ -5,10 +5,13 @@ import "fmt"
 type (
 	reducer   func(*Task, TaskEvent) error
 	condition func(Task, TaskEvent) bool
-	// resolver computes a transition's destination from the post-reduce task,
-	// for the rare transition whose destination isn't one of a small fixed
-	// set of states knowable at compile time (see resumeToPriorState).
-	resolver func(Task, TaskEvent) (TaskState, error)
+	// resolver computes a transition's destination from the pre- and
+	// post-reduce tasks, for the rare transition whose destination isn't one
+	// of a small fixed set of states knowable at compile time (see
+	// resumeToPriorState and resolveAmendedSpecification). It receives
+	// current (before the event) as well as next (after reduce) because some
+	// destinations depend on what the event changed, not just the result.
+	resolver func(current, next Task, event TaskEvent) (TaskState, error)
 )
 
 // route is one candidate destination of a transition with no fixed `to`;
@@ -20,8 +23,8 @@ type route struct {
 
 // transition is one event's effect from a given state (or globally). guard
 // is checked against the pre-reduce task; reduce then runs on a clone;
-// resolve, or else routes (or the fixed to), are evaluated against the
-// post-reduce clone.
+// resolve (which receives both the pre- and post-reduce tasks), or else
+// routes (or the fixed to), is evaluated against the post-reduce clone.
 type transition struct {
 	to      TaskState
 	reduce  reducer
@@ -30,12 +33,12 @@ type transition struct {
 	resolve resolver
 }
 
-func (tr transition) destination(next Task, event TaskEvent) (TaskState, error) {
+func (tr transition) destination(current, next Task, event TaskEvent) (TaskState, error) {
 	if tr.to != "" {
 		return tr.to, nil
 	}
 	if tr.resolve != nil {
-		return tr.resolve(next, event)
+		return tr.resolve(current, next, event)
 	}
 	for _, candidate := range tr.routes {
 		if candidate.when == nil || candidate.when(next, event) {

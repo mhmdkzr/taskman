@@ -76,6 +76,12 @@ instead of looping again once their auto-fix cap is exceeded (`--*-auto-fix`, `-
 `unblocked` resumes the task, granting more rounds with `--rounds`. `escalated` blocks any non-terminal
 task, `abandoned` ends it, and `completed`/`abandoned` are terminal.
 
+A mis-specified task isn't stuck: `specification amend` revises a specification while the task is in
+`specification_review` or `implement`. Only the flags you supply are patched over the current
+specification. Changing the plan or a review gate clears the review result and re-runs any required
+specification review (even from `implement`); changing only implementation policy leaves the review
+result and the task's position intact.
+
 ## Commands
 
 Every command accepts these global flags, in addition to any command-specific ones listed below:
@@ -127,6 +133,12 @@ taskman specified
   --use-worktree                               implement this task in a fresh worktree
   --worktree string                            the worktree path to use, if --use-worktree
   --branch string                              the branch name to use, if --use-worktree
+
+taskman specification amend
+  (the same flags as `specified`, all optional)
+  --id string                                  the task whose specification is being amended
+  --plan string                                replacement plan; omit to keep the current plan
+  ...                                          only supplied flags are patched; the rest are kept
 
 taskman specification review agent approved
   --id string       the task whose specification's automated review was approved

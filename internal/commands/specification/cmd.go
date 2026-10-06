@@ -6,6 +6,7 @@ package specification
 import (
 	"github.com/urfave/cli/v3"
 
+	"github.com/mhmdkzr/taskman/internal/commands/specification/amend"
 	"github.com/mhmdkzr/taskman/internal/commands/specification/review"
 )
 
@@ -13,9 +14,10 @@ import (
 func Command() *cli.Command {
 	return &cli.Command{
 		Name:  "specification",
-		Usage: "a task's specification-stage review",
+		Usage: "a task's specification-stage actions",
 		Commands: []*cli.Command{
 			review.Command(),
+			amend.Command(),
 		},
 	}
 }

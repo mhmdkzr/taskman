@@ -170,8 +170,12 @@ verification attempt; a rejected specification returns to `specify` for revision
   and a gate that is not required is refused by its `approved`/`rejected` commands. Every gate is
   (re)configured each time `specified` is called, so a task sent back to `specify` by a rejection
   can change any of them; a resubmission replaces the specification wholesale and clears prior
-  review results. Any task with an implementation review gate must also declare at least one
-  verification check.
+  review results. Once a task has left `specify`, `specification amend` is the escape hatch for
+  revising it without waiting for a rejection: it patches only the fields you supply, and it
+  re-derives the task's position - changing the plan or a review gate clears the review result and
+  sends the task back through any required specification review (even from `implement`), while an
+  implementation-policy-only change leaves the review result and position intact. Any task with an
+  implementation review gate must also declare at least one verification check.
 - A task always proceeds through `commit` -> (human review, if required) -> `merge` to
   `completed` - there is no shortcut that skips merge.
 - `escalated` blocks a non-blocked task and records where and why work stopped. It is for a
@@ -209,6 +213,7 @@ clean them up yourself (Taskman does not): `git worktree remove <worktree-path>`
 | Command | Meaning |
 |---|---|
 | `specified --id <id> --plan <text> [--agent-review ...] [--human-review ...] [--unit] [--integration] [--end-to-end] [--linters] [--verification-auto-fix] [--verification-auto-fix-max-rounds <n>] [--verification-auto-fix-use-subagent] [--impl-agent-review ...] [--impl-human-review ...] [--use-worktree --worktree <path> --branch <name>]` | Record the drafted specification, which of its own review gates are required, and every requirement for the eventual implementation: verification checks, implementation review gates, and worktree/branch policy. (`...` stands for each gate's own `-use-subagent`/`-auto-fix`/`-auto-fix-max-rounds`/`-auto-fix-use-subagent` flags.) |
+| `specification amend --id <id> [--plan <text>] [--agent-review ...] [--human-review ...] [--unit] [--integration] [--end-to-end] [--linters] [--verification-auto-fix ...] [--impl-agent-review ...] [--impl-human-review ...] [--use-worktree --worktree <path> --branch <name>]` | Revise a task's specification while it is in `specification_review` or `implement`, before its implementation is recorded. Only the flags you supply are patched over the current specification; changing the plan or a review gate clears the review result and re-runs any required specification review, while an implementation-policy-only change leaves it intact. |
 | `specification review agent approved --id <id> [--comment <text>]` | Record an independent agent reviewer's approval of the specification. |
 | `specification review agent rejected --id <id> --finding <location>=<detail> ...` | Record the agent reviewer's findings against the specification. |
 | `specification review human approved --id <id> [--comment <text>]` | Record human approval of the specification. |

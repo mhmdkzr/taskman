@@ -184,6 +184,47 @@ func TestCLIFullLifecycle(t *testing.T) {
 	}
 }
 
+func TestCLIAmendSpecificationPatchesAndRerunsReview(t *testing.T) {
+	dir := newTestRepo(t)
+	db := filepath.Join(dir, "tasks.db")
+	runTaskman(t, dir, db, "create", "--description", "x", "--title", "Title")
+	id := onlyTaskID(t, dir, db)
+
+	runTaskman(t, dir, db, "specified", "--id", id, "--plan", "p",
+		"--agent-review", "--human-review", "--unit")
+
+	// Patch only the agent gate's auto-fix; the review requirements and the
+	// plan must survive.
+	runTaskman(t, dir, db, "specification", "amend", "--id", id,
+		"--agent-review", "--agent-review-auto-fix", "--agent-review-auto-fix-max-rounds", "2")
+
+	got := getTaskJSON(t, dir, db, id)
+	if got.State() != task.StateSpecificationReview {
+		t.Fatalf("state = %s, want %s", got.State(), task.StateSpecificationReview)
+	}
+	review := got.Specification.Review
+	if !review.Agent.Required || !review.Human.Required {
+		t.Fatalf("review = %+v, want both gates still required", review)
+	}
+	if !review.Agent.AutoFix.Enabled || review.Agent.AutoFix.MaxRounds != 2 {
+		t.Fatalf("agent auto-fix = %+v, want enabled with 2 rounds", review.Agent.AutoFix)
+	}
+	if got.Specification.Plan != "p" {
+		t.Fatalf("plan = %q, want unchanged", got.Specification.Plan)
+	}
+
+	// A plan change is a review input: it keeps the task in
+	// specification_review, ready for review again.
+	runTaskman(t, dir, db, "specification", "amend", "--id", id, "--plan", "revised")
+	got = getTaskJSON(t, dir, db, id)
+	if got.State() != task.StateSpecificationReview {
+		t.Fatalf("state = %s, want %s", got.State(), task.StateSpecificationReview)
+	}
+	if got.Specification.Plan != "revised" {
+		t.Fatalf("plan = %q, want revised", got.Specification.Plan)
+	}
+}
+
 func TestCLIInvalidTransitionExitsNonZero(t *testing.T) {
 	dir := newTestRepo(t)
 	db := filepath.Join(dir, "tasks.db")

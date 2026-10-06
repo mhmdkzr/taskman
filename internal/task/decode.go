@@ -20,6 +20,7 @@ func decodeAs[T TaskEvent](data []byte) (TaskEvent, error) {
 // second copy of this list that could drift from Kind()'s own switch.
 var eventDecoders = map[EventKind]func([]byte) (TaskEvent, error){
 	EventSpecificationSubmitted:            decodeAs[SpecificationSubmitted],
+	EventSpecificationAmended:              decodeAs[SpecificationAmended],
 	EventImplementationCompleted:           decodeAs[ImplementationCompleted],
 	EventVerificationPassed:                decodeAs[VerificationPassed],
 	EventVerificationFailed:                decodeAs[VerificationFailed],

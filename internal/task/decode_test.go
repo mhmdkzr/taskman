@@ -38,6 +38,7 @@ func TestDecodeEventRejectsMalformedPayload(t *testing.T) {
 func TestEventDecodersCoverEveryKind(t *testing.T) {
 	kinds := []EventKind{
 		SpecificationSubmitted{}.Kind(),
+		SpecificationAmended{}.Kind(),
 		ImplementationCompleted{}.Kind(),
 		VerificationPassed{}.Kind(),
 		VerificationFailed{}.Kind(),

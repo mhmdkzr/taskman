@@ -38,7 +38,7 @@ func Apply(current Task, event TaskEvent) (Task, error) {
 			return Task{}, fmt.Errorf("apply %s: %w", event.Kind(), err)
 		}
 	}
-	destination, err := tr.destination(next, event)
+	destination, err := tr.destination(current, next, event)
 	if err != nil {
 		return Task{}, err
 	}
@@ -59,6 +59,56 @@ func recordSpecification(t *Task, event TaskEvent) error {
 	}
 	t.Specification = &reported.Specification
 	return nil
+}
+
+// recordSpecificationAmended replaces t's specification with the amendment.
+// When the review inputs are unchanged it carries the recorded
+// specification-review results and unblocks forward, so an amendment that
+// only touches implementation policy does not discard a review outcome.
+func recordSpecificationAmended(t *Task, event TaskEvent) error {
+	reported, ok := event.(SpecificationAmended)
+	if !ok {
+		return errInvalidEventPayload
+	}
+	if reported.Specification.Plan == "" {
+		return fmt.Errorf("record specification amendment: plan is required")
+	}
+	if t.Specification == nil {
+		return fmt.Errorf("record specification amendment: no specification to amend")
+	}
+	amended := reported.Specification
+	// Outcomes are derived, never taken from the event: an amendment that
+	// changed the review inputs clears them, and one that did not carries the
+	// recorded outcome forward.
+	amended.Review.Agent.Results = nil
+	amended.Review.Agent.Unblocks = nil
+	amended.Review.Human.Results = nil
+	amended.Review.Human.Unblocks = nil
+	if !specReviewInputsChanged(*t.Specification, amended) {
+		amended.Review.Agent.Results = t.Specification.Review.Agent.Results
+		amended.Review.Agent.Unblocks = t.Specification.Review.Agent.Unblocks
+		amended.Review.Human.Results = t.Specification.Review.Human.Results
+		amended.Review.Human.Unblocks = t.Specification.Review.Human.Unblocks
+	}
+	t.Specification = &amended
+	return nil
+}
+
+// specReviewInputsChanged reports whether new differs from old in any input
+// the specification review acts on: the plan, or either gate's
+// configuration. Recorded results and unblocks are outcomes, not inputs, so
+// they are ignored - an amendment that leaves the inputs alone keeps them.
+func specReviewInputsChanged(old, new Specification) bool {
+	if old.Plan != new.Plan {
+		return true
+	}
+	if old.Review.Agent.Required != new.Review.Agent.Required ||
+		old.Review.Agent.UseSubagent != new.Review.Agent.UseSubagent ||
+		old.Review.Agent.AutoFix != new.Review.Agent.AutoFix {
+		return true
+	}
+	return old.Review.Human.Required != new.Review.Human.Required ||
+		old.Review.Human.AutoFix != new.Review.Human.AutoFix
 }
 
 func recordSpecificationReviewHumanApproved(t *Task, event TaskEvent) error {
