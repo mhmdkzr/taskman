@@ -1,6 +1,6 @@
 # taskman
 
-Taskman provides a deterministic workflow for coding agents to perform generic pre-defined programming tasks. Every command's output tells the agent what to do next based on the current state of the task and its configuration. The agent can use taskman as a CLI or MCP server (over stdio). Taskman is a good fit for tasks that are clear, well-defined and don't require direct supervision or interaction with the model, which makes it good for performing them asynchronously.
+Taskman provides a deterministic workflow for coding agents to perform generic pre-defined programming tasks. It is a good fit for tasks that are clear, well-defined and don't require direct supervision or interaction with the model. At each step, the agent reports to taskman, and gets instructions on what to do next based on the task state and configurations. 
 
 > **Status:** alpha. Expect breaking changes and potential bugs.
 
@@ -12,7 +12,7 @@ Taskman requires Go 1.27+ and `git` on `PATH`.
 go install github.com/mhmdkzr/taskman@latest
 ```
 
-Tasks are stored in a single SQLite file, `./tasks.db` by default.
+Tasks are stored in a SQLite database, `./tasks.db` by default.
 
 ## Use
 
