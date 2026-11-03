@@ -84,6 +84,7 @@ result and the task's position intact.
 
 ## Commands
 
+The CLI is meant to be used mainly by agents. 
 Every command accepts these global flags, in addition to any command-specific ones listed below:
 
 ```text
